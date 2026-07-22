@@ -2762,18 +2762,32 @@ const App={
     return `${d.getMonth()+1}月${d.getDate()}日`;
   },
 
-  // 从复习库挑选积压的待复习词（已到期未听写，按积压先后排序）
-  // 如果积压词 >= total，全部用积压词；如果积压词 < total，返回所有积压词（不足部分由调用方用新词补足）
+  // 从复习库挑选待复习词，按优先级：
+  //  1) 今天到期（nextReview 在今天范围内，当天该听写但尚未过期）
+  //  2) 积压（nextReview < 今天，已过期）
+  //  3) 无 nextReview（新加入复习库，默认立即到期）
+  // 如果 1)+2) >= total，全部用复习词；不足则由调用方用新词补足
   pickReviewWords(mode,total){
     const bank=this.getReviewBank();
     const now=Date.now();
     const pool=(bank[mode]||[]).filter(w=>(w.streak||0)<3);
     if(!pool.length)return [];
-    // 积压词：已到期（nextReview <= now）或没有 nextReview（新加入复习库的默认立即到期）
-    const due=pool.filter(w=>!w.nextReview||w.nextReview<=now);
-    // 按积压时间升序（最早到期的优先听写）
-    due.sort((a,b)=>(a.nextReview||0)-(b.nextReview||0));
-    return due.slice(0,Math.min(total,due.length));
+    // 今天的起始时间戳（凌晨 00:00:00）
+    const todayStart=new Date();todayStart.setHours(0,0,0,0);
+    const todayStartTs=todayStart.getTime();
+    const todayEndTs=todayStartTs+86400000-1;
+    // 第1优先级：今天到期
+    const dueToday=pool.filter(w=>w.nextReview&&w.nextReview>=todayStartTs&&w.nextReview<=todayEndTs);
+    // 第2优先级：积压（已过期）
+    const overdue=pool.filter(w=>w.nextReview&&w.nextReview<todayStartTs);
+    // 无 nextReview 的（新加入复习库，立即到期）
+    const noNextReview=pool.filter(w=>!w.nextReview);
+    // 今天到期按时间升序
+    dueToday.sort((a,b)=>(a.nextReview||0)-(b.nextReview||0));
+    // 积压按时间升序（最早到期优先）
+    overdue.sort((a,b)=>(a.nextReview||0)-(b.nextReview||0));
+    const sorted=[...dueToday,...overdue,...noNextReview];
+    return sorted.slice(0,Math.min(total,sorted.length));
   },
 
   // 记录一条听写日志
@@ -3147,7 +3161,7 @@ const App={
         return {text:t,hint:h||''};
       });
       const cnt=this.dailyCount>0?Math.min(this.dailyCount,all.length):all.length;
-      // 混合复习库积压词（已到期未听写的优先，积压词 >= cnt 时全部用积压词）
+      // 混合复习库词：优先级 今天到期 > 积压 > 新词
       let reviewWords=[];
       if(this.dailyCount>0){
         reviewWords=this.pickReviewWords(this.mode,cnt);
