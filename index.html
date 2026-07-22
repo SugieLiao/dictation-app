@@ -2762,24 +2762,18 @@ const App={
     return `${d.getMonth()+1}月${d.getDate()}日`;
   },
 
-  // 从复习库挑选待复习的词（排除已掌握 streak>=3）
-  // 艾宾浩斯：优先选已到期(nextReview<=now)的词，不足再选未到期的
+  // 从复习库挑选积压的待复习词（已到期未听写，按积压先后排序）
+  // 如果积压词 >= total，全部用积压词；如果积压词 < total，返回所有积压词（不足部分由调用方用新词补足）
   pickReviewWords(mode,total){
     const bank=this.getReviewBank();
     const now=Date.now();
     const pool=(bank[mode]||[]).filter(w=>(w.streak||0)<3);
     if(!pool.length)return [];
-    let target=Math.round(total*0.4);
-    target=Math.max(1,Math.min(target,pool.length));
-    // 分为已到期和未到期
+    // 积压词：已到期（nextReview <= now）或没有 nextReview（新加入复习库的默认立即到期）
     const due=pool.filter(w=>!w.nextReview||w.nextReview<=now);
-    const notDue=pool.filter(w=>w.nextReview&&w.nextReview>now);
-    // 已到期：按 nextReview 升序（最早到期的先练），无 nextReview 的最优先
+    // 按积压时间升序（最早到期的优先听写）
     due.sort((a,b)=>(a.nextReview||0)-(b.nextReview||0));
-    // 未到期：按 nextReview 升序（离到期最近的先练）
-    notDue.sort((a,b)=>(a.nextReview||0)-(b.nextReview||0));
-    const sorted=[...due,...notDue];
-    return sorted.slice(0,target);
+    return due.slice(0,Math.min(total,due.length));
   },
 
   // 记录一条听写日志
@@ -3153,7 +3147,7 @@ const App={
         return {text:t,hint:h||''};
       });
       const cnt=this.dailyCount>0?Math.min(this.dailyCount,all.length):all.length;
-      // 混合复习库词（仅 dailyCount>0 时，从复习库挑约40%的待复习词）
+      // 混合复习库积压词（已到期未听写的优先，积压词 >= cnt 时全部用积压词）
       let reviewWords=[];
       if(this.dailyCount>0){
         reviewWords=this.pickReviewWords(this.mode,cnt);
