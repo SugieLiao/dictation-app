@@ -451,12 +451,12 @@
   }
   .btn-detail:active{background:#fff4ec;}
   .btn-rollback{
-    border:1px solid var(--red);color:var(--red);background:var(--card);
-    border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;font-weight:600;
+    border:1px solid #e0e0e0;color:#bbb;background:transparent;
+    border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;font-weight:400;
     white-space:nowrap;flex:0 0 auto;align-self:center;min-width:0;width:auto;
   }
-  .btn-rollback:active{background:#fff0f0;}
-  .btn-rollback:disabled{opacity:.4;cursor:not-allowed;}
+  .btn-rollback:active{background:#f5f5f5;}
+  .btn-rollback:disabled{opacity:.3;cursor:not-allowed;}
   .rolled-back-badge{
     display:inline-block;background:#f0f0f0;color:#999;
     font-size:11px;padding:2px 7px;border-radius:10px;font-weight:500;
@@ -810,6 +810,13 @@
         <div class="seg" id="seg-hint">
           <button data-hint="0">关闭</button>
           <button data-hint="1" class="active">开启</button>
+        </div>
+      </div>
+      <div class="setting-row">
+        <label>听写顺序</label>
+        <div class="seg" id="seg-order">
+          <button data-order="sequential" class="active">顺序</button>
+          <button data-order="shuffle">乱序</button>
         </div>
       </div>
     </div>
@@ -2410,8 +2417,8 @@ const App={
   words:[],           // [{text,hint}] 本次实际听写的词（可能按数量截取）
   idx:0,
   // 每种语言独立的设置：rate 语速、repeat 朗读次数、voiceURI 语音库、dailyCount 听写数量、showHint 显示提示
-  zhSettings:{rate:0.8,repeat:2,voiceURI:'edge:zh-CN-XiaoxiaoNeural',dailyCount:20,showHint:true},
-  enSettings:{rate:0.8,repeat:2,voiceURI:'edge:en-US-JennyNeural',dailyCount:20,showHint:true},
+  zhSettings:{rate:0.8,repeat:2,voiceURI:'edge:zh-CN-XiaoxiaoNeural',dailyCount:20,showHint:true,dictOrder:'sequential'},
+  enSettings:{rate:0.8,repeat:2,voiceURI:'edge:en-US-JennyNeural',dailyCount:20,showHint:true,dictOrder:'sequential'},
   // ===== rate / repeat / voiceURI / dailyCount / showHint 通过 getter 动态指向当前语言 =====
   get rate(){return this[this.mode+'Settings'].rate;},
   set rate(v){this[this.mode+'Settings'].rate=v;},
@@ -2423,6 +2430,8 @@ const App={
   set dailyCount(v){this[this.mode+'Settings'].dailyCount=v;},
   get showHint(){return this[this.mode+'Settings'].showHint;},
   set showHint(v){this[this.mode+'Settings'].showHint=v;},
+  get dictOrder(){return this[this.langPageMode+'Settings'].dictOrder;},
+  set dictOrder(v){this[this.langPageMode+'Settings'].dictOrder=v;},
   // 语言分区页面当前展示的语言（'zh' | 'en'），与 this.mode 独立 —— mode 是听写时使用的语言
   langPageMode:'zh',
   answeredThisRound:false,
@@ -2505,8 +2514,8 @@ const App={
     try{
       const s=JSON.parse(localStorage.getItem(this.userKey('dict_settings'))||'{}');
       // 重置为默认值再合并，确保切换用户后状态干净
-      this.zhSettings={rate:0.8,repeat:2,voiceURI:'',dailyCount:20,showHint:true};
-      this.enSettings={rate:0.8,repeat:2,voiceURI:'',dailyCount:20,showHint:true};
+      this.zhSettings={rate:0.8,repeat:2,voiceURI:'',dailyCount:20,showHint:true,dictOrder:'sequential'};
+      this.enSettings={rate:0.8,repeat:2,voiceURI:'',dailyCount:20,showHint:true,dictOrder:'sequential'};
       if(typeof s.dailyCount!=='undefined'){
         this.zhSettings.dailyCount=s.dailyCount;
         this.enSettings.dailyCount=s.dailyCount;
@@ -2811,6 +2820,18 @@ const App={
     bindSeg('seg-hint','hint','showHint',v=>v==='1');
     bindSeg('seg-rate','rate','rate',v=>parseFloat(v));
     bindSeg('seg-repeat','repeat','repeat',v=>parseInt(v));
+    // 听写顺序
+    const segOrder=document.getElementById('seg-order');
+    if(segOrder){
+      segOrder.querySelectorAll('button').forEach(b=>{
+        b.onclick=()=>{
+          segOrder.querySelectorAll('button').forEach(x=>x.classList.remove('active'));
+          b.classList.add('active');
+          this.curSettings().dictOrder=b.dataset.order;
+          this.saveSettings();
+        };
+      });
+    }
   },
   syncSettingsUI(){
     const s=this.curSettings();
@@ -2825,6 +2846,13 @@ const App={
     syncSeg('seg-hint','hint',s.showHint,v=>v==='1');
     syncSeg('seg-rate','rate',s.rate,v=>parseFloat(v));
     syncSeg('seg-repeat','repeat',s.repeat,v=>parseInt(v));
+    // 听写顺序
+    const segOrder=document.getElementById('seg-order');
+    if(segOrder){
+      segOrder.querySelectorAll('button').forEach(b=>{
+        b.classList.toggle('active',b.dataset.order===s.dictOrder);
+      });
+    }
   },
   saveSettings(){
     localStorage.setItem(this.userKey('dict_settings'),JSON.stringify({
@@ -3102,6 +3130,15 @@ const App={
       return {text:t,hint:h||''};
     }).filter(w=>w.text);
   },
+  // Fisher-Yates 洗牌算法
+  shuffleArray(arr){
+    const a=[...arr];
+    for(let i=a.length-1;i>0;i--){
+      const j=Math.floor(Math.random()*(i+1));
+      [a[i],a[j]]=[a[j],a[i]];
+    }
+    return a;
+  },
 
   beginDictation(){
     const custom=document.getElementById('lang-custom-list').value.trim();
@@ -3130,6 +3167,11 @@ const App={
         ...newWords.map(w=>({text:w.text,hint:w.hint||'',fromReview:false}))
       ];
       source={type:'preset',mode:this.mode,grade:this.grade,totalCount:all.length,sessionCount:cnt,mixedReview:reviewWords.length>0,reviewCount:reviewWords.length};
+    }
+    // 如果设置了乱序，打乱词语顺序
+    const cs=this.curSettings();
+    if(cs.dictOrder==='shuffle'){
+      words=this.shuffleArray(words);
     }
     this.startSession(words,source);
   },
@@ -3850,8 +3892,9 @@ const App={
   },
 
   // ===== 回滚功能 =====
-  // 回滚确认弹窗
+  // 回滚确认弹窗（需先验证管理员密码）
   confirmRollback(ts){
+    if(!this.verifyAdminPwd())return;
     let logs=[];
     try{logs=JSON.parse(localStorage.getItem(this.userKey('dict_log'))||'[]');}catch(e){logs=[];}
     const l=logs.find(x=>x.ts===ts);
