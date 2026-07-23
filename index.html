@@ -2550,6 +2550,29 @@ const App={
     this.initCloudSync();
   },
 
+  // 从云端缓存恢复指定用户的所有数据到 localStorage（用于数据丢失后恢复）
+  restoreUserFromCloud(uid){
+    const cache=CloudSync.cache;
+    if(!cache||!cache.userData||!cache.userData[uid])return;
+    const data=cache.userData[uid];
+    if(data.settings){
+      localStorage.setItem(this.userKey('dict_settings'),JSON.stringify(data.settings));
+    }
+    if(data.log&&data.log.length>0){
+      localStorage.setItem(this.userKey('dict_log'),JSON.stringify(data.log));
+    }
+    if(data.review){
+      localStorage.setItem(this.userKey('dict_review'),JSON.stringify(data.review));
+    }
+    if(data.progress!==undefined&&data.progress!==null){
+      localStorage.setItem(this.userKey('dict_progress'),JSON.stringify(data.progress));
+    }
+    if(data.adminPwd){
+      localStorage.setItem(this.userKey('dict_admin_pwd'),data.adminPwd);
+    }
+    this.reloadUserData();
+  },
+
   init(){
     TTS.init();
     // 1. 加载用户系统
@@ -2627,12 +2650,13 @@ const App={
       if(JSON.stringify(localUsers)!==JSON.stringify(merged)){
         this.users=merged;
         localStorage.setItem('dict_users',JSON.stringify(merged));
-        // 如果当前用户被删除，切换到云端第一个用户
+        // 如果当前用户在云端不存在（如本地数据丢失后重新创建了临时用户），
+        // 切换到云端第一个用户，并从云端缓存恢复该用户的所有数据
         if(this.currentUserId&&!merged.some(u=>u.id===this.currentUserId)){
           this.currentUserId=merged[0].id;
           this.saveCurrentUser();
-          this.reloadUserData();
-          return; // reloadUserData 会重新拉取并刷新UI
+          this.restoreUserFromCloud(this.currentUserId);
+          return;
         }
         needRefresh=true;
       }
