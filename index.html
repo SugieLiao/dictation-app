@@ -3173,9 +3173,11 @@ const App={
       if(this.dailyCount>0){
         reviewWords=this.pickReviewWords(this.mode,cnt);
       }
-      const reviewTexts=new Set(reviewWords.map(w=>w.text));
+      // 用整个复习库来过滤：复习库中已有的词（含已掌握/已过关的）不再作为新词出现
+      const reviewBank=this.getReviewBank();
+      const reviewBankTexts=new Set((reviewBank[this.mode]||[]).map(w=>w.text));
       const newTarget=cnt-reviewWords.length;
-      const newWordsPool=all.filter(w=>!reviewTexts.has(w.text));
+      const newWordsPool=all.filter(w=>!reviewBankTexts.has(w.text));
       // 乱序模式：从词库中随机抽取新词，而非从头取
       const newWords=(this.curSettings().dictOrder==='shuffle')
         ? this.shuffleArray(newWordsPool).slice(0,newTarget)
@@ -3339,11 +3341,13 @@ const App={
     TTS.speak(w.text,lang,this.rate,1,null,this.voiceURI);
   },
 
-  // 全部正确：更新复习词streak、记日志、清掉本次进度（如有），返回首页
+  // 全部正确：更新复习词streak、新词标记为已掌握、记日志、清掉本次进度（如有），返回首页
   allCorrect(){
     const bank=this.getReviewBank();
+    if(!bank[this.mode])bank[this.mode]=[];
     const today=new Date().toISOString().slice(0,10);
     let mastered=0;
+    let newAdded=0;
     if(bank[this.mode]){
       const existMap=new Map(bank[this.mode].map(w=>[w.text,w]));
       this.words.forEach(w=>{
@@ -3356,6 +3360,13 @@ const App={
             if(item.streak>=3 && prev<3)mastered++;
             item.last=today;
           }
+        }else{
+          // 新词写对→直接标记为已掌握（streak=3），不再出现
+          if(!existMap.has(w.text)){
+            bank[this.mode].push({text:w.text,hint:w.hint||'',streak:3,last:today,nextReview:0});
+            existMap.set(w.text,bank[this.mode][bank[this.mode].length-1]);
+            newAdded++;
+          }
         }
       });
       this.saveReviewBank(bank);
@@ -3365,7 +3376,7 @@ const App={
       total:this.words.length,
       correct:this.words.length,
       wrong:0,
-      reviewAdded:0,
+      reviewAdded:newAdded,
       reviewMastered:mastered,
       words:this.words.map(w=>({text:w.text,hint:w.hint||''})),
       wrongIdx:[]
@@ -3407,11 +3418,17 @@ const App={
           item.last=today;
         }
       }else{
-        // 新词：错了就加入复习库（艾宾浩斯：1天后复习）
-        if(isWrong && !existMap.has(w.text)){
-          bank[this.mode].push({text:w.text,hint:w.hint||'',streak:0,last:today,nextReview:this.getNextReviewTs(0)});
+        // 新词：写错→加入复习库（艾宾浩斯：1天后复习）；写对→标记为已掌握（不再出现）
+        if(!existMap.has(w.text)){
+          if(isWrong){
+            bank[this.mode].push({text:w.text,hint:w.hint||'',streak:0,last:today,nextReview:this.getNextReviewTs(0)});
+            added++;
+          }else{
+            bank[this.mode].push({text:w.text,hint:w.hint||'',streak:3,last:today,nextReview:0});
+            mastered++;
+          }
           existMap.set(w.text,bank[this.mode][bank[this.mode].length-1]);
-          added++;
+        }
         }
       }
     });
