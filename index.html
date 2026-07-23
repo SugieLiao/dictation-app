@@ -2417,8 +2417,8 @@ const App={
   words:[],           // [{text,hint}] 本次实际听写的词（可能按数量截取）
   idx:0,
   // 每种语言独立的设置：rate 语速、repeat 朗读次数、voiceURI 语音库、dailyCount 听写数量、showHint 显示提示
-  zhSettings:{rate:0.8,repeat:2,voiceURI:'edge:zh-CN-XiaoxiaoNeural',dailyCount:20,showHint:true,dictOrder:'sequential'},
-  enSettings:{rate:0.8,repeat:2,voiceURI:'edge:en-US-JennyNeural',dailyCount:20,showHint:true,dictOrder:'sequential'},
+  zhSettings:{rate:0.8,repeat:2,voiceURI:'edge:zh-CN-XiaoxiaoNeural',dailyCount:20,showHint:true,dictOrder:'sequential',grade:''},
+  enSettings:{rate:0.8,repeat:2,voiceURI:'edge:en-US-JennyNeural',dailyCount:20,showHint:true,dictOrder:'sequential',grade:''},
   // ===== rate / repeat / voiceURI / dailyCount / showHint 通过 getter 动态指向当前语言 =====
   get rate(){return this[this.mode+'Settings'].rate;},
   set rate(v){this[this.mode+'Settings'].rate=v;},
@@ -3050,18 +3050,25 @@ const App={
     if(!wrap)return;
     const grades=Object.keys(PRESET[mode]||{});
     wrap.innerHTML='';
+    // 优先使用 settings 中保存的 grade，否则用第一个
+    const savedGrade=this.curSettings().grade||'';
+    const activeGrade=savedGrade&&grades.includes(savedGrade)?savedGrade:(grades[0]||'');
+    if(!this.grade||!grades.includes(this.grade)){
+      this.grade=activeGrade;
+    }
     grades.forEach((g,i)=>{
       const c=document.createElement('div');
-      c.className='chip'+(g===this.grade?' active':(i===0&&!this.grade?' active':''));
+      c.className='chip'+(g===this.grade?' active':'');
       c.textContent=g;
       c.onclick=()=>{
         wrap.querySelectorAll('.chip').forEach(x=>x.classList.remove('active'));
         c.classList.add('active');
         this.grade=g;
+        this.curSettings().grade=g;
+        this.saveSettings();
       };
       wrap.appendChild(c);
     });
-    if(!this.grade||!grades.includes(this.grade))this.grade=grades[0]||'';
   },
 
   toggleCustomInput(){
@@ -3168,7 +3175,11 @@ const App={
       }
       const reviewTexts=new Set(reviewWords.map(w=>w.text));
       const newTarget=cnt-reviewWords.length;
-      const newWords=all.filter(w=>!reviewTexts.has(w.text)).slice(0,newTarget);
+      const newWordsPool=all.filter(w=>!reviewTexts.has(w.text));
+      // 乱序模式：从词库中随机抽取新词，而非从头取
+      const newWords=(this.curSettings().dictOrder==='shuffle')
+        ? this.shuffleArray(newWordsPool).slice(0,newTarget)
+        : newWordsPool.slice(0,newTarget);
       // 拼接：复习词在前，新词在后
       words=[
         ...reviewWords.map(w=>({text:w.text,hint:w.hint||'',fromReview:true})),
