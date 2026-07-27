@@ -2416,6 +2416,7 @@ const App={
   grade:'',
   words:[],           // [{text,hint}] 本次实际听写的词（可能按数量截取）
   idx:0,
+  cloudSyncReady:false, // 云端同步是否已完成（防止同步未完成就开始听写导致数据丢失）
   // 每种语言独立的设置：rate 语速、repeat 朗读次数、voiceURI 语音库、dailyCount 听写数量、showHint 显示提示
   zhSettings:{rate:0.8,repeat:2,voiceURI:'edge:zh-CN-XiaoxiaoNeural',dailyCount:20,showHint:true,dictOrder:'sequential',grade:''},
   enSettings:{rate:0.8,repeat:2,voiceURI:'edge:en-US-JennyNeural',dailyCount:20,showHint:true,dictOrder:'sequential',grade:''},
@@ -2636,6 +2637,7 @@ const App={
     }else{
       CloudSync.updateIndicator('offline');
     }
+    this.cloudSyncReady=true;
   },
 
   // 将云端数据合并到本地（云端覆盖本地，除非本地有更新的日志）
@@ -3180,6 +3182,17 @@ const App={
   },
 
   beginDictation(){
+    // 等待云端同步完成，避免用本地过期数据开始听写（导致已掌握词重复出现）
+    if(!this.cloudSyncReady){
+      App.showToast('正在同步云端数据，请稍候...');
+      const checkTimer=setInterval(()=>{
+        if(this.cloudSyncReady){
+          clearInterval(checkTimer);
+          this.beginDictation();
+        }
+      },500);
+      return;
+    }
     const custom=document.getElementById('lang-custom-list').value.trim();
     let words,source;
     if(custom){
@@ -4696,14 +4709,27 @@ const CloudSync={
       if(!latest)latest={users:[],userData:{}};
       this.cache=latest;
       const uid=App.currentUserId||'default';
+      // 合并复习库：本地与云端取并集，每个词保留 streak 更高的版本
+      // 防止本地数据过期时推送覆盖云端已掌握的词
+      const localReview=JSON.parse(localStorage.getItem(App.userKey('dict_review'))||'{"zh":[],"en":[]}');
+      const cloudUserData=(latest.userData&&latest.userData[uid])||{};
+      const cloudReview=cloudUserData.review||{zh:[],en:[]};
+      const mergedReview=this.mergeReviewBanks(localReview,cloudReview);
+      // 同步回本地（确保本地也有完整的合并数据）
+      localStorage.setItem(App.userKey('dict_review'),JSON.stringify(mergedReview));
+      // 合并日志：本地与云端取并集（按 ts 去重，保留更多条目的一方）
+      const localLog=JSON.parse(localStorage.getItem(App.userKey('dict_log'))||'[]');
+      const cloudLog=cloudUserData.log||[];
+      const mergedLog=this.mergeLogs(localLog,cloudLog);
+      localStorage.setItem(App.userKey('dict_log'),JSON.stringify(mergedLog));
       // 更新当前用户数据
       latest.userData[uid]={
         settings:{
           zhSettings:App.zhSettings,
           enSettings:App.enSettings
         },
-        log:JSON.parse(localStorage.getItem(App.userKey('dict_log'))||'[]'),
-        review:JSON.parse(localStorage.getItem(App.userKey('dict_review'))||'{"zh":[],"en":[]}'),
+        log:mergedLog,
+        review:mergedReview,
         progress:JSON.parse(localStorage.getItem(App.userKey('dict_progress'))||'null'),
         adminPwd:localStorage.getItem(App.userKey('dict_admin_pwd'))||'0000',
         ts:Date.now()
@@ -4721,6 +4747,52 @@ const CloudSync={
       this.updateIndicator('error');
     }
     this.syncing=false;
+  },
+
+  // 合并两个复习库：并集，每个词保留 streak 更高（更接近掌握）的版本
+  mergeReviewBanks(local,cloud){
+    const result={zh:[],en:[]};
+    for(const mode of ['zh','en']){
+      const map=new Map();
+      // 先放云端词
+      for(const w of(cloud[mode]||[])){
+        map.set(w.text,{...w});
+      }
+      // 再用本地词覆盖（保留 streak 更高的）
+      for(const w of(local[mode]||[])){
+        const existing=map.get(w.text);
+        if(!existing){
+          map.set(w.text,{...w});
+        }else{
+          // 保留 streak 更高的版本（更接近掌握）
+          if((w.streak||0)>(existing.streak||0)){
+            map.set(w.text,{...w});
+          }
+        }
+      }
+      result[mode]=[...map.values()];
+    }
+    return result;
+  },
+
+  // 合并日志：取并集（按 ts 去重），保留条目更多的一方作为基础
+  mergeLogs(local,cloud){
+    if(!local||local.length===0)return cloud||[];
+    if(!cloud||cloud.length===0)return local;
+    // 以条目更多的一方为基础
+    const base=cloud.length>=local.length?cloud:local;
+    const other=cloud.length>=local.length?local:cloud;
+    const tsSet=new Set(base.map(l=>l.ts));
+    const merged=[...base];
+    for(const l of other){
+      if(!tsSet.has(l.ts)){
+        merged.push(l);
+        tsSet.add(l.ts);
+      }
+    }
+    // 按 ts 排序
+    merged.sort((a,b)=>(a.ts||0)-(b.ts||0));
+    return merged;
   },
 
   // 推送用户列表变更
