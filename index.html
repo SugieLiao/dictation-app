@@ -830,6 +830,7 @@
         <label>每次听写数量</label>
         <div class="seg" id="seg-count">
           <button data-count="10">10</button>
+          <button data-count="15">15</button>
           <button data-count="20" class="active">20</button>
           <button data-count="30">30</button>
           <button data-count="50">50</button>
@@ -1645,7 +1646,7 @@ const App={
   cloudSyncReady:false, // 云端同步是否已完成（防止同步未完成就开始听写导致数据丢失）
   // 每种语言独立的设置：rate 语速、repeat 朗读次数、voiceURI 语音库、dailyCount 听写数量、showHint 显示提示
   zhSettings:{rate:0.8,repeat:2,voiceURI:'edge:zh-CN-XiaoxiaoNeural',dailyCount:20,showHint:true,dictOrder:'sequential',grade:''},
-  enSettings:{rate:0.8,repeat:2,voiceURI:'edge:en-US-JennyNeural',dailyCount:20,showHint:true,dictOrder:'sequential',grade:''},
+  enSettings:{rate:0.8,repeat:2,voiceURI:'edge:en-US-JennyNeural',dailyCount:15,showHint:true,dictOrder:'sequential',grade:''},
   // ===== rate / repeat / voiceURI / dailyCount / showHint 通过 getter 动态指向当前语言 =====
   get rate(){return this[this.mode+'Settings'].rate;},
   set rate(v){this[this.mode+'Settings'].rate=v;},
@@ -1742,7 +1743,7 @@ const App={
       const s=JSON.parse(localStorage.getItem(this.userKey('dict_settings'))||'{}');
       // 重置为默认值再合并，确保切换用户后状态干净
       this.zhSettings={rate:0.8,repeat:2,voiceURI:'',dailyCount:20,showHint:true,dictOrder:'sequential'};
-      this.enSettings={rate:0.8,repeat:2,voiceURI:'',dailyCount:20,showHint:true,dictOrder:'sequential'};
+      this.enSettings={rate:0.8,repeat:2,voiceURI:'',dailyCount:15,showHint:true,dictOrder:'sequential'};
       if(typeof s.dailyCount!=='undefined'){
         this.zhSettings.dailyCount=s.dailyCount;
         this.enSettings.dailyCount=s.dailyCount;
@@ -1765,6 +1766,9 @@ const App={
       }
       if(s.zhSettings)Object.assign(this.zhSettings,s.zhSettings);
       if(s.enSettings)Object.assign(this.enSettings,s.enSettings);
+      // 确保不低于各语言最低值
+      if(this.zhSettings.dailyCount>0&&this.zhSettings.dailyCount<20)this.zhSettings.dailyCount=20;
+      if(this.enSettings.dailyCount>0&&this.enSettings.dailyCount<15)this.enSettings.dailyCount=15;
     }catch(e){}
     this.migrateReviewBank();
     this.syncSettingsUI();
@@ -1847,6 +1851,9 @@ const App={
       // 新版本：按语言分别加载
       if(s.zhSettings){Object.assign(this.zhSettings,s.zhSettings);}
       if(s.enSettings){Object.assign(this.enSettings,s.enSettings);}
+      // 确保不低于各语言最低值
+      if(this.zhSettings.dailyCount>0&&this.zhSettings.dailyCount<20)this.zhSettings.dailyCount=20;
+      if(this.enSettings.dailyCount>0&&this.enSettings.dailyCount<15)this.enSettings.dailyCount=15;
     }catch(e){}
   },
 
@@ -2095,11 +2102,24 @@ const App={
   },
   syncSettingsUI(){
     const s=this.curSettings();
+    const lang=this.langPageMode;
+    // 每种语言的最低每日听写数量
+    const minCount=lang==='zh'?20:15;
+    // 如果当前设置低于最低值，自动修正
+    if(s.dailyCount>0&&s.dailyCount<minCount){
+      s.dailyCount=minCount;
+      this.saveSettings();
+    }
     const syncSeg=(segId,getKey,curVal,parseFn)=>{
       const seg=document.getElementById(segId);
       if(!seg)return;
       seg.querySelectorAll('button').forEach(b=>{
         b.classList.toggle('active',parseFn(b.dataset[getKey])===curVal);
+        // 数量按钮：根据语言隐藏低于最低值的选项
+        if(segId==='seg-count'){
+          const v=parseInt(b.dataset.count);
+          b.style.display=(v>0&&v<minCount)?'none':'';
+        }
       });
     };
     syncSeg('seg-count','count',s.dailyCount,v=>parseInt(v));
