@@ -3093,18 +3093,25 @@ const App={
       document.getElementById('word-edit-mask').classList.remove('show');
       this.showToast('✏️ 词语已修改：' + text);
     } else {
-      // 添加模式 - 检查是否已存在
-      const dup = list.find(w => w.text === text);
-      if (dup) {
-        msg.style.color = 'var(--red)';
-        msg.textContent = '⚠️ 复习库中已存在「' + text + '」，请勿重复添加';
-        return;
+      // 添加模式 - 如果已存在则重置状态（streak=0，重新开始复习）
+      const dupIdx = list.findIndex(w => w.text === text);
+      if (dupIdx >= 0) {
+        list[dupIdx].streak = 0;
+        list[dupIdx].last = 0;
+        list[dupIdx].nextReview = 0;
+        list[dupIdx].hint = hint || list[dupIdx].hint;
+        list[dupIdx].archived = false;
+        this.saveReviewBank(bank);
+        this._refreshReviewUI();
+        document.getElementById('word-edit-mask').classList.remove('show');
+        this.showToast('🔄 「' + text + '」已重置为待复习状态');
+      } else {
+        list.push({ text, hint, streak: 0, last: 0, nextReview: 0 });
+        this.saveReviewBank(bank);
+        this._refreshReviewUI();
+        document.getElementById('word-edit-mask').classList.remove('show');
+        this.showToast('➕ 「' + text + '」已添加到复习库');
       }
-      list.push({ text, hint, streak: 0, last: 0, nextReview: 0 });
-      this.saveReviewBank(bank);
-      this._refreshReviewUI();
-      document.getElementById('word-edit-mask').classList.remove('show');
-      this.showToast('➕ 「' + text + '」已添加到复习库');
     }
     this._wordEditTarget = null;
   },
