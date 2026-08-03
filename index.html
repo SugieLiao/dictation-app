@@ -679,10 +679,13 @@
 
   /* 词库选择（内联） */
   .ocr-bank-title{font-size:14px;font-weight:600;color:var(--text);margin-bottom:8px;display:flex;align-items:center;gap:6px;}
+  .ocr-bank-section-label{font-size:12px;color:var(--muted);margin:6px 0 4px;font-weight:500;}
+  .ocr-bank-chips-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:4px;}
   .ocr-bank-list{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;}
   .ocr-bank-chip{padding:6px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;transition:all .12s;background:var(--card);color:var(--text);white-space:nowrap;}
   .ocr-bank-chip:hover{border-color:var(--primary);background:#fff8f3;}
   .ocr-bank-chip.selected{border-color:var(--primary);background:#fff4ec;color:var(--primary-dark);font-weight:600;}
+  .ocr-bank-chip.ocr-bank-preset{border-style:dashed;}
   .ocr-bank-chip .obc-count{font-size:11px;color:var(--muted);margin-left:4px;}
   .ocr-new-bank-row{display:flex;gap:8px;align-items:center;}
   .ocr-new-bank-row input{flex:1;padding:8px 12px;font-size:13px;border:1.5px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);}
@@ -2076,6 +2079,7 @@ const App={
     this.bindSettings();
     this.initVoicePicker();
     this.migrateReviewBank();
+    this.applyPresetAdditions();
     this.renderHomeEntries();
     this.renderDm();
     this.updateUserSwitchBtn();
@@ -4470,6 +4474,7 @@ const App={
   ocrWords:[],
   ocrLang:'zh',
   ocrSelectedBank:null,       // 选中的词库名
+  _ocrBankType:'custom',      // 'preset' 或 'custom'
   ocrSelectedReviewCount:-1,
   _ocrCropCanvas:null,        // 裁剪画布引用
   _ocrCropCtx:null,
@@ -4515,12 +4520,9 @@ const App={
     const reader=new FileReader();
     reader.onload=(ev)=>{
       this.ocrImageData=ev.target.result;
-      const preview=document.getElementById('ocr-preview');
-      preview.src=this.ocrImageData;
-      preview.style.display='block';
-      document.getElementById('ocr-preview-container').classList.add('show');
-      document.getElementById('ocr-placeholder').style.display='none';
-      document.getElementById('ocr-btn-recognize').disabled=false;
+      // 立即弹出裁剪界面
+      this._ocrAutoCrop=true;
+      this.ocrStartCrop();
     };
     reader.readAsDataURL(file);
   },
@@ -4612,11 +4614,17 @@ const App={
   ocrCancelCrop(){
     document.getElementById('crop-overlay').classList.remove('show');
     this._ocrCropRect=null;this._ocrCropStart=null;
+    // 取消裁剪后仍显示图片，启用识别按钮
+    this.ocrUpdatePreviewAfterCrop();
   },
   ocrApplyCrop(){
     const rect=this._ocrCropRect;
     if(!rect||rect.w<10||rect.h<10){
-      App.showToast('请先拖动框选区域');return;
+      // 未框选 → 使用完整图片，直接关闭裁剪
+      this.ocrUpdatePreviewAfterCrop();
+      document.getElementById('crop-overlay').classList.remove('show');
+      this._ocrCropRect=null;
+      return;
     }
     const canvas=this._ocrCropCanvas;
     const cropCanvas=document.createElement('canvas');
@@ -4625,11 +4633,18 @@ const App={
     const cropCtx=cropCanvas.getContext('2d');
     cropCtx.drawImage(canvas,rect.x,rect.y,rect.w,rect.h,0,0,rect.w,rect.h);
     this.ocrImageData=cropCanvas.toDataURL('image/jpeg',0.9);
-    const preview=document.getElementById('ocr-preview');
-    preview.src=this.ocrImageData;
+    this.ocrUpdatePreviewAfterCrop();
     document.getElementById('crop-overlay').classList.remove('show');
     this._ocrCropRect=null;
     App.showToast('✅ 已裁剪');
+  },
+  ocrUpdatePreviewAfterCrop(){
+    const preview=document.getElementById('ocr-preview');
+    preview.src=this.ocrImageData;
+    preview.style.display='block';
+    document.getElementById('ocr-preview-container').classList.add('show');
+    document.getElementById('ocr-placeholder').style.display='none';
+    document.getElementById('ocr-btn-recognize').disabled=false;
   },
 
   ocrLoadTesseract(){
@@ -4831,28 +4846,65 @@ const App={
 
   // ===== 内联词库选择 =====
   ocrRenderBankList(){
+    const list=document.getElementById('ocr-bank-list-inline');
+    list.innerHTML='';
+    // 1. 预设词库
+    const presetGrades=Object.keys(PRESET[this.ocrLang]||{});
+    if(presetGrades.length){
+      const presetLabel=document.createElement('div');
+      presetLabel.className='ocr-bank-section-label';
+      presetLabel.textContent='📖 预设词库';
+      list.appendChild(presetLabel);
+    }
+    const presetWrap=document.createElement('div');
+    presetWrap.className='ocr-bank-chips-row';
+    presetGrades.forEach(name=>{
+      const words=PRESET[this.ocrLang][name]||[];
+      const cnt=words.length;
+      const sel=this.ocrSelectedBank===name&&this._ocrBankType==='preset';
+      const chip=document.createElement('div');
+      chip.className='ocr-bank-chip ocr-bank-preset'+(sel?' selected':'');
+      chip.innerHTML='📖 '+this._escHtml(name)+'<span class="obc-count">'+cnt+'词</span>';
+      chip.dataset.bankName=name;
+      chip.dataset.bankType='preset';
+      chip.onclick=()=>{this.ocrSelectBankInline(name,'preset');};
+      presetWrap.appendChild(chip);
+    });
+    list.appendChild(presetWrap);
+
+    // 2. 自定义词库
     const banks=this.getCustomBanks();
     const langBanks=banks[this.ocrLang]||{};
     const names=Object.keys(langBanks);
-    const list=document.getElementById('ocr-bank-list-inline');
-    list.innerHTML='';
-    if(!names.length){
-      list.innerHTML='<div style="font-size:13px;color:var(--muted);padding:4px 0;">暂无自定义词库，请在下方新建</div>';
-      return;
+    if(names.length){
+      const customLabel=document.createElement('div');
+      customLabel.className='ocr-bank-section-label';
+      customLabel.textContent='📚 自定义词库';
+      list.appendChild(customLabel);
     }
+    const customWrap=document.createElement('div');
+    customWrap.className='ocr-bank-chips-row';
     names.forEach(name=>{
       const cnt=(langBanks[name]||[]).length;
-      const sel=this.ocrSelectedBank===name;
+      const sel=this.ocrSelectedBank===name&&this._ocrBankType==='custom';
       const chip=document.createElement('div');
       chip.className='ocr-bank-chip'+(sel?' selected':'');
       chip.innerHTML='📚 '+this._escHtml(name)+'<span class="obc-count">'+cnt+'词</span>';
-      chip.onclick=()=>{this.ocrSelectBankInline(name);};
-      list.appendChild(chip);
+      chip.dataset.bankName=name;
+      chip.dataset.bankType='custom';
+      chip.onclick=()=>{this.ocrSelectBankInline(name,'custom');};
+      customWrap.appendChild(chip);
     });
+    list.appendChild(customWrap);
+
+    if(!presetGrades.length&&!names.length){
+      list.innerHTML='<div style="font-size:13px;color:var(--muted);padding:4px 0;">暂无词库，请在下方新建</div>';
+    }
   },
 
-  ocrSelectBankInline(name){
+  ocrSelectBankInline(name,type){
     this.ocrSelectedBank=name;
+    this._ocrBankType=type;
     this.ocrRenderBankList();
     this.ocrUpdateConfirmBtn();
   },
@@ -4867,6 +4919,7 @@ const App={
     banks[this.ocrLang][name]=[];
     this.saveCustomBanks(banks);
     this.ocrSelectedBank=name;
+    this._ocrBankType='custom';
     input.value='';
     this.ocrRenderBankList();
     this.ocrUpdateConfirmBtn();
@@ -4878,7 +4931,37 @@ const App={
     const selected=this.ocrWords.filter(w=>w.selected);
     if(!selected.length){App.showToast('请至少选择一个词语');return;}
     if(!this.ocrSelectedBank){App.showToast('请先选择或新建词库');return;}
-    // 保存词语到词库
+    if(this._ocrBankType==='preset'){
+      // 保存到预设词库
+      this.ocrSaveToPreset(selected);
+    }else{
+      // 保存到自定义词库
+      this.ocrSaveToCustom(selected);
+    }
+  },
+  ocrSaveToPreset(selected){
+    const additions=this.getPresetAdditions();
+    if(!additions[this.ocrLang])additions[this.ocrLang]={};
+    const bank=additions[this.ocrLang][this.ocrSelectedBank]||[];
+    // 检查已存在于 PRESET 中的
+    const presetBank=PRESET[this.ocrLang][this.ocrSelectedBank]||[];
+    const existSet=new Set([...presetBank,...bank]);
+    let addedCount=0;
+    selected.forEach(w=>{
+      if(!existSet.has(w.text)){bank.push(w.text);existSet.add(w.text);addedCount++;}
+    });
+    additions[this.ocrLang][this.ocrSelectedBank]=bank;
+    this.savePresetAdditions(additions);
+    // 立即生效到 PRESET 内存中
+    if(!PRESET[this.ocrLang][this.ocrSelectedBank])PRESET[this.ocrLang][this.ocrSelectedBank]=[];
+    selected.forEach(w=>{
+      if(!PRESET[this.ocrLang][this.ocrSelectedBank].includes(w.text))
+        PRESET[this.ocrLang][this.ocrSelectedBank].push(w.text);
+    });
+    App.showToast('✅ 已保存 '+addedCount+' 个词到「'+this.ocrSelectedBank+'」');
+    this.ocrShowReviewCount();
+  },
+  ocrSaveToCustom(selected){
     const banks=this.getCustomBanks();
     if(!banks[this.ocrLang])banks[this.ocrLang]={};
     const bank=banks[this.ocrLang][this.ocrSelectedBank]||[];
@@ -4890,7 +4973,6 @@ const App={
     banks[this.ocrLang][this.ocrSelectedBank]=bank;
     this.saveCustomBanks(banks);
     App.showToast('✅ 已保存 '+addedCount+' 个词到「'+this.ocrSelectedBank+'」');
-    // 进入复习词数量选择
     this.ocrShowReviewCount();
   },
 
@@ -4902,6 +4984,31 @@ const App={
   saveCustomBanks(banks){
     localStorage.setItem(this.userKey('dict_custom_banks'),JSON.stringify(banks));
     CloudSync.pushDebounced();
+  },
+  // 预设词库扩展（OCR 拍照添加到现有词库时持久化）
+  getPresetAdditions(){
+    try{return JSON.parse(localStorage.getItem(this.userKey('dict_preset_additions'))||'{"zh":{},"en":{}}');}
+    catch(e){return {zh:{},en:{}};}
+  },
+  savePresetAdditions(additions){
+    localStorage.setItem(this.userKey('dict_preset_additions'),JSON.stringify(additions));
+    CloudSync.pushDebounced();
+  },
+  // 应用预设词库扩展（含去重）
+  applyPresetAdditions(){
+    const additions=this.getPresetAdditions();
+    for(const lang of['zh','en']){
+      const langAdd=additions[lang]||{};
+      for(const[grade,words]of Object.entries(langAdd)){
+        if(!PRESET[lang])return;
+        const bank=PRESET[lang][grade];
+        if(!bank)continue;
+        const existSet=new Set(bank);
+        for(const w of words){
+          if(!existSet.has(w)){bank.push(w);existSet.add(w);}
+        }
+      }
+    }
   },
   _escHtml(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML;},
 
