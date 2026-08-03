@@ -617,6 +617,140 @@
   .dm-section .card-body{display:none;padding:0 20px 20px;}
   .dm-section.open .card-body{display:block;}
 
+  /* ===== 拍照听写 OCR 屏幕 ===== */
+  .ocr-capture-area{
+    text-align:center;padding:10px 0;
+  }
+  .ocr-preview{
+    max-width:100%;max-height:260px;border-radius:12px;
+    border:2px solid var(--border);display:none;margin:0 auto 10px;
+  }
+  .ocr-placeholder{
+    width:100%;height:160px;border:2px dashed var(--border);border-radius:14px;
+    display:flex;align-items:center;justify-content:center;
+    color:var(--muted);font-size:14px;margin-bottom:10px;cursor:pointer;
+    transition:border-color .15s,background .15s;
+  }
+  .ocr-placeholder:hover{border-color:var(--primary);background:#fff8f3;}
+  .ocr-placeholder .ph-icon{font-size:36px;display:block;margin-bottom:6px;}
+  .ocr-placeholder.has-photo{border-style:solid;border-color:var(--green);}
+  .ocr-btn-row{display:flex;gap:10px;flex-wrap:wrap;}
+  .ocr-btn-row .btn{flex:1;min-width:80px;}
+  .btn-outline{
+    border:2px solid var(--primary);background:transparent;color:var(--primary);
+    border-radius:14px;padding:12px 16px;font-size:15px;font-weight:600;cursor:pointer;
+    transition:all .15s;
+  }
+  .btn-outline:hover{background:#fff4ec;}
+  .btn-outline:active{transform:scale(.98);}
+  .ocr-progress{
+    text-align:center;font-size:13px;color:var(--muted);margin:10px 0;display:none;
+  }
+  .ocr-progress .spinner{
+    display:inline-block;width:16px;height:16px;border:2px solid #e0e0e0;
+    border-top-color:var(--primary);border-radius:50%;animation:syncspin .8s linear infinite;
+    vertical-align:middle;margin-right:6px;
+  }
+  /* 识别结果词 chip 网格 */
+  .ocr-words-section{margin-top:14px;display:none;}
+  .ocr-words-head{
+    display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:6px;
+  }
+  .ocr-words-head .ow-title{font-size:15px;font-weight:600;color:var(--text);}
+  .ocr-words-head .ow-actions{display:flex;gap:6px;}
+  .ocr-words-head .ow-actions button{
+    font-size:12px;padding:4px 10px;border:1px solid var(--border);
+    border-radius:6px;background:var(--card);color:var(--muted);cursor:pointer;font-weight:500;
+    transition:all .12s;
+  }
+  .ocr-words-head .ow-actions button:hover{background:var(--primary);color:#fff;border-color:var(--primary);}
+  .ocr-words-grid{display:flex;flex-wrap:wrap;gap:8px;}
+  .ow-chip{
+    padding:8px 14px;border:2px solid var(--border);border-radius:10px;
+    font-size:15px;font-weight:500;cursor:pointer;transition:all .12s;
+    background:var(--card);color:var(--text);user-select:none;
+    display:flex;align-items:center;gap:6px;
+  }
+  .ow-chip:hover{border-color:var(--primary);background:#fff7f1;}
+  .ow-chip.selected{border-color:var(--primary);background:#fff4ec;color:var(--primary-dark);}
+  .ow-chip .ow-cancel{display:none;}
+  .ow-chip.selected .ow-cancel{display:inline;font-size:12px;opacity:.6;}
+  .ow-chip .ow-hint{font-size:11px;color:var(--muted);font-weight:400;}
+
+  /* 词库选择弹窗 */
+  .bank-select-mask{
+    position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:1000;
+    display:none;align-items:flex-end;justify-content:center;
+  }
+  .bank-select-mask.show{display:flex;}
+  .bank-select-panel{
+    background:var(--card);border-radius:18px 18px 0 0;width:100%;max-width:500px;
+    max-height:75vh;overflow-y:auto;padding:20px 20px 30px;
+    box-shadow:0 -4px 24px rgba(0,0,0,.15);animation:slideUp .25s ease;
+  }
+  @keyframes slideUp{from{transform:translateY(100%);}to{transform:translateY(0);}}
+  .bank-select-panel .bsp-title{font-size:18px;font-weight:700;margin-bottom:8px;color:var(--text);}
+  .bank-select-panel .bsp-sub{font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.5;}
+  .bank-select-panel .bsp-bank-list{display:flex;flex-direction:column;gap:8px;margin-bottom:14px;}
+  .bsp-bank-item{
+    display:flex;align-items:center;gap:10px;
+    padding:12px 14px;border:1.5px solid var(--border);border-radius:12px;
+    cursor:pointer;transition:all .12s;font-size:15px;font-weight:500;
+  }
+  .bsp-bank-item:hover{border-color:var(--primary);background:#fff8f3;}
+  .bsp-bank-item.selected{border-color:var(--primary);background:#fff4ec;color:var(--primary-dark);}
+  .bsp-bank-item .bsp-name{flex:1;}
+  .bsp-bank-item .bsp-cnt{font-size:12px;color:var(--muted);font-weight:400;}
+  .bsp-bank-item .bsp-check{color:var(--primary);font-weight:700;font-size:16px;display:none;}
+  .bsp-bank-item.selected .bsp-check{display:block;}
+  .bsp-new-input{
+    display:flex;gap:8px;align-items:center;margin-bottom:14px;
+  }
+  .bsp-new-input input{
+    flex:1;padding:10px 12px;font-size:14px;border:1.5px solid var(--border);
+    border-radius:10px;background:var(--card);color:var(--text);
+  }
+  .bsp-new-input input:focus{outline:none;border-color:var(--primary);}
+  .bsp-new-input .btn-new-bank{
+    flex:0 0 auto;padding:10px 16px;border:none;border-radius:10px;
+    background:var(--primary);color:#fff;font-size:14px;font-weight:600;cursor:pointer;
+  }
+  .bsp-new-input .btn-new-bank:active{opacity:.85;}
+  .bsp-actions{display:flex;gap:10px;}
+  .bsp-actions .btn{flex:1;padding:12px;}
+
+  /* 复习词数量选择 */
+  .review-count-mask{
+    position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:1001;
+    display:none;align-items:center;justify-content:center;padding:20px;
+  }
+  .review-count-mask.show{display:flex;}
+  .review-count-panel{
+    background:var(--card);border-radius:18px;width:100%;max-width:380px;
+    padding:24px;box-shadow:0 8px 32px rgba(0,0,0,.2);animation:modalIn .2s ease;
+  }
+  .review-count-panel .rcp-title{font-size:17px;font-weight:700;margin-bottom:6px;}
+  .review-count-panel .rcp-sub{font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.5;}
+  .rcp-options{display:flex;flex-direction:column;gap:8px;margin-bottom:16px;}
+  .rcp-opt{
+    display:flex;align-items:center;gap:10px;
+    padding:12px 14px;border:1.5px solid var(--border);border-radius:12px;
+    cursor:pointer;transition:all .12s;font-size:15px;font-weight:500;
+  }
+  .rcp-opt:hover{border-color:var(--primary);background:#fff8f3;}
+  .rcp-opt.selected{border-color:var(--primary);background:#fff4ec;color:var(--primary-dark);}
+  .rcp-opt .rcp-dot{
+    width:20px;height:20px;border-radius:50%;border:2px solid #ccc;
+    flex-shrink:0;display:flex;align-items:center;justify-content:center;
+    transition:all .15s;
+  }
+  .rcp-opt.selected .rcp-dot{border-color:var(--primary);background:var(--primary);}
+  .rcp-opt.selected .rcp-dot::after{content:'✓';color:#fff;font-size:12px;font-weight:700;}
+  .rcp-opt .rcp-label{flex:1;}
+  .rcp-opt .rcp-avail{font-size:12px;color:var(--muted);}
+  .rcp-actions{display:flex;gap:10px;}
+  .rcp-actions .btn{flex:1;padding:12px;}
+
   @media(max-width:420px){
     .play-btn{width:100px;height:100px;font-size:40px;}
     .cal-cell{min-height:40px;font-size:12px;}
@@ -810,6 +944,9 @@
 
     <button class="mode-btn mode-start" id="lang-start-btn" onclick="App.beginDictation()">开始听写</button>
 
+    <!-- 拍照听写入口 -->
+    <button class="btn-outline" style="width:100%;margin-bottom:16px;padding:14px;font-size:16px;" onclick="App.ocrOpen(App.langPageMode)">📷 拍照听写</button>
+
     <!-- 复习库 / 听写日志 快捷入口 -->
     <div class="lang-quick-cards">
       <div class="quick-card" onclick="App.showReviewLang(App.langPageMode)">
@@ -894,6 +1031,64 @@
             <button data-repeat="3">3次</button>
           </div>
         </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 拍照听写 OCR 页 ===== -->
+  <section class="screen" id="screen-ocr">
+    <div class="lang-header">
+      <button class="btn btn-ghost lang-back" onclick="App.goBack()">← 返回</button>
+      <div class="lang-title" id="ocr-page-title">📷 拍照听写</div>
+    </div>
+
+    <!-- 拍照区域 -->
+    <div class="card">
+      <div class="ocr-capture-area">
+        <div class="ocr-placeholder" id="ocr-placeholder" onclick="App.ocrTriggerCapture()">
+          <span class="ph-icon">📸</span>
+          点击拍照或选择图片
+        </div>
+        <img class="ocr-preview" id="ocr-preview" alt="预览">
+        <input type="file" id="ocr-file-input" accept="image/*" capture="environment" style="display:none;" onchange="App.ocrHandleFile(event)">
+      </div>
+      <div class="ocr-progress" id="ocr-progress">
+        <span class="spinner"></span><span id="ocr-progress-text">正在识别文字...</span>
+      </div>
+      <div class="ocr-btn-row" style="margin-bottom:8px;">
+        <button class="btn-outline" id="ocr-btn-capture" onclick="App.ocrTriggerCapture()">📸 拍照/选图</button>
+        <button class="btn btn-primary" id="ocr-btn-recognize" onclick="App.ocrRecognize()" disabled>🔍 识别文字</button>
+      </div>
+    </div>
+
+    <!-- 识别结果：词语网格 -->
+    <div class="ocr-words-section" id="ocr-words-section">
+      <div class="card">
+        <div class="ocr-words-head">
+          <span class="ow-title">📝 识别结果（点击选择/取消）</span>
+          <div class="ow-actions">
+            <button onclick="App.ocrSelectAll()">全选</button>
+            <button onclick="App.ocrDeselectAll()">取消全选</button>
+          </div>
+        </div>
+        <div class="ocr-words-grid" id="ocr-words-grid"></div>
+        <div class="hint-text" id="ocr-hint" style="margin-top:10px;">💡 已选 <b id="ocr-selected-count">0</b> 个词，点击词语可切换选中状态</div>
+      </div>
+
+      <button class="mode-btn mode-start" id="ocr-confirm-btn" onclick="App.ocrConfirmWords()" disabled>
+        确认词语 (0)
+      </button>
+
+      <!-- 手动添加词语 -->
+      <div class="card" style="margin-top:10px;">
+        <div style="display:flex;gap:8px;align-items:flex-end;">
+          <div style="flex:1;">
+            <label style="font-size:13px;color:var(--muted);margin-bottom:4px;display:block;">手动添加词语</label>
+            <input type="text" id="ocr-add-word" placeholder="输入词语，可加|提示" style="width:100%;padding:10px 12px;font-size:14px;border:1.5px solid var(--border);border-radius:10px;background:var(--card);color:var(--text);">
+          </div>
+          <button class="btn" style="flex:0 0 auto;width:auto;padding:10px 18px;" onclick="App.ocrAddWord()">+ 添加</button>
+        </div>
+        <div class="hint-text">示例：学校 或 学校|xué xiào</div>
       </div>
     </div>
   </section>
@@ -1084,6 +1279,36 @@
             <button class="btn btn-primary" style="flex:1;" onclick="App.submitWordEdit()">保存</button>
           </div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 词库选择弹窗（OCR 确认后） -->
+  <div class="bank-select-mask" id="bank-select-mask">
+    <div class="bank-select-panel">
+      <div class="bsp-title">💾 保存到哪个词库？</div>
+      <div class="bsp-sub">选择已有自定义词库或新建一个。保存后即可在语文/英语分区中看到该词库。</div>
+      <div class="bsp-bank-list" id="bsp-bank-list"></div>
+      <div class="bsp-new-input">
+        <input type="text" id="bsp-new-name" placeholder="输入新词库名称">
+        <button class="btn-new-bank" onclick="App.ocrCreateBank()">新建</button>
+      </div>
+      <div class="bsp-actions">
+        <button class="btn btn-ghost" onclick="App.ocrCancelBank()">取消</button>
+        <button class="btn btn-primary" id="bsp-confirm-btn" onclick="App.ocrConfirmBank()" disabled>确认保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 复习词数量选择弹窗 -->
+  <div class="review-count-mask" id="review-count-mask">
+    <div class="review-count-panel">
+      <div class="rcp-title">📖 是否加入复习单词？</div>
+      <div class="rcp-sub">从复习库中抽取指定数量的待复习词，和新词混合听写。</div>
+      <div class="rcp-options" id="rcp-options"></div>
+      <div class="rcp-actions">
+        <button class="btn btn-ghost" onclick="App.ocrStartWithReview(0)">不加入复习</button>
+        <button class="btn btn-primary" id="rcp-start-btn" onclick="App.ocrStartWithReview(-1)" disabled>开始听写</button>
       </div>
     </div>
   </div>
@@ -1645,8 +1870,8 @@ const App={
   idx:0,
   cloudSyncReady:false, // 云端同步是否已完成（防止同步未完成就开始听写导致数据丢失）
   // 每种语言独立的设置：rate 语速、repeat 朗读次数、voiceURI 语音库、dailyCount 听写数量、showHint 显示提示
-  zhSettings:{rate:0.8,repeat:2,voiceURI:'edge:zh-CN-XiaoxiaoNeural',dailyCount:20,showHint:true,dictOrder:'sequential',grade:''},
-  enSettings:{rate:0.8,repeat:2,voiceURI:'edge:en-US-JennyNeural',dailyCount:15,showHint:true,dictOrder:'sequential',grade:''},
+  zhSettings:{rate:0.8,repeat:2,voiceURI:'edge:zh-CN-XiaoxiaoNeural',dailyCount:20,showHint:true,dictOrder:'sequential',grade:'',gradeType:'preset'},
+  enSettings:{rate:0.8,repeat:2,voiceURI:'edge:en-US-JennyNeural',dailyCount:15,showHint:true,dictOrder:'sequential',grade:'',gradeType:'preset'},
   // ===== rate / repeat / voiceURI / dailyCount / showHint 通过 getter 动态指向当前语言 =====
   get rate(){return this[this.mode+'Settings'].rate;},
   set rate(v){this[this.mode+'Settings'].rate=v;},
@@ -1742,8 +1967,8 @@ const App={
     try{
       const s=JSON.parse(localStorage.getItem(this.userKey('dict_settings'))||'{}');
       // 重置为默认值再合并，确保切换用户后状态干净
-      this.zhSettings={rate:0.8,repeat:2,voiceURI:'',dailyCount:20,showHint:true,dictOrder:'sequential'};
-      this.enSettings={rate:0.8,repeat:2,voiceURI:'',dailyCount:15,showHint:true,dictOrder:'sequential'};
+      this.zhSettings={rate:0.8,repeat:2,voiceURI:'',dailyCount:20,showHint:true,dictOrder:'sequential',grade:'',gradeType:'preset'};
+      this.enSettings={rate:0.8,repeat:2,voiceURI:'',dailyCount:15,showHint:true,dictOrder:'sequential',grade:'',gradeType:'preset'};
       if(typeof s.dailyCount!=='undefined'){
         this.zhSettings.dailyCount=s.dailyCount;
         this.enSettings.dailyCount=s.dailyCount;
@@ -2337,10 +2562,41 @@ const App={
         c.classList.add('active');
         this.grade=g;
         this.curSettings().grade=g;
+        this.curSettings().gradeType='preset';
         this.saveSettings();
       };
       wrap.appendChild(c);
     });
+    // 追加自定义词库
+    const customBanks=this.getCustomBanks();
+    const langBanks=customBanks[mode]||{};
+    const bankNames=Object.keys(langBanks).sort();
+    if(bankNames.length){
+      // 分隔线
+      const sep=document.createElement('div');
+      sep.style.cssText='width:100%;height:1px;background:var(--border);margin:4px 0;';
+      wrap.appendChild(sep);
+      bankNames.forEach(name=>{
+        const cnt=langBanks[name].length;
+        const c=document.createElement('div');
+        c.className='chip'+(savedGrade===name?' active':'');
+        c.textContent='📷 '+name+' ('+cnt+')';
+        c.style.borderStyle='dashed';
+        c.onclick=()=>{
+          wrap.querySelectorAll('.chip').forEach(x=>x.classList.remove('active'));
+          c.classList.add('active');
+          this.grade=name;
+          this.curSettings().grade=name;
+          this.curSettings().gradeType='custom';
+          this.saveSettings();
+        };
+        wrap.appendChild(c);
+      });
+      // 如果选中的是自定义词库，同步 grade
+      if(this.curSettings().gradeType==='custom'&&bankNames.includes(savedGrade)){
+        this.grade=savedGrade;
+      }
+    }
   },
 
   toggleCustomInput(){
@@ -2465,6 +2721,30 @@ const App={
       words=this.parseCustom(custom,this.mode);
       if(!words.length){App.showToast('请粘贴至少一个词');return;}
       source={type:'custom',mode:this.mode,grade:this.grade,customText:custom};
+    }else if(this.curSettings().gradeType==='custom'){
+      // 从自定义词库读取
+      const banks=this.getCustomBanks();
+      const bankWords=(banks[this.mode]||{})[this.grade]||[];
+      if(!bankWords.length){App.showToast('该自定义词库为空');return;}
+      const all=bankWords.map(w=>{
+        const [t,h]=(typeof w==='string'?w:'').split('|').map(s=>s.trim());
+        return {text:t,hint:h||''};
+      }).filter(w=>w.text);
+      const cnt=this.dailyCount>0?Math.min(this.dailyCount,all.length):all.length;
+      let reviewWords=[];
+      if(this.dailyCount>0){reviewWords=this.pickReviewWords(this.mode,cnt);}
+      const reviewBank=this.getReviewBank();
+      const reviewBankTexts=new Set((reviewBank[this.mode]||[]).map(w=>w.text));
+      const newTarget=cnt-reviewWords.length;
+      const newWordsPool=all.filter(w=>!reviewBankTexts.has(w.text));
+      const newWords=(this.curSettings().dictOrder==='shuffle')
+        ? this.shuffleArray(newWordsPool).slice(0,newTarget)
+        : newWordsPool.slice(0,newTarget);
+      words=[
+        ...reviewWords.map(w=>({text:w.text,hint:w.hint||'',fromReview:true})),
+        ...newWords.map(w=>({text:w.text,hint:w.hint||'',fromReview:false}))
+      ];
+      source={type:'customBank',mode:this.mode,grade:this.grade,totalCount:all.length,sessionCount:cnt,mixedReview:reviewWords.length>0,reviewCount:reviewWords.length};
     }else{
       // 从预设词表构建词库，并去重（词库中可能存在重复词条）
       const all=(()=>{
@@ -4148,6 +4428,413 @@ const App={
   showLogLang(lang){
     this.logLang=lang;
     this.showLog();
+  },
+
+  // ===== 拍照听写 OCR 功能 =====
+  // OCR 状态
+  ocrImageData:null,       // 拍摄/选择的图片 data URL
+  ocrWords:[],             // 识别出的词语 [{text,hint,selected}]
+  ocrLang:'zh',            // OCR 语言模式
+  ocrSelectedBank:null,    // 选中的词库名称
+  ocrSelectedReviewCount:-1, // 选中的复习词数量（持久化）
+
+  // 打开拍照听写页面
+  ocrOpen(lang){
+    this.ocrLang=lang;
+    this.langPageMode=lang; // 确保 settings getter 返回正确语言
+    this.mode=lang;
+    this.ocrImageData=null;
+    this.ocrWords=[];
+    this.ocrSelectedBank=null;
+    document.getElementById('ocr-page-title').textContent='📷 拍照听写 - '+(lang==='zh'?'语文':'英语');
+    // 重置 UI
+    document.getElementById('ocr-preview').style.display='none';
+    const ph=document.getElementById('ocr-placeholder');
+    ph.style.display='flex';ph.classList.remove('has-photo');
+    document.getElementById('ocr-btn-recognize').disabled=true;
+    document.getElementById('ocr-progress').style.display='none';
+    document.getElementById('ocr-words-section').style.display='none';
+    document.getElementById('ocr-confirm-btn').disabled=true;
+    document.getElementById('ocr-confirm-btn').textContent='确认词语 (0)';
+    document.getElementById('ocr-file-input').value='';
+    // 加载持久化的复习词数量偏好
+    this.ocrLoadReviewPref();
+    this.go('ocr');
+    // 惰性加载 Tesseract.js
+    this.ocrLoadTesseract();
+  },
+
+  // 触发拍照/选图
+  ocrTriggerCapture(){
+    document.getElementById('ocr-file-input').click();
+  },
+
+  // 处理文件选择
+  ocrHandleFile(e){
+    const file=e.target.files[0];
+    if(!file)return;
+    const reader=new FileReader();
+    reader.onload=(ev)=>{
+      this.ocrImageData=ev.target.result;
+      const preview=document.getElementById('ocr-preview');
+      preview.src=this.ocrImageData;
+      preview.style.display='block';
+      const ph=document.getElementById('ocr-placeholder');
+      ph.style.display='none';
+      document.getElementById('ocr-btn-recognize').disabled=false;
+    };
+    reader.readAsDataURL(file);
+  },
+
+  // 惰性加载 Tesseract.js
+  ocrLoadTesseract(){
+    if(window.Tesseract){return;}
+    const script=document.createElement('script');
+    script.src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+    script.onload=()=>{console.log('Tesseract.js loaded');};
+    document.head.appendChild(script);
+  },
+
+  // OCR 识别文字
+  async ocrRecognize(){
+    if(!this.ocrImageData){App.showToast('请先拍照或选择图片');return;}
+    if(!window.Tesseract){
+      App.showToast('识别引擎正在加载，请稍后再试...');
+      return;
+    }
+    const btn=document.getElementById('ocr-btn-recognize');
+    const progress=document.getElementById('ocr-progress');
+    const progressText=document.getElementById('ocr-progress-text');
+    btn.disabled=true;btn.textContent='识别中...';
+    progress.style.display='block';
+    progressText.textContent='正在识别文字...';
+
+    try{
+      const {data:{text}}=await Tesseract.recognize(this.ocrImageData,
+        this.ocrLang==='zh'?'chi_sim':'eng',
+        {logger:m=>{
+          if(m.status==='recognizing text'){
+            const pct=Math.round((m.progress||0)*100);
+            progressText.textContent='正在识别文字... '+pct+'%';
+          }
+        }}
+      );
+      // 解析识别结果
+      this.ocrParseText(text);
+    }catch(err){
+      console.error('OCR error:',err);
+      App.showToast('识别失败：'+err.message);
+    }
+    progress.style.display='none';
+    btn.disabled=false;btn.textContent='🔍 重新识别';
+  },
+
+  // 解析 OCR 文本为词语列表
+  ocrParseText(text){
+    const raw=text||'';
+    // 按行分割，再按常见分隔符拆分
+    const lines=raw.split(/[\n\r]+/).map(l=>l.trim()).filter(Boolean);
+    const words=[];
+    const seen=new Set();
+    for(const line of lines){
+      // 尝试按空格、逗号、顿号、竖线等分隔
+      const parts=line.split(/[\s,，、|]+/).map(p=>p.trim()).filter(Boolean);
+      for(const part of parts){
+        // 过滤太短或纯标点的
+        const clean=part.replace(/[，。！？、；：""''（）《》【】…—\s]/g,'').trim();
+        if(clean.length>=1&&!seen.has(clean)){
+          seen.add(clean);
+          words.push({text:clean,hint:'',selected:true});
+        }
+      }
+    }
+    if(!words.length){
+      App.showToast('未识别到文字，请尝试更清晰的图片');
+      return;
+    }
+    this.ocrWords=words;
+    this.ocrRenderWords();
+    document.getElementById('ocr-words-section').style.display='block';
+    this.ocrUpdateConfirmBtn();
+  },
+
+  // 渲染词语网格
+  ocrRenderWords(){
+    const grid=document.getElementById('ocr-words-grid');
+    grid.innerHTML='';
+    this.ocrWords.forEach((w,i)=>{
+      const chip=document.createElement('div');
+      chip.className='ow-chip'+(w.selected?' selected':'');
+      const hintHtml=w.hint?`<span class="ow-hint">${w.hint}</span>`:'';
+      chip.innerHTML=`<span class="ow-text">${w.text}</span>${hintHtml}`;
+      chip.onclick=()=>{this.ocrToggleWord(i);};
+      grid.appendChild(chip);
+    });
+    document.getElementById('ocr-selected-count').textContent=
+      this.ocrWords.filter(w=>w.selected).length;
+  },
+
+  // 切换词语选中状态
+  ocrToggleWord(i){
+    this.ocrWords[i].selected=!this.ocrWords[i].selected;
+    this.ocrRenderWords();
+    this.ocrUpdateConfirmBtn();
+  },
+
+  // 全选
+  ocrSelectAll(){
+    this.ocrWords.forEach(w=>w.selected=true);
+    this.ocrRenderWords();
+    this.ocrUpdateConfirmBtn();
+  },
+
+  // 取消全选
+  ocrDeselectAll(){
+    this.ocrWords.forEach(w=>w.selected=false);
+    this.ocrRenderWords();
+    this.ocrUpdateConfirmBtn();
+  },
+
+  // 手动添加词语
+  ocrAddWord(){
+    const input=document.getElementById('ocr-add-word');
+    const raw=input.value.trim();
+    if(!raw){App.showToast('请输入词语');return;}
+    const parts=raw.split('|').map(s=>s.trim());
+    const text=parts[0];
+    const hint=parts[1]||'';
+    if(!text){App.showToast('请输入词语');return;}
+    // 检查是否已存在
+    const exists=this.ocrWords.find(w=>w.text===text);
+    if(exists){exists.selected=true;App.showToast('「'+text+'」已存在，已自动选中');}
+    else{this.ocrWords.push({text,hint,selected:true});}
+    input.value='';
+    this.ocrRenderWords();
+    this.ocrUpdateConfirmBtn();
+  },
+
+  // 更新确认按钮
+  ocrUpdateConfirmBtn(){
+    const cnt=this.ocrWords.filter(w=>w.selected).length;
+    const btn=document.getElementById('ocr-confirm-btn');
+    btn.disabled=(cnt===0);
+    btn.textContent='确认词语 ('+cnt+')';
+  },
+
+  // 确认词语 → 显示词库选择
+  ocrConfirmWords(){
+    const selected=this.ocrWords.filter(w=>w.selected);
+    if(!selected.length){App.showToast('请至少选择一个词语');return;}
+    this.ocrShowBankSelect();
+  },
+
+  // ---- 自定义词库管理 ----
+  getCustomBanks(){
+    try{
+      return JSON.parse(localStorage.getItem(this.userKey('dict_custom_banks'))||'{"zh":{},"en":{}}');
+    }catch(e){return {zh:{},en:{}};}
+  },
+  saveCustomBanks(banks){
+    localStorage.setItem(this.userKey('dict_custom_banks'),JSON.stringify(banks));
+    CloudSync.pushDebounced();
+  },
+
+  // 显示词库选择底部弹窗
+  ocrShowBankSelect(){
+    const banks=this.getCustomBanks();
+    const langBanks=banks[this.ocrLang]||{};
+    const names=Object.keys(langBanks);
+    const list=document.getElementById('bsp-bank-list');
+    this._ocrBankNames=names; // 保存引用供选择时使用
+    let html='';
+    names.forEach((name,i)=>{
+      const cnt=(langBanks[name]||[]).length;
+      html+=`<div class="bsp-bank-item" data-idx="${i}" onclick="App.ocrSelectBank(${i})">
+        <span class="bsp-name">📚 ${this._escHtml(name)}</span>
+        <span class="bsp-cnt">${cnt} 词</span>
+        <span class="bsp-check">✓</span>
+      </div>`;
+    });
+    if(!names.length){
+      html='<div style="text-align:center;color:var(--muted);padding:16px;font-size:14px;">暂无自定义词库，请在下方新建</div>';
+    }
+    list.innerHTML=html;
+    document.getElementById('bsp-new-name').value='';
+    this.ocrSelectedBank=null;
+    document.getElementById('bsp-confirm-btn').disabled=true;
+    document.getElementById('bank-select-mask').classList.add('show');
+  },
+
+  _escHtml(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML;},
+
+  // 选择一个已有词库
+  ocrSelectBank(idx){
+    const name=this._ocrBankNames[idx];
+    if(!name)return;
+    this.ocrSelectedBank=name;
+    document.getElementById('bsp-confirm-btn').disabled=false;
+    document.getElementById('bsp-confirm-btn').textContent='确认保存到「'+name+'」';
+    // 高亮选中项
+    document.querySelectorAll('#bsp-bank-list .bsp-bank-item').forEach(el=>{
+      el.classList.toggle('selected',parseInt(el.dataset.idx)===idx);
+    });
+  },
+
+  // 新建词库
+  ocrCreateBank(){
+    const input=document.getElementById('bsp-new-name');
+    const name=input.value.trim();
+    if(!name){App.showToast('请输入词库名称');input.focus();return;}
+    const banks=this.getCustomBanks();
+    if(!banks[this.ocrLang])banks[this.ocrLang]={};
+    if(banks[this.ocrLang][name]){App.showToast('词库「'+name+'」已存在');return;}
+    banks[this.ocrLang][name]=[];
+    this.saveCustomBanks(banks);
+    // 自动选中新词库
+    this.ocrSelectedBank=name;
+    document.getElementById('bsp-confirm-btn').disabled=false;
+    document.getElementById('bsp-confirm-btn').textContent='确认保存到「'+name+'」';
+    this.ocrShowBankSelect(); // 刷新列表
+  },
+
+  // 确认选择词库
+  ocrConfirmBank(){
+    if(!this.ocrSelectedBank){App.showToast('请先选择或新建一个词库');return;}
+    // 保存词语到词库
+    const banks=this.getCustomBanks();
+    if(!banks[this.ocrLang])banks[this.ocrLang]={};
+    const bank=banks[this.ocrLang][this.ocrSelectedBank]||[];
+    const selected=this.ocrWords.filter(w=>w.selected);
+    // 追加新词（去重）
+    const existSet=new Set(bank);
+    let addedCount=0;
+    selected.forEach(w=>{
+      if(!existSet.has(w.text)){
+        bank.push(w.text);
+        existSet.add(w.text);
+        addedCount++;
+      }
+    });
+    banks[this.ocrLang][this.ocrSelectedBank]=bank;
+    this.saveCustomBanks(banks);
+    document.getElementById('bank-select-mask').classList.remove('show');
+    App.showToast('✅ 已保存 '+addedCount+' 个词到「'+this.ocrSelectedBank+'」');
+    // 进入复习词数量选择
+    this.ocrShowReviewCount();
+  },
+
+  // 取消词库选择
+  ocrCancelBank(){
+    document.getElementById('bank-select-mask').classList.remove('show');
+    this.ocrSelectedBank=null;
+  },
+
+  // ---- 复习词数量选择 ----
+  ocrLoadReviewPref(){
+    try{
+      const v=parseInt(localStorage.getItem(this.userKey('dict_ocr_review_count')));
+      this.ocrSelectedReviewCount=(v===5||v===10||v===15||v===20)?v:-1;
+    }catch(e){this.ocrSelectedReviewCount=-1;}
+  },
+  ocrSaveReviewPref(count){
+    this.ocrSelectedReviewCount=count;
+    localStorage.setItem(this.userKey('dict_ocr_review_count'),String(count));
+  },
+
+  // 显示复习词数量选择弹窗
+  ocrShowReviewCount(){
+    // 统计可用复习词数量
+    const bank=this.getReviewBank();
+    const avail=(bank[this.ocrLang]||[]).filter(w=>(w.streak||0)<3).length;
+    const options=document.getElementById('rcp-options');
+    const counts=[5,10,15,20];
+    let html='';
+    counts.forEach(c=>{
+      const disabled=c>avail?' (不足)':'';
+      html+=`<div class="rcp-opt${this.ocrSelectedReviewCount===c?' selected':''}${disabled?'':' rcp-selectable'}" data-count="${c}" onclick="App.ocrPickReviewCount(${c})">
+        <span class="rcp-dot"></span>
+        <span class="rcp-label">加入 ${c} 个复习词</span>
+        <span class="rcp-avail">${avail} 个可用${disabled}</span>
+      </div>`;
+    });
+    options.innerHTML=html;
+    // 更新按钮状态：如果没有选中或选中的大于可用数则禁用
+    const sel=this.ocrSelectedReviewCount;
+    const startBtn=document.getElementById('rcp-start-btn');
+    startBtn.disabled=(sel<1||sel>avail);
+    document.getElementById('review-count-mask').classList.add('show');
+  },
+
+  // 选择复习词数量
+  ocrPickReviewCount(count){
+    const bank=this.getReviewBank();
+    const avail=(bank[this.ocrLang]||[]).filter(w=>(w.streak||0)<3).length;
+    if(count>avail){App.showToast('可用复习词不足，仅 '+avail+' 个');return;}
+    this.ocrSaveReviewPref(count);
+    // 刷新选项高亮
+    document.querySelectorAll('#rcp-options .rcp-opt').forEach(el=>{
+      el.classList.toggle('selected',parseInt(el.dataset.count)===count);
+    });
+    const startBtn=document.getElementById('rcp-start-btn');
+    startBtn.disabled=false;
+    startBtn.textContent='开始听写 ('+this.ocrWords.filter(w=>w.selected).length+'新词 + '+count+'复习)';
+  },
+
+  // 开始听写（含或不含复习词）
+  ocrStartWithReview(count){
+    // count 为 0 表示不加入复习；-1 表示使用已选择的数量
+    if(count===0){
+      document.getElementById('review-count-mask').classList.remove('show');
+      this.ocrBeginDictation(0);
+    }else{
+      const sel=this.ocrSelectedReviewCount;
+      if(sel<1){App.showToast('请选择复习词数量');return;}
+      document.getElementById('review-count-mask').classList.remove('show');
+      this.ocrBeginDictation(sel);
+    }
+  },
+
+  // 实际开始听写
+  ocrBeginDictation(reviewCount){
+    // 等待云端同步完成
+    if(!this.cloudSyncReady){
+      App.showToast('正在同步云端数据，请稍候...');
+      const checkTimer=setInterval(()=>{
+        if(this.cloudSyncReady){
+          clearInterval(checkTimer);
+          this.ocrBeginDictation(reviewCount);
+        }
+      },500);
+      return;
+    }
+    const selected=this.ocrWords.filter(w=>w.selected);
+    this.mode=this.ocrLang;
+    let words=selected.map(w=>({text:w.text,hint:w.hint||'',fromReview:false}));
+
+    // 加入复习词
+    if(reviewCount>0){
+      const reviewWords=this.pickReviewWords(this.ocrLang,reviewCount);
+      if(reviewWords.length>0){
+        words=[
+          ...reviewWords.map(w=>({text:w.text,hint:w.hint||'',fromReview:true})),
+          ...words
+        ];
+      }
+    }
+    // 乱序
+    const cs=this.curSettings();
+    if(cs.dictOrder==='shuffle'){
+      words=this.shuffleArray(words);
+    }
+    const source={
+      type:'ocr',
+      mode:this.ocrLang,
+      grade:'拍照·'+this.ocrSelectedBank,
+      ocrWords:selected.map(w=>w.text),
+      bankName:this.ocrSelectedBank,
+      reviewCount:reviewCount
+    };
+    this.startSession(words,source);
   }
 };
 
