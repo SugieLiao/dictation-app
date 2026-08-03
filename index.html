@@ -2786,7 +2786,31 @@ const App={
     this.switchReviewTab('pending');
     this.syncReviewLangUI();
     document.getElementById('review-edit-toolbar').style.display = '';
+    this._initReviewEditDelegation();
     this.go('review');
+  },
+
+  // 复习库编辑按钮事件委托（避免内联 onclick 的转义问题）
+  _initReviewEditDelegation(){
+    const handler = (e) => {
+      const btn = e.target.closest('.rw-edit-btn');
+      if (!btn) return;
+      e.stopPropagation();
+      const action = btn.dataset.action;
+      const key = btn.dataset.key;
+      const text = btn.dataset.text;
+      if (action === 'edit') this._requestEditWord(key, text);
+      else if (action === 'delete') this._requestDeleteWord(key, text);
+    };
+    // 移除旧监听器避免重复绑定
+    const pending = document.getElementById('review-panel-pending');
+    const mastered = document.getElementById('review-panel-mastered');
+    if (pending._editHandler) pending.removeEventListener('click', pending._editHandler);
+    if (mastered._editHandler) mastered.removeEventListener('click', mastered._editHandler);
+    pending._editHandler = handler;
+    mastered._editHandler = handler;
+    pending.addEventListener('click', handler);
+    mastered.addEventListener('click', handler);
   },
   syncReviewLangUI(){
     document.getElementById('rlang-zh').classList.toggle('active',this.reviewLang==='zh');
@@ -2959,11 +2983,12 @@ const App={
     return list.findIndex(w => w.text === text);
   },
 
-  // 生成编辑按钮 HTML
+  // 生成编辑按钮 HTML（使用 data 属性代替内联 onclick，避免转义问题）
   _editButtons(key, text){
     if (!this._editMode) return '';
-    return `<button class="rw-edit-btn" onclick="event.stopPropagation();App._requestEditWord('${key}','${this._escHtml(text)}')" title="修改">✏️</button>
-<button class="rw-edit-btn danger" onclick="event.stopPropagation();App._requestDeleteWord('${key}','${this._escHtml(text)}')" title="删除">🗑️</button>`;
+    const escText = this._escHtml(text);
+    return `<button class="rw-edit-btn" data-action="edit" data-key="${key}" data-text="${escText}" title="修改">✏️</button>
+<button class="rw-edit-btn danger" data-action="delete" data-key="${key}" data-text="${escText}" title="删除">🗑️</button>`;
   },
 
   _escHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); },
@@ -3098,7 +3123,7 @@ const App={
       if (dupIdx >= 0) {
         list[dupIdx].streak = 0;
         list[dupIdx].last = 0;
-        list[dupIdx].nextReview = 0;
+        list[dupIdx].nextReview = this.getNextReviewTs(0);
         list[dupIdx].hint = hint || list[dupIdx].hint;
         list[dupIdx].archived = false;
         this.saveReviewBank(bank);
@@ -3106,7 +3131,7 @@ const App={
         document.getElementById('word-edit-mask').classList.remove('show');
         this.showToast('🔄 「' + text + '」已重置为待复习状态');
       } else {
-        list.push({ text, hint, streak: 0, last: 0, nextReview: 0 });
+        list.push({ text, hint, streak: 0, last: 0, nextReview: this.getNextReviewTs(0) });
         this.saveReviewBank(bank);
         this._refreshReviewUI();
         document.getElementById('word-edit-mask').classList.remove('show');
