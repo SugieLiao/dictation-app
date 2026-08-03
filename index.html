@@ -3051,6 +3051,12 @@ const App={
     const i = parseInt(key.slice(idx + 1));
     if (isNaN(i) || i < 0 || i >= (bank[mode] || []).length) return;
     const word = bank[mode][i];
+    // 记录删除（防止云端合并时复活）
+    const deleted = JSON.parse(localStorage.getItem(App.userKey('dict_deleted_review')) || '[]');
+    deleted.push({text: word.text, mode, ts: Date.now()});
+    if (deleted.length > 200) deleted.splice(0, deleted.length - 200);
+    localStorage.setItem(App.userKey('dict_deleted_review'), JSON.stringify(deleted));
+    // 真正删除
     bank[mode].splice(i, 1);
     this.saveReviewBank(bank);
     this._refreshReviewUI();
@@ -3107,9 +3113,17 @@ const App={
     const list = bank[this.reviewLang] || [];
 
     if (this._wordEditTarget) {
-      // 修改模式
+      // 修改模式 — 不改变复习计划（不改 streak/nextReview/last）
       const t = this._wordEditTarget;
       if (t.mode === this.reviewLang && t.index >= 0 && t.index < list.length) {
+        const oldText = list[t.index]._origText || list[t.index].text;
+        if (oldText !== text) {
+          list[t.index]._origText = oldText; // 记录原始云端名，合并时从云端删除
+          // 如果新名字之前被删过，清除删除记录
+          const deleted = JSON.parse(localStorage.getItem(App.userKey('dict_deleted_review')) || '[]');
+          const delIdx = deleted.findIndex(d => d.text === text && d.mode === this.reviewLang);
+          if (delIdx >= 0) { deleted.splice(delIdx, 1); localStorage.setItem(App.userKey('dict_deleted_review'), JSON.stringify(deleted)); }
+        }
         list[t.index].text = text;
         list[t.index].hint = hint;
       }
@@ -3119,10 +3133,15 @@ const App={
       this.showToast('✏️ 词语已修改：' + text);
     } else {
       // 添加模式 - 如果已存在则重置状态（streak=0，重新开始复习）
+      const now = Date.now();
       const dupIdx = list.findIndex(w => w.text === text);
+      // 清除该词的删除记录（如果之前删过现在又加回来）
+      const deleted = JSON.parse(localStorage.getItem(App.userKey('dict_deleted_review')) || '[]');
+      const delIdx = deleted.findIndex(d => d.text === text && d.mode === this.reviewLang);
+      if (delIdx >= 0) { deleted.splice(delIdx, 1); localStorage.setItem(App.userKey('dict_deleted_review'), JSON.stringify(deleted)); }
       if (dupIdx >= 0) {
         list[dupIdx].streak = 0;
-        list[dupIdx].last = 0;
+        list[dupIdx].last = now;
         list[dupIdx].nextReview = this.getNextReviewTs(0);
         list[dupIdx].hint = hint || list[dupIdx].hint;
         list[dupIdx].archived = false;
@@ -3131,7 +3150,7 @@ const App={
         document.getElementById('word-edit-mask').classList.remove('show');
         this.showToast('🔄 「' + text + '」已重置为待复习状态');
       } else {
-        list.push({ text, hint, streak: 0, last: 0, nextReview: this.getNextReviewTs(0) });
+        list.push({ text, hint, streak: 0, last: now, nextReview: this.getNextReviewTs(0) });
         this.saveReviewBank(bank);
         this._refreshReviewUI();
         document.getElementById('word-edit-mask').classList.remove('show');
@@ -4232,17 +4251,32 @@ const CloudSync={
     this.syncing=false;
   },
 
-  // 合并两个复习库：并集，每个词保留 streak 更高（更接近掌握）的版本
+  // 合并两个复习库：基于文本去重 + 处理改名 + 排除已删除
   mergeReviewBanks(local,cloud){
     const result={zh:[],en:[]};
+    // 读取已删除列表
+    const deletedList = JSON.parse(localStorage.getItem(App.userKey('dict_deleted_review')) || '[]');
+    const deletedByMode = {};
+    for (const d of deletedList) {
+      if (!deletedByMode[d.mode]) deletedByMode[d.mode] = new Set();
+      deletedByMode[d.mode].add(d.text);
+    }
     for(const mode of ['zh','en']){
       const map=new Map();
-      // 先放云端词
+      const localList = local[mode] || [];
+      const deletedSet = deletedByMode[mode] || new Set();
+      // 先放云端词（排除已删除的）
       for(const w of(cloud[mode]||[])){
+        if (deletedSet.has(w.text)) continue; // 被用户删除的，排除
         map.set(w.text,{...w});
       }
       // 再用本地词覆盖（保留 streak 更高的）
-      for(const w of(local[mode]||[])){
+      for(const w of localList){
+        // 如果本地词标记了 _origText（改名），先删除云端旧条目
+        if (w._origText) {
+          map.delete(w._origText);
+          delete w._origText; // 清除临时标记
+        }
         const existing=map.get(w.text);
         if(!existing){
           map.set(w.text,{...w});
