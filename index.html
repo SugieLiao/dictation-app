@@ -645,8 +645,8 @@
   /* 裁剪遮罩 */
   .crop-overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:2000;display:none;flex-direction:column;align-items:center;justify-content:center;}
   .crop-overlay.show{display:flex;}
-  .crop-overlay .crop-canvas-wrap{position:relative;max-width:95vw;max-height:70vh;overflow:hidden;border-radius:8px;box-shadow:0 0 0 9999px rgba(0,0,0,.5);}
-  .crop-overlay canvas{display:block;max-width:95vw;max-height:70vh;cursor:crosshair;}
+  .crop-overlay .crop-canvas-wrap{position:relative;max-width:95vw;max-height:70vh;overflow:hidden;border-radius:8px;}
+  .crop-overlay canvas{display:block;max-width:95vw;max-height:70vh;}
   .crop-overlay .crop-hint{color:#fff;font-size:14px;margin-top:3px;opacity:.7;}
   .crop-overlay .crop-btns{display:flex;gap:12px;margin-top:16px;}
   .crop-overlay .crop-btns button{padding:10px 32px;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;}
@@ -1048,7 +1048,7 @@
     <!-- 裁剪遮罩 -->
     <div class="crop-overlay" id="crop-overlay">
       <div class="crop-canvas-wrap"><canvas id="crop-canvas"></canvas></div>
-      <div class="crop-hint">拖动框选要保留的区域</div>
+      <div class="crop-hint">拖动矩形框调整位置，拖动四角缩放范围</div>
       <div class="crop-btns">
         <button class="crop-cancel-btn" onclick="App.ocrCancelCrop()">取消</button>
         <button class="crop-ok-btn" onclick="App.ocrApplyCrop()">确认裁剪</button>
@@ -4478,7 +4478,6 @@ const App={
   ocrSelectedReviewCount:-1,
   _ocrCropCanvas:null,        // 裁剪画布引用
   _ocrCropCtx:null,
-  _ocrCropStart:null,         // {x,y}
   _ocrCropRect:null,          // {x,y,w,h}
   _ocrMergeStartIdx:-1,       // 拖动合并起始 chip 索引
   _ocrMergeIndices:[],        // 拖动涉及的 chip 索引集合
@@ -4528,6 +4527,9 @@ const App={
   },
 
   // ===== 图片裁剪 =====
+  _ocrCropDragMode:null,     // null|'move'|corners 'tl'|'tr'|'bl'|'br'
+  _ocrCropDragStart:null,    // {x,y,rect:{x,y,w,h}} — mouse position + rect snapshot at drag start
+
   ocrStartCrop(){
     if(!this.ocrImageData)return;
     const overlay=document.getElementById('crop-overlay');
@@ -4535,8 +4537,9 @@ const App={
     const ctx=canvas.getContext('2d');
     this._ocrCropCanvas=canvas;
     this._ocrCropCtx=ctx;
-    this._ocrCropStart=null;
-    this._ocrCropRect=null;
+    this._ocrCropDragMode=null;
+    this._ocrCropDragStart=null;
+
     const img=new Image();
     img.onload=()=>{
       const maxW=window.innerWidth*0.95;
@@ -4550,77 +4553,229 @@ const App={
       this._ocrCropScale=w/img.width;
       this._ocrCropOrigImg=img;
       this._ocrCropW=w;this._ocrCropH=h;
-      ctx.drawImage(img,0,0,w,h);
 
-      // 绑定裁剪框选事件
+      // 初始默认矩形：80% 图片大小，居中
+      const margin=0.1;
+      this._ocrCropRect={
+        x:Math.round(w*margin),
+        y:Math.round(h*margin),
+        w:Math.round(w*(1-2*margin)),
+        h:Math.round(h*(1-2*margin))
+      };
+
+      const cornerR=10;// 角落圆圈半径
+      const cornerHit=28;// 角落点击区域半径
+
       const getPos=(e)=>{
-        const rect=canvas.getBoundingClientRect();
-        return {x:e.clientX-rect.left,y:e.clientY-rect.top};
+        const r=canvas.getBoundingClientRect();
+        return {x:e.clientX-r.left,y:e.clientY-r.top};
       };
-      const redraw=()=>{
-        ctx.drawImage(this._ocrCropOrigImg,0,0,this._ocrCropW,this._ocrCropH);
-        if(this._ocrCropRect&&this._ocrCropRect.w>0&&this._ocrCropRect.h>0){
-          const r=this._ocrCropRect;
-          ctx.fillStyle='rgba(255,255,255,.25)';
-          ctx.fillRect(r.x,r.y,r.w,r.h);
-          ctx.strokeStyle='#fff';ctx.lineWidth=2;
-          ctx.strokeRect(r.x,r.y,r.w,r.h);
+
+      // 判断点在矩形哪个位置：'tl'|'tr'|'bl'|'br'（角落）|'inside'|'outside'
+      const hitTest=(px,py)=>{
+        const r=this._ocrCropRect;
+        if(!r)return 'outside';
+        const corners=[
+          {k:'tl',cx:r.x,cy:r.y},
+          {k:'tr',cx:r.x+r.w,cy:r.y},
+          {k:'bl',cx:r.x,cy:r.y+r.h},
+          {k:'br',cx:r.x+r.w,cy:r.y+r.h}
+        ];
+        for(const c of corners){
+          const dx=px-c.cx,dy=py-c.cy;
+          if(Math.sqrt(dx*dx+dy*dy)<=cornerHit)return c.k;
         }
+        if(px>=r.x&&px<=r.x+r.w&&py>=r.y&&py<=r.y+r.h)return 'inside';
+        return 'outside';
       };
+
+      const clampRect=()=>{
+        const r=this._ocrCropRect;
+        r.x=Math.max(0,Math.min(r.x,w-r.w));
+        r.y=Math.max(0,Math.min(r.y,h-r.h));
+        if(r.x<0){r.w+=r.x;r.x=0;}
+        if(r.y<0){r.h+=r.y;r.y=0;}
+        if(r.x+r.w>w)r.w=w-r.x;
+        if(r.y+r.h>h)r.h=h-r.y;
+        if(r.w<40)r.w=40;
+        if(r.h<40)r.h=40;
+        this._ocrCropRect=r;
+      };
+
+      const redraw=()=>{
+        const r=this._ocrCropRect;
+        ctx.drawImage(this._ocrCropOrigImg,0,0,this._ocrCropW,this._ocrCropH);
+        // 矩形外暗色遮罩
+        ctx.fillStyle='rgba(0,0,0,.45)';
+        ctx.fillRect(0,0,w,h);
+        ctx.clearRect(r.x,r.y,r.w,r.h);
+        // 虚线边框
+        ctx.strokeStyle='#fff';ctx.lineWidth=2;
+        ctx.setLineDash([6,4]);
+        ctx.strokeRect(r.x,r.y,r.w,r.h);
+        ctx.setLineDash([]);
+        // 4 个角落圆点
+        const corners=[
+          [r.x,r.y],[r.x+r.w,r.y],[r.x,r.y+r.h],[r.x+r.w,r.y+r.h]
+        ];
+        corners.forEach(([cx,cy])=>{
+          // 外发光
+          ctx.beginPath();ctx.arc(cx,cy,cornerR+4,0,Math.PI*2);
+          ctx.fillStyle='rgba(255,255,255,.25)';ctx.fill();
+          // 实心白圆
+          ctx.beginPath();ctx.arc(cx,cy,cornerR,0,Math.PI*2);
+          ctx.fillStyle='#fff';ctx.fill();
+          // 边框
+          ctx.strokeStyle='rgba(0,0,0,.35)';ctx.lineWidth=1.5;
+          ctx.stroke();
+        });
+
+        // 更新鼠标样式
+        const mode=this._ocrCropDragMode;
+        if(mode==='tl'||mode==='br')canvas.style.cursor='nwse-resize';
+        else if(mode==='tr'||mode==='bl')canvas.style.cursor='nesw-resize';
+        else if(mode==='move')canvas.style.cursor='move';
+        else canvas.style.cursor='default';
+      };
+
+      // — mouse events —
       canvas.onmousedown=(e)=>{
         const p=getPos(e);
-        this._ocrCropStart=p;
-        this._ocrCropRect={x:p.x,y:p.y,w:0,h:0};
-      };
-      canvas.onmousemove=(e)=>{
-        if(!this._ocrCropStart)return;
-        const p=getPos(e);
-        this._ocrCropRect={
-          x:Math.min(this._ocrCropStart.x,p.x),
-          y:Math.min(this._ocrCropStart.y,p.y),
-          w:Math.abs(p.x-this._ocrCropStart.x),
-          h:Math.abs(p.y-this._ocrCropStart.y)
-        };
+        const hit=hitTest(p.x,p.y);
+        if(hit==='outside'){
+          // 点击外部：开始新的框选（回退方案）
+          this._ocrCropDragMode='move';
+          this._ocrCropDragStart={x:p.x,y:p.y,rect:{...this._ocrCropRect}};
+          this._ocrCropRect={x:p.x,y:p.y,w:0,h:0};
+          redraw();
+        }else if(hit==='inside'){
+          this._ocrCropDragMode='move';
+          this._ocrCropDragStart={x:p.x,y:p.y,rect:{...this._ocrCropRect}};
+        }else{
+          this._ocrCropDragMode=hit;
+          const r=this._ocrCropRect;
+          this._ocrCropDragStart={x:p.x,y:p.y,rect:{x:r.x,y:r.y,w:r.w,h:r.h}};
+        }
         redraw();
       };
-      canvas.onmouseup=()=>{this._ocrCropStart=null;};
-      // Touch support
+      canvas.onmousemove=(e)=>{
+        const p=getPos(e);
+        if(!this._ocrCropDragMode){
+          // 空闲时更新光标
+          const hit=hitTest(p.x,p.y);
+          if(hit==='inside')canvas.style.cursor='move';
+          else if(hit==='tl'||hit==='br')canvas.style.cursor='nwse-resize';
+          else if(hit==='tr'||hit==='bl')canvas.style.cursor='nesw-resize';
+          else canvas.style.cursor='crosshair';
+          return;
+        }
+        const s=this._ocrCropDragStart;
+        const rs=s.rect;
+        const dx=p.x-s.x,dy=p.y-s.y;
+        const mode=this._ocrCropDragMode;
+        if(mode==='move'){
+          if(!this._ocrCropRect.w&&!this._ocrCropRect.h){
+            // finishing a new draw-from-scratch
+            this._ocrCropRect={x:Math.min(s.x,p.x),y:Math.min(s.y,p.y),w:Math.abs(p.x-s.x),h:Math.abs(p.y-s.y)};
+          }else{
+            this._ocrCropRect={x:rs.x+dx,y:rs.y+dy,w:rs.w,h:rs.h};
+          }
+        }else if(mode==='tl'){
+          this._ocrCropRect={x:rs.x+dx,y:rs.y+dy,w:rs.w-dx,h:rs.h-dy};
+        }else if(mode==='tr'){
+          this._ocrCropRect={x:rs.x,y:rs.y+dy,w:rs.w+dx,h:rs.h-dy};
+        }else if(mode==='bl'){
+          this._ocrCropRect={x:rs.x+dx,y:rs.y,w:rs.w-dx,h:rs.h+dy};
+        }else if(mode==='br'){
+          this._ocrCropRect={x:rs.x,y:rs.y,w:rs.w+dx,h:rs.h+dy};
+        }
+        clampRect();
+        redraw();
+      };
+      canvas.onmouseup=()=>{
+        if(this._ocrCropDragMode==='move'&&!this._ocrCropDragStart.rect.w&&!this._ocrCropDragStart.rect.h){
+          // 如果新拖出的矩形太小，恢复默认
+          const r=this._ocrCropRect;
+          if(r.w<20||r.h<20){
+            this._ocrCropRect={x:Math.round(w*0.1),y:Math.round(h*0.1),w:Math.round(w*0.8),h:Math.round(h*0.8)};
+          }
+        }
+        this._ocrCropDragMode=null;
+        this._ocrCropDragStart=null;
+        redraw();
+      };
+
+      // — touch events —
       canvas.ontouchstart=(e)=>{
         e.preventDefault();
-        const t=e.touches[0];
-        const p=getPos(t);
-        this._ocrCropStart=p;
-        this._ocrCropRect={x:p.x,y:p.y,w:0,h:0};
+        const p=getPos(e.touches[0]);
+        const hit=hitTest(p.x,p.y);
+        if(hit==='outside'){
+          this._ocrCropDragMode='move';
+          this._ocrCropDragStart={x:p.x,y:p.y,rect:{...this._ocrCropRect}};
+          this._ocrCropRect={x:p.x,y:p.y,w:0,h:0};
+          redraw();
+        }else if(hit==='inside'){
+          this._ocrCropDragMode='move';
+          this._ocrCropDragStart={x:p.x,y:p.y,rect:{...this._ocrCropRect}};
+        }else{
+          this._ocrCropDragMode=hit;
+          const r=this._ocrCropRect;
+          this._ocrCropDragStart={x:p.x,y:p.y,rect:{x:r.x,y:r.y,w:r.w,h:r.h}};
+        }
+        redraw();
       };
       canvas.ontouchmove=(e)=>{
         e.preventDefault();
-        if(!this._ocrCropStart)return;
-        const t=e.touches[0];
-        const p=getPos(t);
-        this._ocrCropRect={
-          x:Math.min(this._ocrCropStart.x,p.x),
-          y:Math.min(this._ocrCropStart.y,p.y),
-          w:Math.abs(p.x-this._ocrCropStart.x),
-          h:Math.abs(p.y-this._ocrCropStart.y)
-        };
+        const p=getPos(e.touches[0]);
+        if(!this._ocrCropDragMode)return;
+        const s=this._ocrCropDragStart;
+        const rs=s.rect;
+        const dx=p.x-s.x,dy=p.y-s.y;
+        const mode=this._ocrCropDragMode;
+        if(mode==='move'){
+          if(!this._ocrCropRect.w&&!this._ocrCropRect.h){
+            this._ocrCropRect={x:Math.min(s.x,p.x),y:Math.min(s.y,p.y),w:Math.abs(p.x-s.x),h:Math.abs(p.y-s.y)};
+          }else{
+            this._ocrCropRect={x:rs.x+dx,y:rs.y+dy,w:rs.w,h:rs.h};
+          }
+        }else if(mode==='tl'){
+          this._ocrCropRect={x:rs.x+dx,y:rs.y+dy,w:rs.w-dx,h:rs.h-dy};
+        }else if(mode==='tr'){
+          this._ocrCropRect={x:rs.x,y:rs.y+dy,w:rs.w+dx,h:rs.h-dy};
+        }else if(mode==='bl'){
+          this._ocrCropRect={x:rs.x+dx,y:rs.y,w:rs.w-dx,h:rs.h+dy};
+        }else if(mode==='br'){
+          this._ocrCropRect={x:rs.x,y:rs.y,w:rs.w+dx,h:rs.h+dy};
+        }
+        clampRect();
         redraw();
       };
-      canvas.ontouchend=()=>{this._ocrCropStart=null;};
+      canvas.ontouchend=()=>{
+        if(this._ocrCropDragMode==='move'&&!this._ocrCropDragStart.rect.w&&!this._ocrCropDragStart.rect.h){
+          const r=this._ocrCropRect;
+          if(r.w<20||r.h<20){
+            this._ocrCropRect={x:Math.round(w*0.1),y:Math.round(h*0.1),w:Math.round(w*0.8),h:Math.round(h*0.8)};
+          }
+        }
+        this._ocrCropDragMode=null;
+        this._ocrCropDragStart=null;
+        redraw();
+      };
 
+      redraw();
       overlay.classList.add('show');
     };
     img.src=this.ocrImageData;
   },
   ocrCancelCrop(){
     document.getElementById('crop-overlay').classList.remove('show');
-    this._ocrCropRect=null;this._ocrCropStart=null;
-    // 取消裁剪后仍显示图片，启用识别按钮
+    this._ocrCropRect=null;this._ocrCropDragMode=null;this._ocrCropDragStart=null;
     this.ocrUpdatePreviewAfterCrop();
   },
   ocrApplyCrop(){
     const rect=this._ocrCropRect;
     if(!rect||rect.w<10||rect.h<10){
-      // 未框选 → 使用完整图片，直接关闭裁剪
       this.ocrUpdatePreviewAfterCrop();
       document.getElementById('crop-overlay').classList.remove('show');
       this._ocrCropRect=null;
@@ -4687,7 +4842,8 @@ const App={
     for(const line of lines){
       const parts=line.split(/[\s,，、|]+/).map(p=>p.trim()).filter(Boolean);
       for(const part of parts){
-        const clean=part.replace(/[，。！？、；：""''（）《》【】…—\s]/g,'').trim();
+        // 去除所有标点符号和特殊字符，仅保留中文字符、英文字母、数字
+        const clean=part.replace(/[^\u4e00-\u9fff\u3400-\u4dbfa-zA-Z0-9]/g,'').trim();
         if(clean.length>=1&&!seen.has(clean)){
           seen.add(clean);
           words.push({text:clean,hint:'',selected:true});
