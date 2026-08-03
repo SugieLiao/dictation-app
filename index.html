@@ -302,6 +302,37 @@
   }
   .rw-item .rw-due.due-now{background:#fff0ed;color:var(--red);}
   .rw-item .rw-due.due-future{background:#f0f4ff;color:var(--blue);}
+  /* 复习库编辑模式 */
+  .rw-edit-btn{
+    flex-shrink:0;width:30px;height:30px;border:1px solid var(--border);
+    border-radius:8px;background:var(--card);color:var(--muted);
+    font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+    transition:all .15s;line-height:1;
+  }
+  .rw-edit-btn:hover{background:var(--primary);color:#fff;border-color:var(--primary);}
+  .rw-edit-btn.danger:hover{background:var(--red);color:#fff;border-color:var(--red);}
+  .edit-toolbar{
+    display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;
+  }
+  .edit-toolbar .et-toggle{
+    font-size:13px;padding:6px 14px;border:1px solid var(--border);
+    border-radius:8px;background:var(--card);color:var(--muted);
+    cursor:pointer;font-weight:600;transition:all .15s;
+  }
+  .edit-toolbar .et-toggle.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+  .edit-toolbar .et-add{
+    font-size:13px;padding:6px 14px;border:1px solid var(--green);
+    border-radius:8px;background:var(--card);color:var(--green);
+    cursor:pointer;font-weight:600;transition:all .15s;
+  }
+  .edit-toolbar .et-add:hover{background:var(--green);color:#fff;}
+  .rw-item.editing .rw-edit-btn{display:flex;}
+  /* 简易密码验证弹窗 */
+  #edit-pwd-mask .modal-card{max-width:380px;}
+  #edit-pwd-mask .modal-body input{
+    width:100%;padding:10px 12px;font-size:14px;border:1px solid var(--border);
+    border-radius:8px;box-sizing:border-box;background:var(--card);color:var(--text);
+  }
 
   /* 分年级词库统计 */
   .grade-stats{display:flex;flex-direction:column;gap:8px;margin-top:10px;}
@@ -884,6 +915,10 @@
           ✅ 已掌握<span class="cnt" id="cnt-mastered">(0)</span>
         </div>
       </div>
+      <div class="edit-toolbar" id="review-edit-toolbar" style="display:none;">
+        <button class="et-toggle" id="et-toggle-btn" onclick="App.toggleReviewEdit()">✏️ 编辑</button>
+        <button class="et-add" id="et-add-btn" style="display:none;" onclick="App.showAddWordModal()">➕ 添加词语</button>
+      </div>
       <div id="review-panel-pending"></div>
       <div id="review-panel-mastered" style="display:none;"></div>
     </div>
@@ -998,6 +1033,60 @@
       </div>
     </div>
   </div>
+
+  <!-- 编辑用密码验证弹窗 -->
+  <div class="modal-mask" id="edit-pwd-mask" onclick="if(event.target===this)App._cancelPwdCheck()">
+    <div class="modal-card">
+      <div class="modal-head">
+        <div>
+          <div class="m-title">🔒 验证管理密码</div>
+          <div class="m-sub">修改/删除复习词语需要验证管理密码</div>
+        </div>
+        <button class="m-close" onclick="App._cancelPwdCheck()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <input type="password" id="edit-pwd-input" placeholder="输入管理密码" autocomplete="off" onkeydown="if(event.key==='Enter')App._confirmPwdCheck()">
+          <div id="edit-pwd-msg" style="font-size:13px;min-height:18px;"></div>
+          <div class="btn-row">
+            <button class="btn btn-ghost" style="flex:1;" onclick="App._cancelPwdCheck()">取消</button>
+            <button class="btn btn-primary" style="flex:1;" onclick="App._confirmPwdCheck()">确认</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 添加/修改词语弹窗 -->
+  <div class="modal-mask" id="word-edit-mask" onclick="if(event.target===this)App.closeWordEditModal()">
+    <div class="modal-card">
+      <div class="modal-head">
+        <div>
+          <div class="m-title" id="word-edit-title">✏️ 添加词语</div>
+          <div class="m-sub" id="word-edit-sub">直接添加，无需密码</div>
+        </div>
+        <button class="m-close" onclick="App.closeWordEditModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <div>
+            <label style="font-size:13px;color:var(--muted);display:block;margin-bottom:5px;">词语</label>
+            <input type="text" id="word-edit-text" placeholder="输入词语" autocomplete="off" style="width:100%;padding:10px 12px;font-size:16px;border:1px solid var(--border);border-radius:8px;box-sizing:border-box;background:var(--card);color:var(--text);" onkeydown="if(event.key==='Enter')App.submitWordEdit()">
+          </div>
+          <div>
+            <label style="font-size:13px;color:var(--muted);display:block;margin-bottom:5px;">提示（可选）</label>
+            <input type="text" id="word-edit-hint" placeholder="如：拼音或释义" autocomplete="off" style="width:100%;padding:10px 12px;font-size:14px;border:1px solid var(--border);border-radius:8px;box-sizing:border-box;background:var(--card);color:var(--text);" onkeydown="if(event.key==='Enter')App.submitWordEdit()">
+          </div>
+          <div id="word-edit-msg" style="font-size:13px;min-height:18px;"></div>
+          <div class="btn-row">
+            <button class="btn btn-ghost" style="flex:1;" onclick="App.closeWordEditModal()">取消</button>
+            <button class="btn btn-primary" style="flex:1;" onclick="App.submitWordEdit()">保存</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- 用户管理弹窗 -->
   <div class="modal-mask" id="user-mask" onclick="if(event.target===this)App.closeUserModal()">
     <div class="modal-card">
@@ -2284,6 +2373,15 @@ const App={
     if(cur){
       const curName=cur.id.replace('screen-','');
       if(curName!==name)this.navHistory.push(curName);
+      // 离开复习库页面时隐藏编辑工具栏
+      if(curName==='review'){
+        document.getElementById('review-edit-toolbar').style.display='none';
+        this._editMode=false;
+        const tb=document.getElementById('et-toggle-btn');
+        if(tb){tb.classList.remove('active');tb.textContent='✏️ 编辑';}
+        const ab=document.getElementById('et-add-btn');
+        if(ab)ab.style.display='none';
+      }
     }
     document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
     document.getElementById('screen-'+name).classList.add('active');
@@ -2295,6 +2393,17 @@ const App={
       document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
       document.getElementById('screen-'+prev).classList.add('active');
       window.scrollTo(0,0);
+      // 回到复习库页面时显示编辑工具栏，离开时隐藏
+      if(prev==='review'){
+        document.getElementById('review-edit-toolbar').style.display='';
+      } else {
+        document.getElementById('review-edit-toolbar').style.display='none';
+        this._editMode=false;
+        const tb=document.getElementById('et-toggle-btn');
+        if(tb){tb.classList.remove('active');tb.textContent='✏️ 编辑';}
+        const ab=document.getElementById('et-add-btn');
+        if(ab)ab.style.display='none';
+      }
     }else{
       // 没有历史记录时回首页
       this.go('home');
@@ -2676,6 +2785,7 @@ const App={
     this.renderReviewMastered();
     this.switchReviewTab('pending');
     this.syncReviewLangUI();
+    document.getElementById('review-edit-toolbar').style.display = '';
     this.go('review');
   },
   syncReviewLangUI(){
@@ -2742,12 +2852,14 @@ const App={
         const dueHtml=dueLabel
           ?`<span class="rw-due due-future">${dueLabel}</span>`
           :`<span class="rw-due due-now">到期</span>`;
+        const editBtns = this._editButtons(w.key, w.text);
         html+=`<div class="rw-item">
           <span class="rw-text">${w.text}</span>
           ${hintHtml}
           <span class="rw-streak" title="掌握进度 ${streak}/3">${dots}</span>
           ${dueHtml}
           <span class="rw-replay" onclick="App.replayReviewWord('${w.key}')">🔊</span>
+          ${editBtns}
         </div>`;
       });
     }
@@ -2771,11 +2883,13 @@ const App={
       items.forEach(w=>{
         const hintHtml=w.hint?`<span class="rw-hint">${w.hint}</span>`:'';
         const tag=w.archived?'<span class="rw-tag archived">已归档</span>':'<span class="rw-tag">已掌握</span>';
+        const editBtns = this._editButtons(w.key, w.text);
         html+=`<div class="rw-item">
           <span class="rw-text">${w.text}</span>
           ${hintHtml}
           ${tag}
           <span class="rw-replay" onclick="App.replayReviewWord('${w.key}')">🔊</span>
+          ${editBtns}
         </div>`;
       });
     }
@@ -2810,6 +2924,199 @@ const App={
       this.renderReviewMastered();
     }
     alert(`已归档 ${archived} 个${langLabel}已掌握的词。\n这些词保留在「已掌握」选项卡里，不会丢失。`);
+  },
+
+  // ===== 复习库编辑功能 =====
+  _editMode: false,
+  _editPendingAction: null, // {action:'delete'|'edit', key, word}
+
+  // 切换编辑模式
+  toggleReviewEdit(){
+    this._editMode = !this._editMode;
+    const toggleBtn = document.getElementById('et-toggle-btn');
+    const addBtn = document.getElementById('et-add-btn');
+    if (this._editMode) {
+      toggleBtn.classList.add('active');
+      toggleBtn.textContent = '✅ 完成';
+      addBtn.style.display = '';
+    } else {
+      toggleBtn.classList.remove('active');
+      toggleBtn.textContent = '✏️ 编辑';
+      addBtn.style.display = 'none';
+    }
+    // 重新渲染当前 tab
+    if (document.getElementById('tab-review-pending').classList.contains('active')) {
+      this.renderReviewPending();
+    } else {
+      this.renderReviewMastered();
+    }
+  },
+
+  // 获取词的 key（兼容新旧格式）
+  _findWordIndex(text){
+    const bank = this.getReviewBank();
+    const list = bank[this.reviewLang] || [];
+    return list.findIndex(w => w.text === text);
+  },
+
+  // 生成编辑按钮 HTML
+  _editButtons(key, text){
+    if (!this._editMode) return '';
+    return `<button class="rw-edit-btn" onclick="event.stopPropagation();App._requestEditWord('${key}','${this._escHtml(text)}')" title="修改">✏️</button>
+<button class="rw-edit-btn danger" onclick="event.stopPropagation();App._requestDeleteWord('${key}','${this._escHtml(text)}')" title="删除">🗑️</button>`;
+  },
+
+  _escHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); },
+
+  // 请求删除词语（需要密码验证）
+  _requestDeleteWord(key, text){
+    this._editPendingAction = {action:'delete', key, text};
+    this._showPwdPrompt('删除词语「' + text + '」');
+  },
+
+  // 请求修改词语（需要密码验证）
+  _requestEditWord(key, text){
+    this._editPendingAction = {action:'edit', key, text};
+    this._showPwdPrompt('修改词语「' + text + '」');
+  },
+
+  // 显示密码验证弹窗
+  _showPwdPrompt(desc){
+    document.getElementById('edit-pwd-input').value = '';
+    const msg = document.getElementById('edit-pwd-msg');
+    msg.innerHTML = '';
+    msg.style.color = '';
+    const sub = document.querySelector('#edit-pwd-mask .m-sub');
+    if (sub) sub.textContent = desc + ' 需要验证管理密码';
+    document.getElementById('edit-pwd-mask').classList.add('show');
+    setTimeout(() => document.getElementById('edit-pwd-input').focus(), 100);
+  },
+
+  _cancelPwdCheck(){
+    document.getElementById('edit-pwd-mask').classList.remove('show');
+    this._editPendingAction = null;
+  },
+
+  _confirmPwdCheck(){
+    const input = document.getElementById('edit-pwd-input');
+    const val = input.value.trim();
+    const msg = document.getElementById('edit-pwd-msg');
+    if (!val) { msg.style.color = 'var(--red)'; msg.textContent = '请输入管理密码'; input.focus(); return; }
+    if (val !== this.getAdminPwd()) {
+      msg.style.color = 'var(--red)'; msg.textContent = '❌ 管理密码错误';
+      input.value = ''; input.focus(); return;
+    }
+    // 密码正确，执行待处理操作
+    document.getElementById('edit-pwd-mask').classList.remove('show');
+    const action = this._editPendingAction;
+    this._editPendingAction = null;
+    if (!action) return;
+    if (action.action === 'delete') {
+      this._doDeleteWord(action.key);
+    } else if (action.action === 'edit') {
+      this._doEditWord(action.key);
+    }
+  },
+
+  // 执行删除
+  _doDeleteWord(key){
+    const bank = this.getReviewBank();
+    const idx = key.lastIndexOf('-');
+    const mode = key.slice(0, idx);
+    const i = parseInt(key.slice(idx + 1));
+    if (isNaN(i) || i < 0 || i >= (bank[mode] || []).length) return;
+    const word = bank[mode][i];
+    bank[mode].splice(i, 1);
+    this.saveReviewBank(bank);
+    this._refreshReviewUI();
+    this.showToast('🗑️ 「' + word.text + '」已从复习库删除');
+  },
+
+  // 执行编辑 - 打开词语编辑弹窗
+  _doEditWord(key){
+    const bank = this.getReviewBank();
+    const idx = key.lastIndexOf('-');
+    const mode = key.slice(0, idx);
+    const i = parseInt(key.slice(idx + 1));
+    if (isNaN(i) || i < 0 || i >= (bank[mode] || []).length) return;
+    const word = bank[mode][i];
+    // 保存编辑目标
+    this._wordEditTarget = {key, mode, index: i};
+    document.getElementById('word-edit-title').textContent = '✏️ 修改词语';
+    document.getElementById('word-edit-sub').textContent = '修改后保存即可';
+    document.getElementById('word-edit-text').value = word.text || '';
+    document.getElementById('word-edit-hint').value = word.hint || '';
+    document.getElementById('word-edit-msg').innerHTML = '';
+    document.getElementById('word-edit-msg').style.color = '';
+    document.getElementById('word-edit-mask').classList.add('show');
+    setTimeout(() => document.getElementById('word-edit-text').focus(), 100);
+  },
+
+  // 添加词语（无需密码）
+  showAddWordModal(){
+    this._wordEditTarget = null;
+    document.getElementById('word-edit-title').textContent = '➕ 添加词语';
+    document.getElementById('word-edit-sub').textContent = '直接添加，无需密码';
+    document.getElementById('word-edit-text').value = '';
+    document.getElementById('word-edit-hint').value = '';
+    document.getElementById('word-edit-msg').innerHTML = '';
+    document.getElementById('word-edit-msg').style.color = '';
+    document.getElementById('word-edit-mask').classList.add('show');
+    setTimeout(() => document.getElementById('word-edit-text').focus(), 100);
+  },
+
+  closeWordEditModal(){
+    document.getElementById('word-edit-mask').classList.remove('show');
+    this._wordEditTarget = null;
+  },
+
+  submitWordEdit(){
+    const text = document.getElementById('word-edit-text').value.trim();
+    const hint = document.getElementById('word-edit-hint').value.trim();
+    const msg = document.getElementById('word-edit-msg');
+    if (!text) {
+      msg.style.color = 'var(--red)'; msg.textContent = '请输入词语';
+      document.getElementById('word-edit-text').focus(); return;
+    }
+    const bank = this.getReviewBank();
+    const list = bank[this.reviewLang] || [];
+
+    if (this._wordEditTarget) {
+      // 修改模式
+      const t = this._wordEditTarget;
+      if (t.mode === this.reviewLang && t.index >= 0 && t.index < list.length) {
+        list[t.index].text = text;
+        list[t.index].hint = hint;
+      }
+      this.saveReviewBank(bank);
+      this._refreshReviewUI();
+      document.getElementById('word-edit-mask').classList.remove('show');
+      this.showToast('✏️ 词语已修改：' + text);
+    } else {
+      // 添加模式 - 检查是否已存在
+      const dup = list.find(w => w.text === text);
+      if (dup) {
+        msg.style.color = 'var(--red)';
+        msg.textContent = '⚠️ 复习库中已存在「' + text + '」，请勿重复添加';
+        return;
+      }
+      list.push({ text, hint, streak: 0, last: 0, nextReview: 0 });
+      this.saveReviewBank(bank);
+      this._refreshReviewUI();
+      document.getElementById('word-edit-mask').classList.remove('show');
+      this.showToast('➕ 「' + text + '」已添加到复习库');
+    }
+    this._wordEditTarget = null;
+  },
+
+  _refreshReviewUI(){
+    this.renderReviewLangCounts();
+    this.renderReviewCounts();
+    this.renderHomeEntries();
+    const panel = document.getElementById('review-panel-pending');
+    if (panel && panel.style.display !== 'none') this.renderReviewPending();
+    const panelM = document.getElementById('review-panel-mastered');
+    if (panelM && panelM.style.display !== 'none') this.renderReviewMastered();
   },
 
   // ===== 日志功能 =====
