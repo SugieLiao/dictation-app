@@ -2198,18 +2198,12 @@ const App={
       }
     }
 
-    // 合并复习库：云端覆盖本地（复习库是累积的，云端版本通常更全）
+    // 合并复习库：始终取本地与云端并集，保留 streak 更高的版本
     if(cloudData.review){
       const localReview=JSON.parse(localStorage.getItem(this.userKey('dict_review'))||'{"zh":[],"en":[]}');
-      const cloudZhCount=cloudData.review.zh?cloudData.review.zh.length:0;
-      const cloudEnCount=cloudData.review.en?cloudData.review.en.length:0;
-      const localZhCount=localReview.zh?localReview.zh.length:0;
-      const localEnCount=localReview.en?localReview.en.length:0;
-      // 如果云端数据更多，用云端覆盖
-      if(cloudZhCount+cloudEnCount>=localZhCount+localEnCount){
-        localStorage.setItem(this.userKey('dict_review'),JSON.stringify(cloudData.review));
-        needRefresh=true;
-      }
+      const mergedReview=CloudSync.mergeReviewBanks(localReview,cloudData.review);
+      localStorage.setItem(this.userKey('dict_review'),JSON.stringify(mergedReview));
+      needRefresh=true;
     }
 
     // 合并进度
