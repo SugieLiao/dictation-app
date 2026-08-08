@@ -3835,6 +3835,8 @@ const App={
       this.saveReviewBank(bank);
       this.showToast('➕ 「'+w.text+'」已添加到复习库');
     }
+    // 记住刚加入复习库的语言，下次打开复习库页自动切换到该语言（避免默认停留在语文而看不到英语新词）
+    this.reviewLang=mode;
     // 刷新当前明细弹窗，让按钮状态更新
     this.showLogDetail(ts);
   },
