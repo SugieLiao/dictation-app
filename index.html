@@ -546,6 +546,13 @@
   .dw-item .dw-idx{font-size:11px;color:var(--muted);font-weight:400;}
   .dw-item.wrong .dw-idx{color:var(--red);opacity:.7;}
   .dw-item .dw-hint{font-size:12px;color:var(--muted);font-weight:400;}
+  .dw-item .dw-add-rev{
+    font-size:12px;color:var(--muted);cursor:pointer;padding:1px 6px;
+    border-radius:4px;margin-left:auto;white-space:nowrap;
+    border:none;background:#e8e8e8;line-height:1.5;
+  }
+  .dw-item .dw-add-rev:active{background:#d0d0d0;}
+  .dw-item .dw-add-rev.added{color:var(--green);background:#e8f5e9;cursor:default;}
   .detail-legend{
     display:flex;gap:14px;font-size:12px;color:var(--muted);
     margin-bottom:10px;justify-content:center;
@@ -3766,6 +3773,8 @@ const App={
       `${this.formatDate(l.date)} ${l.time} · 共${l.total}词 · 对${l.correct} 错${l.wrong} · 正确率${acc}%${l.rolledBack?' · 已回滚':''}`;
     const wrongSet=new Set(l.wrongIdx||[]);
     const words=l.words||[];
+    const reviewBank=this.getReviewBank();
+    const reviewTexts=new Set((reviewBank[l.mode]||[]).map(w=>w.text));
     let html='';
     if(!words.length){
       html='<div class="empty" style="padding:24px;">这条日志没有保存词语明细\n（可能是旧版本记录）</div>';
@@ -3773,16 +3782,22 @@ const App={
       html+='<div class="detail-legend">';
       html+='<span class="lg"><span class="sw" style="background:#f7f7f7;border:1px solid #e0e0e0;"></span>正确</span>';
       html+='<span class="lg"><span class="sw" style="background:#fff0f0;border:1px solid #ffd0d0;"></span>错误</span>';
+      html+='<span class="lg" style="margin-left:8px;font-size:11px;">点击词语：重播语音 | 点击➕：加入复习库</span>';
       html+='</div>';
       html+='<div class="detail-grid">';
       words.forEach((w,i)=>{
         const isWrong=wrongSet.has(i);
         const cls=isWrong?'dw-item wrong':'dw-item';
         const hintHtml=w.hint?`<span class="dw-hint">${w.hint}</span>`:'';
+        const alreadyInReview=reviewTexts.has(w.text);
+        const addBtn=alreadyInReview
+          ?`<button class="dw-add-rev added" onclick="event.stopPropagation()" disabled>✓已加入</button>`
+          :`<button class="dw-add-rev" onclick="event.stopPropagation();App.addToReviewFromDetail(${i},${ts})">➕复习</button>`;
         html+=`<div class="${cls}" onclick="App.replayDetailWord(${i},${ts})">
           <span class="dw-idx">${i+1}</span>
           <span>${w.text}</span>
           ${hintHtml}
+          ${addBtn}
         </div>`;
       });
       html+='</div>';
@@ -3798,6 +3813,35 @@ const App={
     const w=this._detailWords[i];
     const lang=this._detailMode==='zh'?'zh-CN':'en-US';
     TTS.speak(w.text,lang,this.rate,1,null,this.voiceURI);
+  },
+  addToReviewFromDetail(i,ts){
+    if(!this._detailWords||!this._detailWords[i])return;
+    const w=this._detailWords[i];
+    const mode=this._detailMode;
+    // 检查是否已在复习库中
+    const bank=this.getReviewBank();
+    const list=bank[mode]||[];
+    const dupIdx=list.findIndex(rw=>rw.text===w.text);
+    const now=Date.now();
+    // 清除该词的删除记录（如果之前删过现在又加回来）
+    const deleted=JSON.parse(localStorage.getItem(this.userKey('dict_deleted_review'))||'[]');
+    const delIdx=deleted.findIndex(d=>d.text===w.text&&d.mode===mode);
+    if(delIdx>=0){deleted.splice(delIdx,1);localStorage.setItem(this.userKey('dict_deleted_review'),JSON.stringify(deleted));}
+    if(dupIdx>=0){
+      // 已在复习库 → 重置为待复习状态
+      list[dupIdx].streak=0;
+      list[dupIdx].last=now;
+      list[dupIdx].nextReview=this.getNextReviewTs(0);
+      list[dupIdx].archived=false;
+      this.saveReviewBank(bank);
+      this.showToast('🔄 「'+w.text+'」已重置为待复习状态');
+    }else{
+      list.push({text:w.text,hint:w.hint||'',streak:0,last:now,nextReview:this.getNextReviewTs(0)});
+      this.saveReviewBank(bank);
+      this.showToast('➕ 「'+w.text+'」已添加到复习库');
+    }
+    // 刷新当前明细弹窗，让按钮状态更新
+    this.showLogDetail(ts);
   },
   closeLogDetail(){
     document.getElementById('log-detail-mask').classList.remove('show');
