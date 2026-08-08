@@ -3774,7 +3774,8 @@ const App={
     const wrongSet=new Set(l.wrongIdx||[]);
     const words=l.words||[];
     const reviewBank=this.getReviewBank();
-    const reviewTexts=new Set((reviewBank[l.mode]||[]).map(w=>w.text));
+    // 已掌握（streak>=3）的不算在复习库中
+    const reviewTexts=new Set((reviewBank[l.mode]||[]).filter(w=>(w.streak||0)<3).map(w=>w.text));
     let html='';
     if(!words.length){
       html='<div class="empty" style="padding:24px;">这条日志没有保存词语明细\n（可能是旧版本记录）</div>';
