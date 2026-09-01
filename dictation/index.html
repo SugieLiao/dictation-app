@@ -628,7 +628,7 @@
   .ocr-words-head .ow-actions button{font-size:12px;padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--muted);cursor:pointer;font-weight:500;transition:all .12s;}
   .ocr-words-head .ow-actions button:hover{background:var(--primary);color:#fff;border-color:var(--primary);}
   .ocr-words-grid{display:flex;flex-wrap:wrap;gap:8px;position:relative;user-select:none;}
-  .ow-chip{padding:8px 14px;border:2px solid transparent;border-radius:10px;font-size:15px;font-weight:500;cursor:pointer;transition:all .12s;background:transparent;color:var(--muted);user-select:none;display:flex;align-items:center;gap:6px;position:relative;z-index:1;}
+  .ow-chip{padding:8px 14px;border:2px solid transparent;border-radius:10px;font-size:15px;font-weight:500;cursor:pointer;transition:all .12s;background:transparent;color:var(--muted);user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;touch-action:none;display:flex;align-items:center;gap:6px;position:relative;z-index:1;}
   .ow-chip:hover:not(.selected){border-color:transparent;background:transparent;color:var(--text);}
   .ow-chip.selected{border-color:var(--primary);background:#fff4ec;color:var(--primary-dark);}
   .ow-chip.merge-hover{border-color:var(--orange,#ff9800);background:#fff3e0;box-shadow:0 0 0 3px rgba(255,152,0,.15);z-index:2;}
@@ -5012,6 +5012,8 @@ const App={
   _ocrCropRect:null,          // {x,y,w,h}
   _ocrMergeStartIdx:-1,       // 拖动合并起始 chip 索引
   _ocrMergeIndices:[],        // 拖动涉及的 chip 索引集合
+  _ocrMergeDragged:false,
+  _ocrMergeIgnoreClickUntil:0,
 
   // 打开拍照听写页面
   ocrOpen(lang,options={}){
@@ -5028,6 +5030,8 @@ const App={
     this.ocrLessonChoice='other';
     this._ocrMergeStartIdx=-1;
     this._ocrMergeIndices=[];
+    this._ocrMergeDragged=false;
+    this._ocrMergeIgnoreClickUntil=0;
     const isChars=this.ocrEntryMode==='chars';
     document.getElementById('ocr-page-title').textContent=(isChars?'✨ 生字拍照组词':'📷 拍照识词')+' - '+(lang==='zh'?'语文':'英语');
     const modeNote=document.getElementById('ocr-mode-note');
@@ -5461,36 +5465,42 @@ const App={
       const editBtn=chip.querySelector('.ow-edit');if(editBtn){editBtn.onpointerdown=e=>e.stopPropagation();editBtn.onclick=e=>{e.stopPropagation();this.ocrEditSuggestedWord(i);};}
       // 点击切换
       chip.addEventListener('click',(e)=>{
-        if(this._ocrMergeStartIdx>=0)return;
+        if(this._ocrMergeStartIdx>=0||Date.now()<this._ocrMergeIgnoreClickUntil)return;
         this.ocrToggleWord(i);
       });
       // 拖动合并 - pointer 事件
       chip.addEventListener('pointerdown',(e)=>{
+        if(e.pointerType==='mouse'&&e.button!==0)return;
         e.preventDefault();
-        chip.setPointerCapture(e.pointerId);
+        try{chip.setPointerCapture(e.pointerId);}catch(err){}
         this._ocrMergeStartIdx=i;
         this._ocrMergeIndices=[i];
+        this._ocrMergeDragged=false;
         this.ocrWords[i]._mergeMark=true;
         chip.classList.add('merge-active');
       });
       chip.addEventListener('pointermove',(e)=>{
         if(this._ocrMergeStartIdx<0)return;
+        e.preventDefault();
         const el=document.elementFromPoint(e.clientX,e.clientY);
         const targetChip=el?el.closest('.ow-chip'):null;
         if(targetChip&&targetChip.dataset.idx!==undefined){
           const ti=parseInt(targetChip.dataset.idx);
           if(!this._ocrMergeIndices.includes(ti)){
             this._ocrMergeIndices.push(ti);
+            this._ocrMergeDragged=true;
             this.ocrWords[ti]._mergeMark=true;
             targetChip.classList.add('merge-hover');
           }
         }
       });
       chip.addEventListener('pointerup',(e)=>{
-        chip.releasePointerCapture(e.pointerId);
+        try{chip.releasePointerCapture(e.pointerId);}catch(err){}
+        const dragged=this._ocrMergeDragged;
         if(this._ocrMergeStartIdx>=0&&this._ocrMergeIndices.length>1){
           this.ocrShowMergeToast();
         }
+        if(dragged)this._ocrMergeIgnoreClickUntil=Date.now()+700;
         this.ocrClearMergeState();
       });
       chip.addEventListener('pointercancel',()=>{this.ocrClearMergeState();});
@@ -5503,6 +5513,7 @@ const App={
   ocrClearMergeState(){
     this._ocrMergeStartIdx=-1;
     this._ocrMergeIndices=[];
+    this._ocrMergeDragged=false;
     document.querySelectorAll('#ocr-words-grid .ow-chip').forEach(c=>{
       c.classList.remove('merge-active','merge-hover');
     });
