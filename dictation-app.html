@@ -689,6 +689,7 @@
   .bm-detail-title{font-size:19px;font-weight:700;flex:1;word-break:break-word;}
   .bm-action-row{display:flex;gap:8px;flex-wrap:wrap;}
   .bm-small-btn{border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:8px;padding:7px 11px;font-size:12px;cursor:pointer;font-weight:600;}
+  .bm-small-btn.active{border-color:var(--primary);background:#fff4ec;color:var(--primary-dark);}
   .bm-small-btn.danger{color:var(--red);border-color:#ffd0d0;}
   .bm-add-methods{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0 14px;}
   .bm-method{border:1.5px solid var(--border);background:var(--card);border-radius:12px;padding:11px 7px;font-size:13px;cursor:pointer;color:var(--text);font-weight:600;line-height:1.35;}
@@ -704,6 +705,21 @@
   .bm-word-chip{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--border);border-radius:9px;padding:7px 9px;background:#fff;font-size:14px;cursor:pointer;}
   .bm-word-chip .hint{font-size:11px;color:var(--muted);}
   .bm-word-chip .edit{font-size:11px;color:var(--primary);}
+  .bm-bulk-guide{margin:12px 0 14px;padding:10px 12px;border:1px solid #ffe0c5;border-radius:11px;background:#fff8f1;color:var(--primary-dark);font-size:13px;line-height:1.6;}
+  #bm-content.bm-bulk-mode{padding-bottom:104px;}
+  .bm-bulk-mode .bm-word-list{touch-action:none;user-select:none;-webkit-user-select:none;}
+  .bm-bulk-mode .bm-word-chip{position:relative;padding-left:31px;transition:border-color .12s,background .12s,color .12s;}
+  .bm-bulk-mode .bm-word-chip .edit{display:none;}
+  .bm-word-chip .select-mark{position:absolute;left:8px;width:15px;height:15px;border:1.5px solid #c8c8c8;border-radius:5px;background:#fff;color:transparent;font-size:11px;line-height:13px;text-align:center;font-weight:800;}
+  .bm-bulk-mode .bm-word-chip.selected{border-color:var(--primary);background:#fff4ec;color:var(--primary-dark);}
+  .bm-bulk-mode .bm-word-chip.selected .select-mark{border-color:var(--primary);background:var(--primary);color:#fff;}
+  .bm-bulk-bar{position:fixed;left:50%;bottom:12px;transform:translateX(-50%);z-index:120;width:calc(100% - 24px);max-width:576px;padding:11px 12px;border:1px solid #ffd7b8;border-radius:14px;background:rgba(255,255,255,.97);box-shadow:0 5px 24px rgba(71,43,20,.18);backdrop-filter:blur(12px);}
+  .bm-bulk-summary{font-size:13px;color:var(--muted);margin-bottom:8px;}
+  .bm-bulk-summary b{color:var(--primary-dark);font-size:16px;}
+  .bm-bulk-actions{display:flex;gap:8px;}
+  .bm-bulk-actions select{min-width:0;flex:1;padding:9px 10px;border:1.5px solid var(--border);border-radius:9px;background:var(--card);font-size:14px;color:var(--text);}
+  .bm-bulk-actions button{flex:0 0 auto;border:0;border-radius:9px;padding:9px 15px;background:var(--primary);color:#fff;font-size:14px;font-weight:700;cursor:pointer;}
+  .bm-bulk-actions button:disabled{background:var(--border);color:var(--muted);cursor:not-allowed;}
   .bm-lesson-empty{padding:12px;color:var(--muted);font-size:13px;}
   .bm-scope-row{display:none;margin-top:10px;padding:11px 12px;background:#fff8f1;border:1px solid #ffe0c5;border-radius:11px;}
   .bm-scope-row.show{display:block;}
@@ -719,6 +735,7 @@
   @media(max-width:420px){
     .bm-add-methods{grid-template-columns:1fr;}
     .bm-action-row{width:100%;}
+    .bm-bulk-bar{bottom:8px;}
   }
 
   /* 词库选择弹窗（保留兼容，不再主流程使用） */
@@ -2005,6 +2022,9 @@ const App={
   bankManagerLang:'zh',
   bankManagerBankId:null,
   bankManagerAddMethod:'manual',
+  bankManagerBulkMode:false,
+  bankManagerSelectedWords:new Set(),
+  bankManagerBulkGesture:null,
 
   // ===== 用户系统 =====
   // 用户是最顶层的概念：所有使用数据（设置/日志/复习库/进度）都按用户隔离；
@@ -2810,20 +2830,85 @@ const App={
     return {added,lessonId};
   },
 
+  _bankWordsForLesson(bank,lessonId){
+    if(!bank)return null;
+    if(lessonId==='other')return bank.other||[];
+    const lesson=(bank.lessons||[]).find(l=>l.id===lessonId);
+    return lesson?lesson.words:null;
+  },
+  _moveManagedBankWords(bank,refs,targetChoice,newLessonName=''){
+    if(!bank)return {selected:0,moved:0,added:0,lessonId:'other',lessonName:'其他'};
+    const seen=new Set(),items=[];
+    (refs||[]).forEach(ref=>{
+      if(!ref)return;
+      const lessonId=String(ref&&ref.lessonId||'other'),index=Number(ref&&ref.index);
+      const key=lessonId+'\u001f'+index,source=this._bankWordsForLesson(bank,lessonId);
+      if(seen.has(key)||!source||!Number.isInteger(index)||index<0||index>=source.length)return;
+      seen.add(key);items.push({lessonId,index,word:this._normalizeBankWord(source[index])});
+    });
+    if(!items.length)return {selected:0,moved:0,added:0,lessonId:'other',lessonName:'其他'};
+
+    let lessonId='other',lessonName='其他',targetLesson=null;
+    if(targetChoice==='new'){
+      const name=String(newLessonName||'').trim();
+      if(!name)throw new Error('请输入课文名称');
+      targetLesson=(bank.lessons||[]).find(l=>l.name===name);
+      if(!targetLesson){const now=Date.now();targetLesson={id:this._newId('lesson'),name,words:[],createdAt:now,updatedAt:now};bank.lessons.push(targetLesson);}
+      lessonId=targetLesson.id;lessonName=targetLesson.name;
+    }else if(targetChoice&&targetChoice!=='other'){
+      targetLesson=(bank.lessons||[]).find(l=>l.id===targetChoice);
+      if(!targetLesson)throw new Error('请选择有效的目标课文');
+      lessonId=targetLesson.id;lessonName=targetLesson.name;
+    }
+
+    const removals=new Map();
+    items.forEach(item=>{
+      if(item.lessonId===lessonId)return;
+      if(!removals.has(item.lessonId))removals.set(item.lessonId,[]);
+      removals.get(item.lessonId).push(item.index);
+    });
+    removals.forEach((indices,sourceId)=>{
+      const source=this._bankWordsForLesson(bank,sourceId);if(!source)return;
+      [...new Set(indices)].sort((a,b)=>b-a).forEach(index=>source.splice(index,1));
+    });
+
+    const target=this._bankWordsForLesson(bank,lessonId),targetKeys=new Set((target||[]).map(w=>this._normalizeBankWord(w).text.toLocaleLowerCase()));
+    let moved=0,added=0;
+    items.forEach(item=>{
+      if(item.lessonId===lessonId)return;
+      moved++;
+      const key=item.word.text.toLocaleLowerCase();
+      if(item.word.text&&!targetKeys.has(key)){target.push(item.word);targetKeys.add(key);added++;}
+    });
+    if(moved){
+      const now=Date.now();bank.updatedAt=now;
+      removals.forEach((_,sourceId)=>{const lesson=(bank.lessons||[]).find(l=>l.id===sourceId);if(lesson)lesson.updatedAt=now;});
+      if(targetLesson)targetLesson.updatedAt=now;
+    }
+    return {selected:items.length,moved,added,lessonId,lessonName};
+  },
+
   // ===== 词库管理页面 =====
+  resetBankManagerBulkState(){
+    this.bankManagerBulkMode=false;
+    this.bankManagerSelectedWords=new Set();
+    this.bankManagerBulkGesture=null;
+  },
   openBankManager(lang){
     this.bankManagerLang=lang==='en'?'en':'zh';
     this.bankManagerBankId=null;
     this.bankManagerAddMethod='manual';
+    this.resetBankManagerBulkState();
     this.go('banks');
     this.renderBankManager();
   },
   leaveBankManager(){
     this.bankManagerBankId=null;
+    this.resetBankManagerBulkState();
     this.goBack();
     if(document.getElementById('screen-lang').classList.contains('active'))this.renderLangGradeChips();
   },
-  switchBankManagerLang(lang){this.bankManagerLang=lang;this.bankManagerBankId=null;this.renderBankManager();},
+  switchBankManagerLang(lang){this.bankManagerLang=lang;this.bankManagerBankId=null;this.resetBankManagerBulkState();this.renderBankManager();},
   renderBankManager(){
     const root=document.getElementById('bank-manager-root');if(!root)return;
     if(this.bankManagerBankId){this.renderBankManagerDetail();return;}
@@ -2843,7 +2928,7 @@ const App={
       const card=document.createElement('div');card.className='bm-bank-card';card.dataset.bankId=bank.id;
       const lessonNames=(bank.lessons||[]).map(l=>l.name);
       card.innerHTML=`<div class="bm-bank-top"><span style="font-size:22px;">${bank.source==='preset'?'📖':'📚'}</span><div class="bm-bank-name">${this._escHtml(bank.name)}</div><div class="bm-bank-count">${this.getBankWordCount(bank)} 词 ›</div></div><div class="bm-bank-meta">${bank.source==='preset'?'内置词库':'自建词库'} · ${lessonNames.length?'课文：'+this._escHtml(lessonNames.join('、')):'尚未分课'} · 其他 ${(bank.other||[]).length} 词</div>`;
-      card.onclick=()=>{this.bankManagerBankId=bank.id;this.renderBankManagerDetail();};list.appendChild(card);
+      card.onclick=()=>{this.bankManagerBankId=bank.id;this.resetBankManagerBulkState();this.renderBankManagerDetail();};list.appendChild(card);
     });
   },
   createManagedBank(){
@@ -2852,26 +2937,30 @@ const App={
     const store=this.getWordBankStore();
     if((store[this.bankManagerLang]||[]).some(b=>b.name===name)){this.showToast('词库名称已存在');return;}
     const now=Date.now(),bank={id:this._newId('bank'),name,other:[],lessons:[],createdAt:now,updatedAt:now};
-    store[this.bankManagerLang].push(bank);this.saveWordBankStore(store);this.bankManagerBankId=bank.id;this.renderBankManagerDetail();this.showToast('✅ 词库已创建');
+    store[this.bankManagerLang].push(bank);this.saveWordBankStore(store);this.bankManagerBankId=bank.id;this.resetBankManagerBulkState();this.renderBankManagerDetail();this.showToast('✅ 词库已创建');
   },
   renderBankManagerDetail(){
     const root=document.getElementById('bank-manager-root'),lang=this.bankManagerLang;
     const bank=this.findManagedBank(lang,this.bankManagerBankId);
     if(!root||!bank){this.bankManagerBankId=null;this.renderBankManager();return;}
+    const bulk=this.bankManagerBulkMode;
     const lessonOptions=(bank.lessons||[]).map(l=>`<option value="${l.id}">${this._escHtml(l.name)}</option>`).join('');
+    const moveLessonOptions=(bank.lessons||[]).map(l=>`<option value="${this._escHtml(l.id)}">${this._escHtml(l.name)}</option>`).join('');
     root.innerHTML=`<div class="card">
       <div class="bm-detail-head"><button class="bm-small-btn" id="bm-detail-back">← 词库列表</button><div class="bm-detail-title">${this._escHtml(bank.name)} <span style="font-size:11px;color:var(--muted);font-weight:500;">${bank.source==='preset'?'内置词库':'自建词库'}</span></div></div>
-      <div class="bm-action-row"><button class="bm-small-btn" id="bm-rename-bank">修改名称</button><button class="bm-small-btn danger" id="bm-delete-bank">删除词库</button></div>
-      <div class="section-title" style="margin-top:18px;">增加内容</div>
-      <div class="bm-add-methods" style="grid-template-columns:repeat(${lang==='zh'?3:2},1fr);"><button class="bm-method ${this.bankManagerAddMethod==='manual'?'active':''}" data-method="manual">⌨️ 手动输入</button><button class="bm-method ${this.bankManagerAddMethod==='ocr'?'active':''}" data-method="ocr">📷 拍照识词</button>${lang==='zh'?`<button class="bm-method ${this.bankManagerAddMethod==='chars'?'active':''}" data-method="chars">✨ 生字拍照组词</button>`:''}</div>
-      <div class="bm-add-panel" id="bm-manual-panel" style="display:${this.bankManagerAddMethod==='manual'?'block':'none'};">
+      <div class="bm-action-row"><button class="bm-small-btn ${bulk?'active':''}" id="bm-bulk-toggle">${bulk?'退出批量选择':'批量调整课文'}</button><button class="bm-small-btn" id="bm-rename-bank">修改名称</button><button class="bm-small-btn danger" id="bm-delete-bank">删除词库</button></div>
+      ${bulk?'<div class="bm-bulk-guide">点一下选择单个词语；也可以按住一个词语并滑过其他词语，连续选择或取消选择。完成后在底部选择目标课文。</div>':''}
+      <div class="section-title" style="margin-top:18px;display:${bulk?'none':'block'};">增加内容</div>
+      <div class="bm-add-methods" style="display:${bulk?'none':'grid'};grid-template-columns:repeat(${lang==='zh'?3:2},1fr);"><button class="bm-method ${this.bankManagerAddMethod==='manual'?'active':''}" data-method="manual">⌨️ 手动输入</button><button class="bm-method ${this.bankManagerAddMethod==='ocr'?'active':''}" data-method="ocr">📷 拍照识词</button>${lang==='zh'?`<button class="bm-method ${this.bankManagerAddMethod==='chars'?'active':''}" data-method="chars">✨ 生字拍照组词</button>`:''}</div>
+      <div class="bm-add-panel" id="bm-manual-panel" style="display:${!bulk&&this.bankManagerAddMethod==='manual'?'block':'none'};">
         <div class="bm-field"><label>词语用换行、“|”或空格分隔；说明写在冒号后</label><textarea id="bm-manual-words" placeholder="学校 老师：lǎo shī | 同学"></textarea></div>
         <div class="bm-field"><label>归入课文</label><select id="bm-manual-lesson"><option value="other">其他（不指定课文）</option>${lessonOptions}<option value="new">＋ 新建课文</option></select></div>
         <div class="bm-field" id="bm-new-lesson-field" style="display:none;"><label>新课文名称</label><input id="bm-manual-new-lesson" placeholder="例如：第3课 现代诗二首"></div>
         <button class="btn btn-primary" id="bm-save-manual" style="width:100%;">加入词库</button>
       </div>
-    </div><div class="section-title">词库内容 · ${this.getBankWordCount(bank)} 词</div><div id="bm-content"></div>`;
-    root.querySelector('#bm-detail-back').onclick=()=>{this.bankManagerBankId=null;this.renderBankManager();};
+    </div><div class="section-title">词库内容 · ${this.getBankWordCount(bank)} 词</div><div id="bm-content"></div>${bulk?`<div class="bm-bulk-bar"><div class="bm-bulk-summary">已选 <b id="bm-selected-count">0</b> 个词语</div><div class="bm-bulk-actions"><select id="bm-bulk-target"><option value="">选择目标课文…</option><option value="other">其他</option>${moveLessonOptions}<option value="new">＋ 新建课文</option></select><button id="bm-move-selected" disabled>移动</button></div></div>`:''}`;
+    root.querySelector('#bm-detail-back').onclick=()=>{this.bankManagerBankId=null;this.resetBankManagerBulkState();this.renderBankManager();};
+    root.querySelector('#bm-bulk-toggle').onclick=()=>this.toggleBankManagerBulkMode();
     root.querySelector('#bm-rename-bank').onclick=()=>this.renameManagedBank();
     root.querySelector('#bm-delete-bank').onclick=()=>this.deleteManagedBank();
     root.querySelectorAll('[data-method]').forEach(btn=>btn.onclick=()=>{
@@ -2882,10 +2971,15 @@ const App={
     const lessonSel=root.querySelector('#bm-manual-lesson');
     lessonSel.onchange=()=>{root.querySelector('#bm-new-lesson-field').style.display=lessonSel.value==='new'?'block':'none';};
     root.querySelector('#bm-save-manual').onclick=()=>this.bmAddManual();
+    if(bulk){
+      root.querySelector('#bm-bulk-target').onchange=()=>this.updateBankManagerSelectionUI();
+      root.querySelector('#bm-move-selected').onclick=()=>this.moveSelectedManagedWords();
+    }
     this.renderBankManagerContent(bank);
   },
   renderBankManagerContent(bank){
     const wrap=document.getElementById('bm-content');if(!wrap)return;wrap.innerHTML='';
+    wrap.classList.toggle('bm-bulk-mode',this.bankManagerBulkMode);
     const renderSection=(name,lessonId,words,isOther)=>{
       const sec=document.createElement('div');sec.className='bm-lesson-section';
       sec.innerHTML=`<div class="bm-lesson-head"><div class="bm-lesson-name">${isOther?'📦 ': '📖 '}${this._escHtml(name)}</div><span class="bm-bank-count">${words.length} 词</span><button class="bm-small-btn bm-lesson-rename" style="display:${isOther?'none':'inline-block'};">改名</button><button class="bm-small-btn danger bm-lesson-delete" style="display:${isOther?'none':'inline-block'};">删除</button></div><div class="bm-word-list"></div>`;
@@ -2894,13 +2988,91 @@ const App={
       if(!words.length)list.innerHTML='<div class="bm-lesson-empty">暂无词语</div>';
       words.forEach((word,idx)=>{
         const chip=document.createElement('div');chip.className='bm-word-chip';
-        chip.innerHTML=`<span>${this._escHtml(word.text)}</span>${word.hint?`<span class="hint">${this._escHtml(word.hint)}</span>`:''}<span class="edit">编辑</span>`;
-        chip.onclick=()=>this.editManagedWord(lessonId,idx);list.appendChild(chip);
+        chip.dataset.lessonId=lessonId;chip.dataset.wordIndex=String(idx);chip.tabIndex=0;chip.setAttribute('role','button');
+        const key=this.bankManagerWordSelectionKey(lessonId,idx),selected=this.bankManagerSelectedWords.has(key);
+        if(selected)chip.classList.add('selected');
+        chip.setAttribute('aria-pressed',selected?'true':'false');
+        chip.innerHTML=`${this.bankManagerBulkMode?'<span class="select-mark" aria-hidden="true">✓</span>':''}<span>${this._escHtml(word.text)}</span>${word.hint?`<span class="hint">${this._escHtml(word.hint)}</span>`:''}<span class="edit">编辑</span>`;
+        chip.onclick=e=>{if(this.bankManagerBulkMode){e.preventDefault();if(e.detail===0)this.toggleBankManagerWordSelection(lessonId,idx);return;}this.editManagedWord(lessonId,idx);};
+        chip.onkeydown=e=>{if(this.bankManagerBulkMode&&(e.key==='Enter'||e.key===' ')){e.preventDefault();this.toggleBankManagerWordSelection(lessonId,idx);}};
+        list.appendChild(chip);
       });
       wrap.appendChild(sec);
     };
     (bank.lessons||[]).forEach(l=>renderSection(l.name,l.id,l.words||[],false));
     renderSection('其他','other',bank.other||[],true);
+    if(this.bankManagerBulkMode)this.bindBankManagerBulkGesture(wrap);
+    this.updateBankManagerSelectionUI();
+  },
+  bankManagerWordSelectionKey(lessonId,index){return String(lessonId)+'\u001f'+String(index);},
+  bankManagerWordSelectionRef(key){
+    const split=String(key).lastIndexOf('\u001f');
+    if(split<0)return null;
+    const index=Number(String(key).slice(split+1));
+    return Number.isInteger(index)?{lessonId:String(key).slice(0,split),index}:null;
+  },
+  toggleBankManagerBulkMode(){
+    this.bankManagerBulkMode=!this.bankManagerBulkMode;
+    this.bankManagerSelectedWords=new Set();
+    this.bankManagerBulkGesture=null;
+    this.renderBankManagerDetail();
+  },
+  setBankManagerWordSelected(lessonId,index,selected){
+    const key=this.bankManagerWordSelectionKey(lessonId,index);
+    if(selected)this.bankManagerSelectedWords.add(key);else this.bankManagerSelectedWords.delete(key);
+    this.updateBankManagerSelectionUI();
+  },
+  toggleBankManagerWordSelection(lessonId,index){
+    const key=this.bankManagerWordSelectionKey(lessonId,index);
+    this.setBankManagerWordSelected(lessonId,index,!this.bankManagerSelectedWords.has(key));
+  },
+  updateBankManagerSelectionUI(){
+    const root=document.getElementById('bank-manager-root');if(!root)return;
+    root.querySelectorAll('.bm-word-chip[data-lesson-id]').forEach(chip=>{
+      const key=this.bankManagerWordSelectionKey(chip.dataset.lessonId,Number(chip.dataset.wordIndex));
+      const selected=this.bankManagerSelectedWords.has(key);chip.classList.toggle('selected',selected);chip.setAttribute('aria-pressed',selected?'true':'false');
+    });
+    const count=this.bankManagerSelectedWords.size,countEl=root.querySelector('#bm-selected-count'),target=root.querySelector('#bm-bulk-target'),button=root.querySelector('#bm-move-selected');
+    if(countEl)countEl.textContent=String(count);
+    if(button)button.disabled=count===0||!(target&&target.value);
+  },
+  bindBankManagerBulkGesture(wrap){
+    wrap.onpointerdown=e=>{
+      if(!this.bankManagerBulkMode||(e.pointerType==='mouse'&&e.button!==0))return;
+      const chip=e.target.closest('.bm-word-chip[data-lesson-id]');if(!chip||!wrap.contains(chip))return;
+      e.preventDefault();
+      const lessonId=chip.dataset.lessonId,index=Number(chip.dataset.wordIndex),key=this.bankManagerWordSelectionKey(lessonId,index);
+      const selecting=!this.bankManagerSelectedWords.has(key);
+      this.bankManagerBulkGesture={pointerId:e.pointerId,selecting,lastKey:key};
+      this.setBankManagerWordSelected(lessonId,index,selecting);
+      try{chip.setPointerCapture(e.pointerId);}catch(err){}
+    };
+    wrap.onpointermove=e=>{
+      const gesture=this.bankManagerBulkGesture;if(!gesture||gesture.pointerId!==e.pointerId)return;
+      e.preventDefault();
+      const hit=document.elementFromPoint(e.clientX,e.clientY),chip=hit&&hit.closest&&hit.closest('.bm-word-chip[data-lesson-id]');
+      if(!chip||!wrap.contains(chip))return;
+      const lessonId=chip.dataset.lessonId,index=Number(chip.dataset.wordIndex),key=this.bankManagerWordSelectionKey(lessonId,index);
+      if(key===gesture.lastKey)return;
+      gesture.lastKey=key;this.setBankManagerWordSelected(lessonId,index,gesture.selecting);
+    };
+    const finish=e=>{if(this.bankManagerBulkGesture&&this.bankManagerBulkGesture.pointerId===e.pointerId)this.bankManagerBulkGesture=null;};
+    wrap.onpointerup=finish;wrap.onpointercancel=finish;
+  },
+  moveSelectedManagedWords(){
+    const select=document.getElementById('bm-bulk-target'),choice=select&&select.value;
+    if(!choice){this.showToast('请选择目标课文');return;}
+    if(!this.bankManagerSelectedWords.size){this.showToast('请先选择词语');return;}
+    let newLessonName='';
+    if(choice==='new'){
+      const value=prompt('输入新课文名称');if(value===null)return;
+      newLessonName=value.trim();if(!newLessonName){this.showToast('请输入课文名称');return;}
+    }
+    const store=this.getWordBankStore(),bank=this._findBankInStore(store,this.bankManagerLang,this.bankManagerBankId);if(!bank)return;
+    const refs=[...this.bankManagerSelectedWords].map(key=>this.bankManagerWordSelectionRef(key)).filter(Boolean);let result;
+    try{result=this._moveManagedBankWords(bank,refs,choice,newLessonName);}catch(e){this.showToast(e.message);return;}
+    if(!result.moved){this.showToast('所选词语已经在“'+result.lessonName+'”中');return;}
+    this.saveWordBankStore(store);this.resetBankManagerBulkState();this.renderBankManagerDetail();this.showToast('✅ 已将 '+result.moved+' 个词语移到“'+result.lessonName+'”');
   },
   bmAddManual(){
     const raw=(document.getElementById('bm-manual-words').value||'').trim();
