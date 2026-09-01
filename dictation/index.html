@@ -1128,20 +1128,22 @@
     <!-- 拍照区域 -->
     <div class="card">
       <div class="ocr-capture-area">
-        <div class="ocr-placeholder" id="ocr-placeholder" onclick="App.ocrTriggerCapture()">
-          <span class="ph-icon">📸</span>点击拍照或选择图片
+        <div class="ocr-placeholder" id="ocr-placeholder" onclick="App.ocrTriggerGallery()">
+          <span class="ph-icon">🖼️</span>点击从相册选择图片，或使用下方按钮拍照
         </div>
         <div class="ocr-preview-container" id="ocr-preview-container">
           <img class="ocr-preview" id="ocr-preview" alt="预览">
           <div class="ocr-crop-tag" onclick="App.ocrStartCrop()">✂️ 裁剪</div>
         </div>
         <input type="file" id="ocr-file-input" accept="image/*" capture="environment" style="display:none;" onchange="App.ocrHandleFile(event)">
+        <input type="file" id="ocr-gallery-input" accept="image/*" style="display:none;" onchange="App.ocrHandleFile(event)">
       </div>
       <div class="ocr-progress" id="ocr-progress">
         <span class="spinner"></span><span id="ocr-progress-text">正在识别文字...</span>
       </div>
       <div class="ocr-btn-row">
-        <button class="btn-outline" id="ocr-btn-capture" onclick="App.ocrTriggerCapture()">📸 拍照/选图</button>
+        <button class="btn-outline" id="ocr-btn-capture" onclick="App.ocrTriggerCapture()">📸 拍照</button>
+        <button class="btn-outline" id="ocr-btn-gallery" onclick="App.ocrTriggerGallery()">🖼️ 相册</button>
         <button class="btn btn-primary" id="ocr-btn-recognize" onclick="App.ocrRecognize()" disabled>🔍 识别文字</button>
       </div>
     </div>
@@ -5041,6 +5043,7 @@ const App={
     document.getElementById('ocr-confirm-btn').disabled=true;
     document.getElementById('ocr-confirm-btn').textContent='请先选择词库并确认词语';
     document.getElementById('ocr-file-input').value='';
+    document.getElementById('ocr-gallery-input').value='';
     document.getElementById('ocr-add-word').value='';
     document.getElementById('ocr-new-bank-inline').value='';
     document.getElementById('ocr-new-lesson').value='';
@@ -5055,6 +5058,7 @@ const App={
   },
 
   ocrTriggerCapture(){document.getElementById('ocr-file-input').click();},
+  ocrTriggerGallery(){document.getElementById('ocr-gallery-input').click();},
 
   ocrHandleFile(e){
     const file=e.target.files[0];

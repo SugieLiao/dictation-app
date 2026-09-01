@@ -6,6 +6,9 @@ const html = fs.readFileSync(require('path').join(__dirname, '..', 'dictation-ap
 assert(/\.ow-chip\{[^}]*border:2px solid transparent;[^}]*background:transparent;[^}]*color:var\(--muted\)/.test(html));
 assert(html.includes('.ow-chip:hover:not(.selected){border-color:transparent;background:transparent;color:var(--text);}'));
 assert(html.includes('☑️ 选择多个词语并调整课文'));
+assert(/id="ocr-file-input"[^>]*capture="environment"/.test(html), '拍照入口应使用后置相机');
+assert(/id="ocr-gallery-input"[^>]*accept="image\/\*"(?![^>]*capture)/.test(html), '相册入口不应强制调用相机');
+assert(html.includes('ocrTriggerGallery(){document.getElementById(\'ocr-gallery-input\').click();}'));
 const appStart = html.indexOf('const App={');
 const appEnd = html.indexOf('\n};\n\nApp.init();', appStart);
 assert(appStart >= 0 && appEnd > appStart, '无法从页面中读取 App');
