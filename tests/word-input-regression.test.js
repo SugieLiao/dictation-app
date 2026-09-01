@@ -92,4 +92,39 @@ sandbox.prompt = (message, initialValue) => initialValue;
 App.editManagedWord('other', 0);
 assert.deepStrictEqual(Array.from(bank.other, word => word.text), ['人山人海', '齐头并进', '山崩地裂', '霎时']);
 
+const moveBank = {
+  id: 'bank-move',
+  name: '移动测试',
+  other: [{text: '潮水', hint: ''}, {text: '大堤', hint: ''}],
+  lessons: [
+    {id: 'lesson-1', name: '第1课', words: [{text: '宽阔', hint: ''}, {text: '盼望', hint: ''}], createdAt: 1, updatedAt: 1},
+    {id: 'lesson-2', name: '第2课', words: [{text: '滚动', hint: ''}], createdAt: 1, updatedAt: 1}
+  ],
+  createdAt: 1,
+  updatedAt: 1
+};
+let moveResult = App._moveManagedBankWords(
+  moveBank,
+  [{lessonId: 'other', index: 1}, {lessonId: 'lesson-1', index: 0}],
+  'lesson-2'
+);
+assert.strictEqual(moveResult.moved, 2);
+assert.deepStrictEqual(Array.from(moveBank.other, word => word.text), ['潮水']);
+assert.deepStrictEqual(Array.from(moveBank.lessons[0].words, word => word.text), ['盼望']);
+assert.deepStrictEqual(Array.from(moveBank.lessons[1].words, word => word.text), ['滚动', '大堤', '宽阔']);
+
+moveResult = App._moveManagedBankWords(
+  moveBank,
+  [{lessonId: 'lesson-2', index: 0}, {lessonId: 'lesson-2', index: 2}],
+  'other'
+);
+assert.strictEqual(moveResult.moved, 2);
+assert.deepStrictEqual(Array.from(moveBank.other, word => word.text), ['潮水', '滚动', '宽阔']);
+assert.deepStrictEqual(Array.from(moveBank.lessons[1].words, word => word.text), ['大堤']);
+
+moveResult = App._moveManagedBankWords(moveBank, [{lessonId: 'lesson-2', index: 0}], 'new', '第3课');
+assert.strictEqual(moveResult.moved, 1);
+assert.strictEqual(moveResult.lessonName, '第3课');
+assert.deepStrictEqual(Array.from(moveBank.lessons[2].words, word => word.text), ['大堤']);
+
 console.log('word-input regression tests passed');
