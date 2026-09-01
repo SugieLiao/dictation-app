@@ -9,7 +9,7 @@ const appStart = html.indexOf('const App={');
 const appEnd = html.indexOf('\n};\n\nApp.init();', appStart);
 assert(appStart >= 0 && appEnd > appStart, '无法从页面中读取 App');
 
-const sandbox = {console, setTimeout, clearTimeout, Date, Math, JSON, Set, Map};
+const sandbox = {console, setTimeout, clearTimeout, Date, Math, JSON, Set, Map, PRESET: {zh: {}, en: {}}};
 const App = vm.runInNewContext(html.slice(appStart, appEnd + 3) + '\nApp;', sandbox);
 const element = {style: {}};
 sandbox.document = {getElementById: () => element};
@@ -29,6 +29,19 @@ assert.deepStrictEqual(
 assert.deepStrictEqual(
   Array.from(App.parseCustom('apple | banana：香蕉'), word => ({text: word.text, hint: word.hint})),
   [{text: 'apple', hint: ''}, {text: 'banana', hint: '香蕉'}]
+);
+assert.deepStrictEqual(
+  Array.from('堤顿逐渐堵墙浩', char => App.suggestWordForChar(char)),
+  ['堤岸', '顿时', '逐渐', '渐渐', '堵塞', '墙壁', '浩荡']
+);
+assert.strictEqual(App.GRADE4_REFERENCE_INFO.id, 'pep-grade4-local-reference-v1');
+assert.strictEqual(App.GRADE4_REFERENCE_INFO.access, 'embedded-offline');
+const grade4TextbookChars =
+  '潮据堤阔盼滚顿逐渐堵犹崩震霎余淘牵鹅卵坑洼填庄稼俗跃葡萄稻熟豌按舒适暗恐僵硬枪耐探愉曾沟蚊即科横竖绳系蝇证研究达驾驶唤纪技改程超亿核奥益联质哲任善暮吟题侧峰庐缘降费须逊输虎操占嫩顺均叠隙茎柄萎瞧固宅临慎选择址良穴厅卧专卫较睁翻斧劈缓浊丈撑竭累液奔茂滋帝曰溺返衔悲惨兽佩坚违抗环锁既狠著愤获嗅呆奈巢齿躯掩护幼搏庞量愣级链颤攀猴念辫呵摸甚跪捶绕顽脖脱概惹昏握摔凭掐班殷段俩练套裤逃亏挖撤堂砸锅否旋况兵败椅尤恨帅预溃品丑豪塞秦征词催醉杰亦雄项肃默晰振胸怀赞效凡顾训斥戎尝诸竞唯豹派娶媳妇淹逼浮旱徒扔饶骗灌溉' +
+  '杂稀篱蜻蜓蝶宿徐疏茅檐翁笼赖剥构饰蹲凤序例率觅耸踏倘绘谐寄眠慰藉卜锐滩帐烁蝙蝠霸鹰怒吼脂拭餐划晌辣渗挣番埋刷测详笨钝鸽毫凌末描隧态吨颅膨肢翼辟纳拥箱臭蔬碳钢隐健康胞疾防灶需繁漫灭藤萝膝涛躲瓶挤叉挥桦涂茸绣潇穗朦胧寂霞抹忧虑贪职屏蹭稿腔解闷蛇遭殃盆勃讨厌坝忠毒绩孵警戒歪咕汤掘伏啼吠促颇剧苟譬侍馆附脾敏捷昂供添扩范努刹烂替镶紫仅浙罗杜鹃窄郁肩臀移额陆乳笋端源囊萤恭勤博贫焉逢卒晋炕铅呜哩栓胳膊劫绸扒敌尸趁慌芙蓉洛壶雁砚乾坤伦腹剖窟窿混嘶维秩岗宰措遣践介绍妖矩乖撵烫丫拽福舔葵瘦棒罢硕允砌牌禁惩踪啸私颊拆';
+assert.deepStrictEqual(
+  [...new Set(grade4TextbookChars)].filter(char => App.suggestWordForChar(char) === char),
+  []
 );
 
 App.ocrRenderWords = () => {};
