@@ -631,11 +631,11 @@
   .ow-chip{padding:8px 14px;border:2px solid transparent;border-radius:10px;font-size:15px;font-weight:500;cursor:pointer;transition:all .12s;background:transparent;color:var(--muted);user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;touch-action:none;display:flex;align-items:center;gap:6px;position:relative;z-index:1;}
   .ow-chip:hover:not(.selected){border-color:transparent;background:transparent;color:var(--text);}
   .ow-chip.selected{border-color:var(--primary);background:#fff4ec;color:var(--primary-dark);}
-  .ow-chip.merge-hover{border-color:var(--orange,#ff9800);background:#fff3e0;box-shadow:0 0 0 3px rgba(255,152,0,.15);z-index:2;}
-  .ow-chip.merge-active{border-color:var(--orange,#ff9800);background:#ffe0b2;color:#e65100;box-shadow:0 0 0 4px rgba(255,152,0,.25);z-index:2;}
+  .ow-chip.merge-hover,.ow-chip.merge-active{border-color:#d84315;background:#ff7a00;color:#fff;font-weight:700;box-shadow:0 0 0 4px rgba(255,122,0,.28),0 6px 16px rgba(216,67,21,.3);z-index:3;}
+  .ow-chip.merge-active{background:#e65100;border-color:#bf360c;}
+  .ow-chip.merge-hover::after,.ow-chip.merge-active::after{content:'✓';position:absolute;top:-9px;right:-9px;width:21px;height:21px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:#bf360c;color:#fff;border:2px solid #fff;font-size:12px;font-weight:900;box-shadow:0 2px 7px rgba(0,0,0,.25);}
   .ow-chip .ow-hint{font-size:11px;color:var(--muted);font-weight:400;}
-  .ow-chip .ow-edit{border:none;background:transparent;color:var(--muted);font-size:11px;cursor:pointer;padding:0;}
-  .ow-chip.selected .ow-edit{color:var(--primary-dark);}
+  .ow-chip.merge-hover .ow-hint,.ow-chip.merge-active .ow-hint{color:#fff;}
 
   /* 合并提示弹窗 */
   .merge-toast{position:fixed;bottom:120px;left:50%;transform:translateX(-50%);z-index:1500;background:var(--card);border-radius:14px;padding:16px 20px;box-shadow:0 8px 32px rgba(0,0,0,.25);display:none;align-items:center;gap:12px;flex-wrap:wrap;justify-content:center;max-width:90vw;}
@@ -1153,14 +1153,14 @@
       <!-- 词语网格 -->
       <div class="card">
         <div class="ocr-words-head">
-          <span class="ow-title">📝 识别结果（可修改、拆分或拖动合并）</span>
+          <span class="ow-title">📝 识别结果（单击选择 · 双击修改 · 拖动合并）</span>
           <div class="ow-actions">
             <button onclick="App.ocrSelectAll()">全选</button>
             <button onclick="App.ocrDeselectAll()">取消全选</button>
           </div>
         </div>
         <div class="ocr-words-grid" id="ocr-words-grid"></div>
-        <div class="hint-text" style="margin-top:10px;">💡 已选 <b id="ocr-selected-count">0</b> 个词，点击词语可切换选中状态</div>
+        <div class="hint-text" style="margin-top:10px;">💡 已选 <b id="ocr-selected-count">0</b> 个词；单击选择或取消，双击修改</div>
       </div>
 
       <!-- 手动添加词语 -->
@@ -5014,6 +5014,9 @@ const App={
   _ocrMergeIndices:[],        // 拖动涉及的 chip 索引集合
   _ocrMergeDragged:false,
   _ocrMergeIgnoreClickUntil:0,
+  _ocrTapTimer:null,
+  _ocrTapIndex:-1,
+  _ocrTapAt:0,
 
   // 打开拍照听写页面
   ocrOpen(lang,options={}){
@@ -5032,6 +5035,7 @@ const App={
     this._ocrMergeIndices=[];
     this._ocrMergeDragged=false;
     this._ocrMergeIgnoreClickUntil=0;
+    this.ocrCancelPendingWordTap();
     const isChars=this.ocrEntryMode==='chars';
     document.getElementById('ocr-page-title').textContent=(isChars?'✨ 生字拍照组词':'📷 拍照识词')+' - '+(lang==='zh'?'语文':'英语');
     const modeNote=document.getElementById('ocr-mode-note');
@@ -5452,6 +5456,7 @@ const App={
 
   // ===== 词语渲染 + 拖动合并 =====
   ocrRenderWords(){
+    this.ocrCancelPendingWordTap();
     const grid=document.getElementById('ocr-words-grid');
     grid.innerHTML='';
     this.ocrWords.forEach((w,i)=>{
@@ -5460,13 +5465,12 @@ const App={
       chip.dataset.idx=i;
       const sourceHtml=w.sourceChar?`<span class="ow-hint">${this._escHtml(w.sourceChar)}→</span>`:'';
       const hintHtml=w.hint?`<span class="ow-hint">${this._escHtml(w.hint)}</span>`:'';
-      const editHtml='<button type="button" class="ow-edit">修改</button>';
-      chip.innerHTML=`${sourceHtml}<span class="ow-text">${this._escHtml(w.text)}</span>${hintHtml}${editHtml}`;
-      const editBtn=chip.querySelector('.ow-edit');if(editBtn){editBtn.onpointerdown=e=>e.stopPropagation();editBtn.onclick=e=>{e.stopPropagation();this.ocrEditSuggestedWord(i);};}
-      // 点击切换
+      chip.innerHTML=`${sourceHtml}<span class="ow-text">${this._escHtml(w.text)}</span>${hintHtml}`;
+      chip.title='单击选择或取消，双击修改，拖动合并';
+      // 单击切换；连续双击同一个词修改
       chip.addEventListener('click',(e)=>{
         if(this._ocrMergeStartIdx>=0||Date.now()<this._ocrMergeIgnoreClickUntil)return;
-        this.ocrToggleWord(i);
+        this.ocrHandleWordTap(i);
       });
       // 拖动合并 - pointer 事件
       chip.addEventListener('pointerdown',(e)=>{
@@ -5487,6 +5491,7 @@ const App={
         if(targetChip&&targetChip.dataset.idx!==undefined){
           const ti=parseInt(targetChip.dataset.idx);
           if(!this._ocrMergeIndices.includes(ti)){
+            this.ocrCancelPendingWordTap();
             this._ocrMergeIndices.push(ti);
             this._ocrMergeDragged=true;
             this.ocrWords[ti]._mergeMark=true;
@@ -5508,6 +5513,37 @@ const App={
     });
     document.getElementById('ocr-selected-count').textContent=
       this.ocrWords.filter(w=>w.selected).length;
+  },
+
+  ocrCancelPendingWordTap(){
+    if(this._ocrTapTimer!==null)clearTimeout(this._ocrTapTimer);
+    this._ocrTapTimer=null;
+    this._ocrTapIndex=-1;
+    this._ocrTapAt=0;
+  },
+
+  ocrHandleWordTap(i){
+    const now=Date.now();
+    if(this._ocrTapTimer!==null&&this._ocrTapIndex===i&&now-this._ocrTapAt<=320){
+      this.ocrCancelPendingWordTap();
+      this.ocrEditSuggestedWord(i);
+      return;
+    }
+    if(this._ocrTapTimer!==null){
+      const pendingIndex=this._ocrTapIndex;
+      this.ocrCancelPendingWordTap();
+      if(pendingIndex>=0)this.ocrToggleWord(pendingIndex);
+    }
+    this._ocrTapIndex=i;
+    this._ocrTapAt=now;
+    const timer=setTimeout(()=>{
+      if(this._ocrTapTimer!==timer||this._ocrTapIndex!==i)return;
+      this._ocrTapTimer=null;
+      this._ocrTapIndex=-1;
+      this._ocrTapAt=0;
+      this.ocrToggleWord(i);
+    },320);
+    this._ocrTapTimer=timer;
   },
 
   ocrClearMergeState(){
