@@ -628,12 +628,14 @@
   .ocr-words-head .ow-actions button{font-size:12px;padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--muted);cursor:pointer;font-weight:500;transition:all .12s;}
   .ocr-words-head .ow-actions button:hover{background:var(--primary);color:#fff;border-color:var(--primary);}
   .ocr-words-grid{display:flex;flex-wrap:wrap;gap:8px;position:relative;user-select:none;}
-  .ow-chip{padding:8px 14px;border:2px solid var(--border);border-radius:10px;font-size:15px;font-weight:500;cursor:pointer;transition:all .12s;background:var(--card);color:var(--text);user-select:none;display:flex;align-items:center;gap:6px;position:relative;z-index:1;}
-  .ow-chip:hover{border-color:var(--primary);background:#fff7f1;}
+  .ow-chip{padding:8px 14px;border:2px solid transparent;border-radius:10px;font-size:15px;font-weight:500;cursor:pointer;transition:all .12s;background:transparent;color:var(--muted);user-select:none;display:flex;align-items:center;gap:6px;position:relative;z-index:1;}
+  .ow-chip:hover:not(.selected){border-color:transparent;background:transparent;color:var(--text);}
   .ow-chip.selected{border-color:var(--primary);background:#fff4ec;color:var(--primary-dark);}
   .ow-chip.merge-hover{border-color:var(--orange,#ff9800);background:#fff3e0;box-shadow:0 0 0 3px rgba(255,152,0,.15);z-index:2;}
   .ow-chip.merge-active{border-color:var(--orange,#ff9800);background:#ffe0b2;color:#e65100;box-shadow:0 0 0 4px rgba(255,152,0,.25);z-index:2;}
   .ow-chip .ow-hint{font-size:11px;color:var(--muted);font-weight:400;}
+  .ow-chip .ow-edit{border:none;background:transparent;color:var(--muted);font-size:11px;cursor:pointer;padding:0;}
+  .ow-chip.selected .ow-edit{color:var(--primary-dark);}
 
   /* 合并提示弹窗 */
   .merge-toast{position:fixed;bottom:120px;left:50%;transform:translateX(-50%);z-index:1500;background:var(--card);border-radius:14px;padding:16px 20px;box-shadow:0 8px 32px rgba(0,0,0,.25);display:none;align-items:center;gap:12px;flex-wrap:wrap;justify-content:center;max-width:90vw;}
@@ -874,9 +876,9 @@
         <b>📅 日志管理：</b>可按语言清空复习库或听写日志，清空前需输入管理密码。默认密码 <code>0000</code>，请及时修改。
         <br>
         <b>🗃️ 词库管理：</b>内置年级词库与自建词库统一列出并可管理，也可创建、改名和删除词库；每批词可归入某篇课文，未指定课文的词自动进入“其他”。支持手动输入、拍照识词，以及“生字拍照 + 四年级常用词联想”。<br>
-        <b>自定义词表格式：</b>每行一个词。可加提示，用「|」分隔。<br>
-        语文示例：<code>学校</code> 或 <code>学校|xué xiào</code><br>
-        英语示例：<code>apple</code> 或 <code>apple|苹果</code>
+        <b>自定义词表格式：</b>词语可用空格、换行或「|」分隔；说明写在冒号后。<br>
+        语文示例：<code>学校 老师：lǎo shī</code><br>
+        英语示例：<code>apple | banana：香蕉</code>
       </div>
     </div>
   </section>
@@ -968,7 +970,7 @@
         <div class="bm-all-note" id="lang-lesson-note"></div>
       </div>
       <div id="lang-custom-toggle" class="custom-toggle" onclick="App.toggleCustomInput()">+ 自定义听写内容</div>
-      <textarea id="lang-custom-list" style="display:none;" placeholder="或在这里粘贴生词，每行一个&#10;示例：&#10;学校&#10;老师|lǎo shī"></textarea>
+      <textarea id="lang-custom-list" style="display:none;" placeholder="词语用空格、换行或 | 分隔；说明写在冒号后&#10;示例：学校 老师：lǎo shī"></textarea>
       <div class="hint-text" id="lang-custom-hint" style="display:none;">粘贴内容后会以粘贴内容为准；留空则使用上方选中的词库。</div>
     </div>
 
@@ -1130,7 +1132,7 @@
       <!-- 词语网格 -->
       <div class="card">
         <div class="ocr-words-head">
-          <span class="ow-title">📝 识别结果（点击切换选中，拖动可合并）</span>
+          <span class="ow-title">📝 识别结果（可修改、拆分或拖动合并）</span>
           <div class="ow-actions">
             <button onclick="App.ocrSelectAll()">全选</button>
             <button onclick="App.ocrDeselectAll()">取消全选</button>
@@ -1145,11 +1147,11 @@
         <div style="display:flex;gap:8px;align-items:flex-end;">
           <div style="flex:1;">
             <label style="font-size:13px;color:var(--muted);margin-bottom:4px;display:block;">手动添加词语</label>
-            <input type="text" id="ocr-add-word" placeholder="输入词语，可加|提示" style="width:100%;padding:10px 12px;font-size:14px;border:1.5px solid var(--border);border-radius:10px;background:var(--card);color:var(--text);">
+            <input type="text" id="ocr-add-word" placeholder="词语用 | 或空格分隔；说明写在冒号后" style="width:100%;padding:10px 12px;font-size:14px;border:1.5px solid var(--border);border-radius:10px;background:var(--card);color:var(--text);">
           </div>
           <button class="btn" style="flex:0 0 auto;width:auto;padding:10px 18px;" onclick="App.ocrAddWord()">+ 添加</button>
         </div>
-        <div class="hint-text">示例：学校 或 学校|xué xiào</div>
+        <div class="hint-text">示例：学校 或 学校：xué xiào</div>
       </div>
 
       <!-- 词库选择（内联） -->
@@ -2623,7 +2625,10 @@ const App={
   _presetBankId(lang,name){return 'preset_'+this._legacyBankId(lang,name).replace('legacy_'+lang+'_','');},
   _normalizeBankWord(raw){
     if(raw&&typeof raw==='object')return {text:String(raw.text||'').trim(),hint:String(raw.hint||'').trim()};
-    const parts=String(raw||'').split('|');
+    const value=String(raw||''),colonIndex=value.search(/[：:]/);
+    if(colonIndex>=0)return {text:value.slice(0,colonIndex).trim(),hint:value.slice(colonIndex+1).trim()};
+    // 仅用于读取旧版内置词表和旧缓存；新输入中的“|”始终由 parseManualWords 当作词语分隔符。
+    const parts=value.split('|');
     return {text:(parts.shift()||'').trim(),hint:parts.join('|').trim()};
   },
   _normalizeWordBankStore(input){
@@ -2703,7 +2708,7 @@ const App={
     for(const lang of['zh','en']){
       normalized[lang].forEach(bank=>{
         if(bank.source==='preset')return;
-        legacy[lang][bank.name]=this.getBankAllWords(bank).map(w=>w.text+(w.hint?'|'+w.hint:''));
+        legacy[lang][bank.name]=this.getBankAllWords(bank).map(w=>w.text+(w.hint?'：'+w.hint:''));
       });
     }
     localStorage.setItem(this.userKey('dict_custom_banks'),JSON.stringify(legacy));
@@ -2848,7 +2853,7 @@ const App={
       <div class="section-title" style="margin-top:18px;">增加内容</div>
       <div class="bm-add-methods" style="grid-template-columns:repeat(${lang==='zh'?3:2},1fr);"><button class="bm-method ${this.bankManagerAddMethod==='manual'?'active':''}" data-method="manual">⌨️ 手动输入</button><button class="bm-method ${this.bankManagerAddMethod==='ocr'?'active':''}" data-method="ocr">📷 拍照识词</button>${lang==='zh'?`<button class="bm-method ${this.bankManagerAddMethod==='chars'?'active':''}" data-method="chars">✨ 生字拍照组词</button>`:''}</div>
       <div class="bm-add-panel" id="bm-manual-panel" style="display:${this.bankManagerAddMethod==='manual'?'block':'none'};">
-        <div class="bm-field"><label>词语（每行一个，可用“|”添加提示）</label><textarea id="bm-manual-words" placeholder="学校\n老师|lǎo shī"></textarea></div>
+        <div class="bm-field"><label>词语用换行、“|”或空格分隔；说明写在冒号后</label><textarea id="bm-manual-words" placeholder="学校 老师：lǎo shī | 同学"></textarea></div>
         <div class="bm-field"><label>归入课文</label><select id="bm-manual-lesson"><option value="other">其他（不指定课文）</option>${lessonOptions}<option value="new">＋ 新建课文</option></select></div>
         <div class="bm-field" id="bm-new-lesson-field" style="display:none;"><label>新课文名称</label><input id="bm-manual-new-lesson" placeholder="例如：第3课 现代诗二首"></div>
         <button class="btn btn-primary" id="bm-save-manual" style="width:100%;">加入词库</button>
@@ -2888,7 +2893,7 @@ const App={
   bmAddManual(){
     const raw=(document.getElementById('bm-manual-words').value||'').trim();
     if(!raw){this.showToast('请输入至少一个词语');return;}
-    const words=this.parseCustom(raw,this.bankManagerLang),choice=document.getElementById('bm-manual-lesson').value,newName=(document.getElementById('bm-manual-new-lesson').value||'').trim();
+    const words=this.parseManualWords(raw),choice=document.getElementById('bm-manual-lesson').value,newName=(document.getElementById('bm-manual-new-lesson').value||'').trim();
     const store=this.getWordBankStore();let result;
     try{result=this._addWordsToBank(store,this.bankManagerLang,this.bankManagerBankId,choice,newName,words);}catch(e){this.showToast(e.message);return;}
     this.saveWordBankStore(store);this.renderBankManagerDetail();this.showToast(result.added?'✅ 已加入 '+result.added+' 个词':'这些词已在词库中');
@@ -2926,11 +2931,22 @@ const App={
   editManagedWord(lessonId,index){
     const store=this.getWordBankStore(),bank=this._findBankInStore(store,this.bankManagerLang,this.bankManagerBankId);if(!bank)return;
     const target=lessonId==='other'?bank.other:((bank.lessons||[]).find(l=>l.id===lessonId)||{}).words;if(!target||!target[index])return;
-    const old=target[index],value=prompt('修改词语；可用“|”分隔提示。留空后确认将删除。',old.text+(old.hint?'|'+old.hint:''));if(value===null)return;
+    const old=target[index];
+    // 兼容旧版本：当时第一个“|”后面的多个词会被误存进 hint，编辑时要还原完整输入才能正确拆分。
+    const initialValue=old.hint?(old.hint.includes('|')?old.text+' | '+old.hint:old.text+'：'+old.hint):old.text;
+    const value=prompt('修改词语；“|”或空格用于拆分，冒号后填写说明。留空后确认将删除。',initialValue);if(value===null)return;
     if(!value.trim()){
       if(!confirm('确定删除“'+old.text+'”吗？'))return;target.splice(index,1);this.showToast('词语已删除');
     }else{
-      const word=this._normalizeBankWord(value);if(!word.text){this.showToast('词语不能为空');return;}target[index]=word;this.showToast('✅ 词语已修改');
+      const replacements=this.parseManualWords(value);if(!replacements.length){this.showToast('词语不能为空');return;}
+      target.splice(index,1);
+      const allKeys=new Set(this.getBankAllWords(bank).map(w=>w.text.toLocaleLowerCase()));
+      const insert=[];
+      replacements.forEach((word,wordIndex)=>{
+        const key=word.text.toLocaleLowerCase();
+        if(!allKeys.has(key)){if(replacements.length===1&&wordIndex===0&&!word.hint)word.hint=old.hint||'';insert.push(word);allKeys.add(key);}
+      });
+      target.splice(index,0,...insert);this.showToast(insert.length>1?'✅ 已拆分为 '+insert.length+' 个词语':'✅ 词语已修改');
     }
     bank.updatedAt=Date.now();this.saveWordBankStore(store);this.renderBankManagerDetail();
   },
@@ -2955,8 +2971,8 @@ const App={
     const customTa=document.getElementById('lang-custom-list');
     if(customTa){
       customTa.placeholder=lang==='zh'
-        ?'或在这里粘贴生词，每行一个\n示例：\n学校\n老师|lǎo shī'
-        :'或在这里粘贴单词，每行一个\n示例：\napple\nbanana|香蕉';
+        ?'词语用空格、换行或 | 分隔；说明写在冒号后\n示例：学校 老师：lǎo shī'
+        :'单词用空格、换行或 | 分隔；说明写在冒号后\n示例：apple | banana：香蕉';
     }
     // 朗读设置默认折叠
     this.collapseReadingSettings();
@@ -3112,11 +3128,22 @@ const App={
   },
 
   parseCustom(text,mode){
-    const lines=text.split('\n').map(l=>l.trim()).filter(Boolean);
-    return lines.map(l=>{
-      const [t,h]=l.split('|').map(s=>s.trim());
-      return {text:t,hint:h||''};
-    }).filter(w=>w.text);
+    return this.parseManualWords(text);
+  },
+  parseManualWords(text){
+    const words=[];
+    String(text||'').split(/[|\r\n]+/).map(part=>part.trim()).filter(Boolean).forEach(part=>{
+      const colonIndex=part.search(/[：:]/);
+      if(colonIndex<0){
+        part.split(/\s+/).filter(Boolean).forEach(text=>words.push({text,hint:''}));
+        return;
+      }
+      const before=part.slice(0,colonIndex).trim(),hint=part.slice(colonIndex+1).trim();
+      const texts=before.split(/\s+/).filter(Boolean);
+      texts.slice(0,-1).forEach(text=>words.push({text,hint:''}));
+      if(texts.length)words.push({text:texts[texts.length-1],hint});
+    });
+    return words;
   },
   // Fisher-Yates 洗牌算法
   shuffleArray(arr){
@@ -4780,7 +4807,7 @@ const App={
     document.getElementById('ocr-page-title').textContent=(isChars?'✨ 生字拍照组词':'📷 拍照识词')+' - '+(lang==='zh'?'语文':'英语');
     const modeNote=document.getElementById('ocr-mode-note');
     modeNote.classList.toggle('show',isChars);
-    modeNote.textContent=isChars?'识别图片中的单个生字后，系统会从一至四年级词汇中为每个字联想一个常见词语。保存前可点击“修改”调整结果。':'';
+    modeNote.textContent=isChars?'识别图片中的单个生字后，系统会从一至四年级词汇中为每个字联想一个常见词语。重复生字会完整保留；“|”或空格用于拆分，冒号后填写说明。':'';
     document.getElementById('ocr-preview').style.display='none';
     document.getElementById('ocr-preview-container').classList.remove('show');
     document.getElementById('ocr-placeholder').style.display='flex';
@@ -5136,8 +5163,7 @@ const App={
     const raw=text||'';
     if(this.ocrEntryMode==='chars'){
       const chars=[...raw].filter(ch=>/[\u4e00-\u9fff\u3400-\u4dbf]/.test(ch));
-      const unique=[...new Set(chars)];
-      const words=unique.map(ch=>({text:this.suggestWordForChar(ch),hint:'',sourceChar:ch,selected:true})).filter(w=>w.text);
+      const words=chars.map(ch=>({text:this.suggestWordForChar(ch),hint:'',sourceChar:ch,selected:true})).filter(w=>w.text);
       if(!words.length){App.showToast('未识别到生字，请尝试更清晰的图片');return;}
       this.ocrWords=words;
       this.ocrRenderWords();this.ocrRenderBankList();
@@ -5201,9 +5227,9 @@ const App={
       chip.dataset.idx=i;
       const sourceHtml=w.sourceChar?`<span class="ow-hint">${this._escHtml(w.sourceChar)}→</span>`:'';
       const hintHtml=w.hint?`<span class="ow-hint">${this._escHtml(w.hint)}</span>`:'';
-      const editHtml=w.sourceChar?'<button type="button" class="ow-edit" style="border:none;background:transparent;color:var(--primary);font-size:11px;cursor:pointer;padding:0;">修改</button>':'';
+      const editHtml='<button type="button" class="ow-edit">修改</button>';
       chip.innerHTML=`${sourceHtml}<span class="ow-text">${this._escHtml(w.text)}</span>${hintHtml}${editHtml}`;
-      const editBtn=chip.querySelector('.ow-edit');if(editBtn)editBtn.onclick=e=>{e.stopPropagation();this.ocrEditSuggestedWord(i);};
+      const editBtn=chip.querySelector('.ow-edit');if(editBtn){editBtn.onpointerdown=e=>e.stopPropagation();editBtn.onclick=e=>{e.stopPropagation();this.ocrEditSuggestedWord(i);};}
       // 点击切换
       chip.addEventListener('click',(e)=>{
         if(this._ocrMergeStartIdx>=0)return;
@@ -5307,21 +5333,27 @@ const App={
     const input=document.getElementById('ocr-add-word');
     const raw=input.value.trim();
     if(!raw){App.showToast('请输入词语');return;}
-    const parts=raw.split('|').map(s=>s.trim());
-    const text=parts[0],hint=parts[1]||'';
-    if(!text){App.showToast('请输入词语');return;}
-    const exists=this.ocrWords.find(w=>w.text===text);
-    if(exists){exists.selected=true;App.showToast('「'+text+'」已存在，已自动选中');}
-    else{this.ocrWords.push({text,hint,selected:true});}
+    const words=this.parseManualWords(raw);
+    let added=0,existing=0;
+    words.forEach(word=>{
+      const found=this.ocrWords.find(w=>w.text===word.text);
+      if(found){found.selected=true;existing++;}
+      else{this.ocrWords.push({...word,selected:true});added++;}
+    });
+    if(!added&&existing)App.showToast('输入的词语已存在，已自动选中');
     input.value='';
     this.ocrRenderWords();
     this.ocrUpdateConfirmBtn();
   },
   ocrEditSuggestedWord(i){
     const word=this.ocrWords[i];if(!word)return;
-    const value=prompt('为生字“'+word.sourceChar+'”修改组词',word.text);if(value===null)return;
-    const clean=value.replace(/[^\u4e00-\u9fff\u3400-\u4dbfa-zA-Z0-9]/g,'').trim();
-    if(!clean){this.showToast('词语不能为空');return;}word.text=clean;word.selected=true;this.ocrRenderWords();this.ocrUpdateConfirmBtn();
+    const title=word.sourceChar?'为生字“'+word.sourceChar+'”修改组词':'修改识别词语';
+    const initialValue=word.text+(word.hint?'：'+word.hint:'');
+    const value=prompt(title+'；“|”或空格用于拆分，冒号后填写说明。',initialValue);if(value===null)return;
+    const parsed=this.parseManualWords(value).map(item=>({...item,text:item.text.replace(/[^\u4e00-\u9fff\u3400-\u4dbfa-zA-Z0-9]/g,'')})).filter(item=>item.text);
+    if(!parsed.length){this.showToast('词语不能为空');return;}
+    const replacements=parsed.map(item=>({...item,sourceChar:word.sourceChar||'',selected:true}));
+    this.ocrWords.splice(i,1,...replacements);this.ocrRenderWords();this.ocrUpdateConfirmBtn();
   },
 
   // ===== 确认按钮 =====
@@ -5458,7 +5490,7 @@ const App={
   // ---- 自定义词库管理 ----
   getCustomBanks(){
     const result={zh:{},en:{}},store=this.getWordBankStore();
-    for(const lang of['zh','en'])store[lang].forEach(bank=>{if(bank.source!=='preset')result[lang][bank.name]=this.getBankAllWords(bank).map(w=>w.text+(w.hint?'|'+w.hint:''));});
+    for(const lang of['zh','en'])store[lang].forEach(bank=>{if(bank.source!=='preset')result[lang][bank.name]=this.getBankAllWords(bank).map(w=>w.text+(w.hint?'：'+w.hint:''));});
     return result;
   },
   saveCustomBanks(banks){
