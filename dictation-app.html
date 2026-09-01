@@ -1962,6 +1962,18 @@ const App={
   enSettings:{rate:0.8,repeat:2,voiceURI:'edge:en-US-JennyNeural',dailyCount:15,showHint:true,dictOrder:'sequential',grade:'',gradeType:'preset',bankId:'',lessonId:''},
   // 四年级常用语料：生字拍照后优先从这里组词；结果仍可在保存前修改
   GRADE4_COMMON_WORDS:'潮水 宽阔 笼罩 薄雾 屹立 沸腾 横贯 霎时 余波 恢复 淘洗 鹅卵石 坑洼 填补 庄稼 风俗 跃出 葡萄 稻穗 成熟 镀亮 田埂 闪烁 霸占 睡眠 坠落 怀抱 招待 传说 修补 茂盛 滋润 祖先 悲惨 猛兽 敬佩 坚定 违抗 铁环 锁链 著名 愤怒 既然 暮色 吟诗 题目 侧面 山峰 庐山 缘分 投降 骚扰 逊色 输赢 操场 嫩红 舒服 均匀 重叠 空隙 叶柄 枯萎 牢固 隐蔽 搜索 慎重 倾斜 平坦 扒土 住宅 临时 选择 地址 优良 洞穴 大厅 卧室 专家 卫生 疲劳 豌豆 按照 舒适 恐怕 僵硬 玩具 耐心 探索 驾驶 世纪 技术 改善 奥秘 联系 物质 哲学 任何 创造 超过 幻想 原子核 程度 船舶 兰花 益虫 证明 雷达 蚊子 灵巧 模仿 显示 绳子 苍蝇 研究 推进 屋檐 嫩茎 繁星 纳凉 静寂 模糊 摇坠 梦幻 嗅觉 呆立 绒毛 庞大 掩护 搏斗 嘶哑 严肃 清晰 抱负 胸怀 赞叹 表情 忘怀 果真 非凡 指望 训斥 体会 分量 响亮 拒绝 签订 宁可 租界 纠缠 要求 打扰 昔日 茅屋 土炕 明媚 甚至 顽强 故意 扑打 忙乱 助威 结实 汉子 可笑 旋转 奋勇 况且 预料 尤其 顽皮 脖子 大概 惹怒 握住 窝囊 羡慕 殷切 排练 逃跑 砸锅 炎帝 溺水 返回 衔来 睁眼 翻身 劈开 缓缓 浑浊 支撑 肌肤 血液 汗毛 熄灭 喷火 缺少'.split(/\s+/),
+  // 内置离线参考库：只保存组词功能需要的字词索引，不包含学习手册原文、图片或版式。
+  // 运行时直接读取下方常量，不请求网络，也不在界面展示；来源与版本信息仅供程序维护使用。
+  GRADE4_REFERENCE_INFO:Object.freeze({
+    id:'pep-grade4-local-reference-v1',
+    scope:'统编版小学语文四年级上、下册常用字词',
+    basis:'人民教育出版社同步字词学习资料及四年级写字表、词语表',
+    updated:'2026-09-01',
+    access:'embedded-offline'
+  }),
+  // 参考统编四年级教材的写字表、词语表与常用组词补充；优先短小、日常、四年级可理解的词。
+  // 这一层独立于用户当前词库，因此即使词库里没有，也能为生字提供常见组词。
+  GRADE4_REFERENCE_WORDS:'潮水 据说 根据 大堤 河堤 堤岸 堤坝 宽阔 盼望 滚动 翻滚 顿时 停顿 逐渐 逐步 追逐 渐渐 渐变 堵塞 堵车 堵住 犹如 犹豫 山崩 崩塌 地震 震动 霎时 余波 多余 浩荡 浩大 浩瀚 墙壁 围墙 墙角 柔和 河床 新鲜 修补 满意 招待 传说 豌豆 暖和 黑暗 丰满 等待 强壮 虚弱 愉快 曾经 水沟 感激 牵手 费用 必须 老虎 比较 竭力 劳累 狠心 牙齿 幼儿 猴子 段落 套装 裤子 椅子 品质 丑陋 词语 亦可 照顾 尝试 浮动 扔掉 划船 手枪 枪口 呼唤 一亿 顺利 瞧见 丈夫 子曰 获得 无奈 鸟巢 身躯 发愣 发颤 攀登 辫子 呵护 掐住 俩人 吃亏 撤退 课堂 士兵 仇恨 元帅 溃败 秦朝 出征 催促 喝醉 杰出 英雄 项目 振奋 效果 戎装 诸位 竞争 唯一 豹子 派出 娶妻 媳妇 妇女 淹没 逼迫 骗人 杂兴 稀少 篱笆 蜻蜓 蝴蝶 住宿 徐徐 疏远 茅屋 屋檐 老翁 笼子 依赖 剥开 构成 装饰 蹲下 凤凰 顺序 例如 率领 寻觅 耸立 踏步 倘若 绘画 和谐 寄信 睡眠 安慰 慰藉 占卜 锐利 河滩 帐子 闪烁 蝙蝠 霸气 老鹰 怒吼 松脂 拂拭 美餐 晌午 辣椒 渗出 挣扎 番茄 埋藏 刷子 推测 详细 笨重 迟钝 鸽子 丝毫 凌空 末期 描绘 隧道 形态 一吨 头颅 膨大 四肢 翅翼 开辟 纳米 拥有 冰箱 臭味 蔬菜 碳素 钢铁 隐形 健康 细胞 疾病 预防 病灶 需要 繁星 浪漫 消灭 藤萝 膝盖 波涛 躲开 瓶子 拥挤 交叉 指挥 白桦 毛茸茸 刺绣 潇洒 稻穗 朦胧 寂静 朝霞 涂抹 忧愁 考虑 贪玩 尽职 屏息 磨蹭 稿纸 腔调 解闷 毒蛇 遭遇 遭殃 花盆 生机勃勃 讨厌 忠厚 毒手 成绩 孵化 警戒 歪头 咕咕 鸡汤 挖掘 埋伏 啼叫 狂吠 局促 偏颇 京剧 一丝不苟 譬如 侍候 饭馆 附近 脾气 敏捷 昂首 供养 添加 扩大 范围 努力 刹那 灿烂 代替 镶嵌 紫色 仅仅 浙江 罗列 杜鹃 狭窄 葱郁 肩膀 臀部 移动 额角 陆地 牛乳 石笋 端正 来源 囊括 萤火虫 恭敬 勤劳 博学 贫穷 心不在焉 相逢 士卒 晋级 土炕 铅笔 呜咽 着哩 枪栓 胳膊 抢劫 丝绸 敌人 尸首 趁机 慌忙 芙蓉 洛阳 水壶 大雁 砚台 乾坤 伦理 腹部 剖开 窟窿 混乱 嘶哑 维护 秩序 岗位 主宰 措施 调遣 实践 介绍 妖怪 规矩 乖巧 撵走 烫伤 丫头 拽住 幸福 舔食 葵花 瘦小 木棒 罢工 丰硕 允许 砌墙 门牌 禁止 惩罚 踪迹 呼啸 自私 脸颊 拆除 即使 科学 横竖 绳子 苍蝇 证明 研究 雷达 显示 驾驶 改变 超过 幻想 日益 创造 雨露 斧头 奔流 猛烈 猎人 嘴角 绝望 尖叫 力量 假日 云彩 年纪 纪念 鼓舞 居然 摸索 跪下 捶打 围绕 脱离 昏乱 摔倒 凭借 文艺 表演 班级 角色 期待 充分 自信 紧张 否则 旋转 失败 预料 自豪 严肃 默默 清晰 抱负 胸怀 赞叹 表情 非凡 体会 分量 响亮 管理 人烟 新娘 干旱 迎接 徒弟 求饶 灌溉 收成'.split(/\s+/),
   // ===== rate / repeat / voiceURI / dailyCount / showHint 通过 getter 动态指向当前语言 =====
   get rate(){return this[this.mode+'Settings'].rate;},
   set rate(v){this[this.mode+'Settings'].rate=v;},
@@ -5195,12 +5207,14 @@ const App={
   suggestWordForChar(ch){
     const gradePrefixes=['一','二','三','四'];
     const candidates=[];let order=0;
-    for(const text of this.GRADE4_COMMON_WORDS){
-      if(text!==ch&&text.includes(ch)){
-        const score=200+(text.length===2?100:0)+(text.startsWith(ch)?35:0)+(text.endsWith(ch)?10:0)-order/10000;
-        candidates.push({text,score});
+    for(const list of[this.GRADE4_COMMON_WORDS,this.GRADE4_REFERENCE_WORDS]){
+      for(const text of list){
+        if(text!==ch&&text.includes(ch)){
+          const score=200+(text.length===2?100:0)+(text.startsWith(ch)?35:0)+(text.endsWith(ch)?10:0)-order/10000;
+          candidates.push({text,score});
+        }
+        order++;
       }
-      order++;
     }
     for(const[name,list]of Object.entries(PRESET.zh||{})){
       if(!gradePrefixes.some(p=>name.startsWith(p)))continue;
