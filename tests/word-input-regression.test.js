@@ -152,4 +152,30 @@ assert.strictEqual(App.getBankAllWords(duplicateBank).length, 6);
 addResult = App._addWordsToBank(duplicateStore, 'zh', duplicateBank.id, 'lesson-1', '', [{text: '跟随', hint: ''}]);
 assert.strictEqual(addResult.added, 0);
 
+const refreshedViews = [];
+App.renderLangGradeChips = () => refreshedViews.push('lang');
+App.renderBankManager = () => refreshedViews.push('banks');
+sandbox.document = {querySelector: () => ({id: 'screen-lang'})};
+App.refreshWordBankViewsAfterSync();
+sandbox.document = {querySelector: () => ({id: 'screen-banks'})};
+App.refreshWordBankViewsAfterSync();
+sandbox.document = {querySelector: () => ({id: 'screen-home'})};
+App.refreshWordBankViewsAfterSync();
+assert.deepStrictEqual(refreshedViews, ['lang', 'banks']);
+
+assert.strictEqual(html.includes('api.jsonbin.io'), false);
+assert.strictEqual(html.includes("API_KEY:"), false);
+assert(html.includes("API_PATH:'/dictation/api/sync'"));
+assert(html.includes('const reconnected=await this.init();'));
+const cloudStart = html.indexOf('const CloudSync={');
+const cloudEnd = html.indexOf('\n};\n\nApp.init();', cloudStart);
+assert(cloudStart >= 0 && cloudEnd > cloudStart, '无法从页面中读取 CloudSync');
+const CloudSync = vm.runInNewContext(
+  html.slice(cloudStart, cloudEnd + 3) + '\nCloudSync;',
+  {URL, location: {protocol: 'https:', origin: 'https://liaohao.cc'}}
+);
+assert.strictEqual(CloudSync._apiUrl(), 'https://liaohao.cc/dictation/api/sync');
+assert.strictEqual(CloudSync._remoteIsEmpty({users: [], userData: {}}), true);
+assert.strictEqual(CloudSync._remoteIsEmpty({users: [{id: 'u_1'}], userData: {}}), false);
+
 console.log('word-input regression tests passed');
