@@ -5,6 +5,7 @@ const vm = require('vm');
 const html = fs.readFileSync(require('path').join(__dirname, '..', 'dictation-app.html'), 'utf8');
 assert(/\.ow-chip\{[^}]*border:2px solid transparent;[^}]*background:transparent;[^}]*color:var\(--muted\)/.test(html));
 assert(html.includes('.ow-chip:hover:not(.selected){border-color:transparent;background:transparent;color:var(--text);}'));
+assert(html.includes('☑️ 选择多个词语并调整课文'));
 const appStart = html.indexOf('const App={');
 const appEnd = html.indexOf('\n};\n\nApp.init();', appStart);
 assert(appStart >= 0 && appEnd > appStart, '无法从页面中读取 App');
@@ -126,5 +127,29 @@ moveResult = App._moveManagedBankWords(moveBank, [{lessonId: 'lesson-2', index: 
 assert.strictEqual(moveResult.moved, 1);
 assert.strictEqual(moveResult.lessonName, '第3课');
 assert.deepStrictEqual(Array.from(moveBank.lessons[2].words, word => word.text), ['大堤']);
+
+const duplicateBank = {
+  id: 'bank-duplicate',
+  name: '跨课文同名词测试',
+  other: [{text: '跟随', hint: ''}, {text: '堤岸', hint: ''}, {text: '渐渐', hint: ''}],
+  lessons: [{id: 'lesson-1', name: '第1课', words: [], createdAt: 1, updatedAt: 1}],
+  createdAt: 1,
+  updatedAt: 1
+};
+const duplicateStore = {version: 2, zh: [duplicateBank], en: [], deleted: []};
+let addResult = App._addWordsToBank(
+  duplicateStore,
+  'zh',
+  duplicateBank.id,
+  'lesson-1',
+  '',
+  [{text: '跟随', hint: ''}, {text: '堤岸', hint: ''}, {text: '渐渐', hint: ''}]
+);
+assert.strictEqual(addResult.added, 3);
+assert.deepStrictEqual(Array.from(duplicateBank.other, word => word.text), ['跟随', '堤岸', '渐渐']);
+assert.deepStrictEqual(Array.from(duplicateBank.lessons[0].words, word => word.text), ['跟随', '堤岸', '渐渐']);
+assert.strictEqual(App.getBankAllWords(duplicateBank).length, 6);
+addResult = App._addWordsToBank(duplicateStore, 'zh', duplicateBank.id, 'lesson-1', '', [{text: '跟随', hint: ''}]);
+assert.strictEqual(addResult.added, 0);
 
 console.log('word-input regression tests passed');
