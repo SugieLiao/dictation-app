@@ -2212,6 +2212,7 @@ const App={
 
   // 初始化云端同步：先检测后端，再拉取数据
   async initCloudSync(){
+    this.cloudSyncReady=false;
     const ok=await CloudSync.init();
     if(ok){
       // 从云端拉取数据
@@ -2220,10 +2221,20 @@ const App={
         // 合并云端数据到本地（云端优先，但保留本地比云端新的日志）
         this.mergeCloudData(cloudData);
       }
+      // 每次重新连线后都推送一次本地数据；新 D1 为空时会自动完成首次迁移。
+      await CloudSync.push();
     }else{
       CloudSync.updateIndicator('offline');
     }
     this.cloudSyncReady=true;
+  },
+
+  refreshWordBankViewsAfterSync(){
+    const active=document.querySelector('.screen.active');
+    if(!active)return;
+    // 词库可能在页面打开后才从云端到达，必须刷新当前可见列表。
+    if(active.id==='screen-lang')this.renderLangGradeChips();
+    else if(active.id==='screen-banks')this.renderBankManager();
   },
 
   // 将云端数据合并到本地（云端覆盖本地，除非本地有更新的日志）
@@ -2315,6 +2326,7 @@ const App={
       this.renderHomeEntries();
       this.renderUserList();
       this.updateUserSwitchBtn();
+      this.refreshWordBankViewsAfterSync();
       this.showToast('已从云端同步数据');
     }
   },
@@ -5808,65 +5820,99 @@ const App={
   ocrConfirmBank(){this.ocrConfirmWords();document.getElementById('bank-select-mask').classList.remove('show');}
 };
 
-/* ============ 云端同步模块（jsonbin.io） ============ */
+/* ============ 云端同步模块（同源 Cloudflare Worker + D1） ============ */
 const CloudSync={
-  BIN_ID:'6a5eed18da38895dfe792b2a',  // jsonbin.io master bin
-  API_KEY:'$2a$10$y6gZTbSu7bwEM6y66HRGVeVRQ100FRca1CAfo4SHjG9i3D2ToYsgW',
-  API_HOST:'api.jsonbin.io',
+  API_PATH:'/dictation/api/sync',
   enabled:false,         // 是否启用云端同步
   syncing:false,         // 是否正在同步中
   lastSyncTs:0,          // 上次成功同步时间戳
   pendingTimer:null,     // 防抖定时器
-  cache:null,             // 内存缓存云端数据
+  cache:null,            // 当前用户的云端缓存
+  remoteWasEmpty:false,  // 新 D1 首次启用时，用于自动迁移本机全部用户数据
 
-  // 初始化：拉取master bin
   async init(){
+    this.updateIndicator('syncing');
     try{
       const data=await this._getLatest();
       if(data){
         this.enabled=true;
         this.cache=data;
+        this.remoteWasEmpty=this._remoteIsEmpty(data);
         return true;
       }
     }catch(e){}
     this.enabled=false;
+    this.updateIndicator('offline');
     return false;
   },
 
-  // jsonbin.io GET /v3/b/{binId}/latest
-  _getLatest(){
-    return new Promise((resolve)=>{
-      const req=fetch('https://'+this.API_HOST+'/v3/b/'+this.BIN_ID+'/latest',{
+  _remoteIsEmpty(data){
+    return !data||(
+      (!Array.isArray(data.users)||data.users.length===0)&&
+      (!data.userData||Object.keys(data.userData).length===0)
+    );
+  },
+
+  _apiUrl(){
+    if(typeof location==='undefined'||!/^https?:$/.test(location.protocol))return '';
+    return new URL(this.API_PATH,location.origin).toString();
+  },
+
+  // 只读取当前用户，避免每次同步下载所有家庭成员的完整数据。
+  async _getLatest(){
+    const base=this._apiUrl();
+    if(!base)return null;
+    const uid=App.currentUserId||'default';
+    const controller=new AbortController();
+    const timer=setTimeout(()=>controller.abort(),12000);
+    try{
+      const r=await fetch(base+'?userId='+encodeURIComponent(uid),{
         method:'GET',
-        headers:{'X-Master-Key':this.API_KEY}
-      }).then(r=>r.ok?r.json():null).then(j=>j?j.record:null).catch(()=>resolve(null));
-      req.then(d=>resolve(d));
-    });
+        headers:{'Accept':'application/json'},
+        cache:'no-store',
+        signal:controller.signal
+      });
+      if(!r.ok)return null;
+      const data=await r.json();
+      return data&&Array.isArray(data.users)&&data.userData?data:null;
+    }catch(e){
+      return null;
+    }finally{
+      clearTimeout(timer);
+    }
   },
 
-  // jsonbin.io PUT /v3/b/{binId}
-  _put(data){
-    return fetch('https://'+this.API_HOST+'/v3/b/'+this.BIN_ID,{
-      method:'PUT',
-      headers:{
-        'Content-Type':'application/json',
-        'X-Master-Key':this.API_KEY
-      },
-      body:JSON.stringify(data)
-    }).then(r=>r.ok);
+  async _put(data){
+    const url=this._apiUrl();
+    if(!url)return false;
+    const uid=App.currentUserId||'default';
+    const controller=new AbortController();
+    const timer=setTimeout(()=>controller.abort(),12000);
+    try{
+      const r=await fetch(url,{
+        method:'PUT',
+        headers:{'Content-Type':'application/json','X-Dictation-App':'1'},
+        body:JSON.stringify({userId:uid,data}),
+        signal:controller.signal
+      });
+      return r.ok;
+    }catch(e){
+      return false;
+    }finally{
+      clearTimeout(timer);
+    }
   },
 
-  // 从云端拉取当前用户数据 + 用户列表
-  async pull(){
+  // 从云端拉取当前用户数据 + 用户列表。初始化时复用 init() 的缓存，手动同步强制刷新。
+  async pull(forceFresh=false){
     if(!this.enabled)return null;
     try{
-      const data=await this._getLatest();
-      if(data)this.cache=data;
+      const data=forceFresh?await this._getLatest():(this.cache||await this._getLatest());
+      if(!data)return null;
+      this.cache=data;
       const uid=App.currentUserId||'default';
-      const userData=(data&&data.userData&&data.userData[uid])||{};
-      // 同时把全局用户列表带下来，否则创建/删除用户无法跨设备同步
-      userData.users=(data&&Array.isArray(data.users))?data.users:[];
-      return userData;
+      const remote=(data.userData&&data.userData[uid])||{};
+      return {...remote,users:Array.isArray(data.users)?data.users:[]};
     }catch(e){return null;}
   },
 
@@ -5874,18 +5920,47 @@ const CloudSync={
   pushDebounced(){
     if(!this.enabled)return;
     if(this.pendingTimer)clearTimeout(this.pendingTimer);
-    this.pendingTimer=setTimeout(()=>this.push(),500);
+    this.pendingTimer=setTimeout(()=>{void this.push();},500);
+  },
+
+  _parseLocal(base,uid,fallback){
+    try{
+      const raw=localStorage.getItem(base+'_'+uid);
+      return raw===null?fallback:JSON.parse(raw);
+    }catch(e){return fallback;}
+  },
+
+  _readLocalUserData(uid){
+    const isCurrent=uid===(App.currentUserId||'default');
+    const savedSettings=this._parseLocal('dict_settings',uid,{});
+    const settings=isCurrent?{
+      zhSettings:App.zhSettings,
+      enSettings:App.enSettings
+    }:savedSettings;
+    const data={
+      settings,
+      log:this._parseLocal('dict_log',uid,[]),
+      review:this._parseLocal('dict_review',uid,{zh:[],en:[]}),
+      progress:this._parseLocal('dict_progress',uid,null),
+      adminPwd:localStorage.getItem('dict_admin_pwd_'+uid)||'0000',
+      ts:Date.now()
+    };
+    const wordBanks=isCurrent?App.exportWordBankStoreForCloud():this._parseLocal('dict_word_banks',uid,null);
+    if(wordBanks)data.wordBanks=wordBanks;
+    return data;
   },
 
   // 立即推送当前用户全部数据到云端
   async push(){
-    if(!this.enabled||this.syncing)return;
+    if(!this.enabled||this.syncing)return false;
     this.syncing=true;
     this.updateIndicator('syncing');
     try{
       // 先拉取最新云端数据（避免覆盖其他设备更新）
       let latest=await this._getLatest();
-      if(!latest)latest={users:[],userData:{}};
+      if(!latest)throw new Error('cloud unavailable');
+      const serverWasEmpty=this._remoteIsEmpty(latest);
+      if(!latest.userData)latest.userData={};
       this.cache=latest;
       const uid=App.currentUserId||'default';
       // 合并复习库：本地与云端取并集，每个词保留 streak 更高的版本
@@ -5902,31 +5977,32 @@ const CloudSync={
       const mergedLog=this.mergeLogs(localLog,cloudLog);
       localStorage.setItem(App.userKey('dict_log'),JSON.stringify(mergedLog));
       // 更新当前用户数据
-      latest.userData[uid]={
-        settings:{
-          zhSettings:App.zhSettings,
-          enSettings:App.enSettings
-        },
-        log:mergedLog,
-        review:mergedReview,
-        progress:JSON.parse(localStorage.getItem(App.userKey('dict_progress'))||'null'),
-        adminPwd:localStorage.getItem(App.userKey('dict_admin_pwd'))||'0000',
-        wordBanks:App.exportWordBankStoreForCloud(),
-        ts:Date.now()
-      };
+      latest.userData[uid]={...this._readLocalUserData(uid),log:mergedLog,review:mergedReview,ts:Date.now()};
+      // D1 首次启用时，把当前设备上其他用户的数据也一并迁移，避免只迁移当前账号。
+      if(serverWasEmpty&&this.remoteWasEmpty&&Array.isArray(App.users)){
+        App.users.forEach(user=>{
+          if(user&&user.id&&user.id!==uid)latest.userData[user.id]=this._readLocalUserData(user.id);
+        });
+      }
       // 同步用户列表
       if(App.users)latest.users=App.users;
       const ok=await this._put(latest);
       if(ok){
+        this.cache=latest;
+        this.remoteWasEmpty=false;
         this.lastSyncTs=Date.now();
         this.updateIndicator('ok');
+        return true;
       }else{
         this.updateIndicator('error');
+        return false;
       }
     }catch(e){
       this.updateIndicator('error');
+      return false;
+    }finally{
+      this.syncing=false;
     }
-    this.syncing=false;
   },
 
   // 合并两个复习库：基于文本去重 + 处理改名 + 排除已删除
@@ -5992,31 +6068,39 @@ const CloudSync={
 
   // 推送用户列表变更
   async pushUsers(){
-    if(!this.enabled)return;
+    if(!this.enabled)return false;
     try{
       let latest=await this._getLatest();
-      if(!latest)latest={users:[],userData:{}};
+      if(!latest)return false;
       latest.users=App.users||[];
-      await this._put(latest);
-      this.cache=latest;
-    }catch(e){}
+      const ok=await this._put(latest);
+      if(ok)this.cache=latest;
+      return ok;
+    }catch(e){return false;}
   },
 
   // 手动立即同步：先拉取合并，再推送（供用户点击同步指示器触发）
   async syncNow(){
     if(this.syncing)return;
-    if(!this.enabled){App.showToast('离线模式，无法同步');return;}
     if(this.pendingTimer)clearTimeout(this.pendingTimer);
     this.updateIndicator('syncing');
     try{
+      // 初次连接失败后允许按钮重新探测后端，而不是永久停在“离线模式”。
+      if(!this.enabled){
+        const reconnected=await this.init();
+        if(!reconnected)throw new Error('cloud unavailable');
+      }
       // 1. 拉取并合并远端数据
-      const cloudData=await this.pull();
-      if(cloudData)App.mergeCloudData(cloudData);
+      const cloudData=await this.pull(true);
+      if(!cloudData)throw new Error('cloud unavailable');
+      App.mergeCloudData(cloudData);
       // 2. 推送本地数据
-      await this.push();
+      const ok=await this.push();
+      if(!ok)throw new Error('cloud unavailable');
       App.showToast('同步完成');
     }catch(e){
-      this.updateIndicator('error');
+      this.enabled=false;
+      this.updateIndicator('offline');
       App.showToast('同步失败');
     }
   },

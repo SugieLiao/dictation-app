@@ -1,0 +1,32 @@
+{
+  "name": "dictation-worker",
+  "main": "worker.js",
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "routes": [
+    {
+      "pattern": "liaohao.cc/dictation*",
+      "zone_name": "liaohao.cc"
+    }
+  ],
+  "d1_databases": [
+    {
+      "binding": "DICTATION_DB",
+      "database_name": "dictation-sync",
+      "database_id": "49ea4de7-684a-4377-8a17-2b9a979d4793",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "observability": {
+    "enabled": true,
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1
+    },
+    "traces": {
+      "enabled": true,
+      "head_sampling_rate": 0.1
+    }
+  }
+}
