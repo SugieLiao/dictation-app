@@ -797,6 +797,10 @@
   .rcp-opt .rcp-avail{font-size:12px;color:var(--muted);}
   .rcp-actions{display:flex;gap:10px;}
   .rcp-actions .btn{flex:1;padding:12px;}
+  .lesson-coverage-actions{flex-direction:column;}
+  .lesson-coverage-actions .btn{display:flex;flex-direction:column;align-items:flex-start;gap:3px;text-align:left;line-height:1.4;}
+  .lesson-coverage-actions .choice-title{font-size:15px;font-weight:700;}
+  .lesson-coverage-actions .choice-detail{font-size:12px;font-weight:400;opacity:.82;}
 
   @media(max-width:420px){
     .play-btn{width:100px;height:100px;font-size:40px;}
@@ -890,7 +894,7 @@
         5. 结束后对照纸面，<b>点选写错的词</b>，记入「复习库」<br>
         6. 没听完就结束，可<b>保存进度</b>，下次首页点「继续上次」接着听<br>
         <br>
-        <b>🔁 复习库自动混入：</b>系统优先挑选到期和积压的复习词。选择“全部”时，会完整听写当前课文，并按40%的目标占比反推复习词数量后混入。<br>
+        <b>🔁 复习库自动混入：</b>目标比例为生词：复习词 = 10:3，系统优先挑选到期和积压的复习词；复习词不足时由生词补足。选择整课时，会完整听写本课生词，再按该比例反推复习词数量后混入。<br>
         <b>🟢 写对3次 = 已掌握：</b>复习库的词在递增间隔(1天→2天→4天)下各写对1次即掌握（不再混入听写）。写错不倒退，按当前间隔再练一次。<br>
         <b>📚 复习库页面：</b>在各语言分区内可查看复习词，按<b>艾宾浩斯遗忘曲线</b>安排复习时间（1天/2天/4天），到期会标红提示。<br>
         <b>📅 听写日志：</b>在各语言分区内可查看听写记录，按日历或表格展示，每条记录点「明细」可查看本次所有词语（错词红色显示）。
@@ -1408,6 +1412,24 @@
       <div class="bsp-actions">
         <button class="btn btn-ghost" onclick="App.ocrCancelBank()">取消</button>
         <button class="btn btn-primary" id="bsp-confirm-btn" onclick="App.ocrConfirmBank()" disabled>确认保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 课文听写范围选择弹窗 -->
+  <div class="review-count-mask" id="lesson-coverage-mask" onclick="if(event.target===this)App.closeLessonCoveragePrompt()">
+    <div class="review-count-panel">
+      <div class="rcp-title">📖 要听写本课全部词语吗？</div>
+      <div class="rcp-sub" id="lesson-coverage-sub"></div>
+      <div class="rcp-actions lesson-coverage-actions">
+        <button class="btn btn-primary" id="lesson-coverage-all" onclick="App.chooseLessonCoverage('all')">
+          <span class="choice-title">全部（默认）</span>
+          <span class="choice-detail" id="lesson-coverage-all-detail"></span>
+        </button>
+        <button class="btn btn-ghost" id="lesson-coverage-partial" onclick="App.chooseLessonCoverage('partial')">
+          <span class="choice-title">部分</span>
+          <span class="choice-detail" id="lesson-coverage-partial-detail"></span>
+        </button>
       </div>
     </div>
   </div>
@@ -3261,11 +3283,44 @@ const App={
     this.curSettings().lessonId=lessonId;this.saveSettings();
     const bank=this.findManagedBank(this.langPageMode,this.curSettings().bankId||this.curSettings().grade);this.updateLangLessonNote(bank,lessonId);
   },
-  calculateAllReviewCount(newWordCount){return newWordCount>0?Math.max(1,Math.round(newWordCount*0.4/0.6)):0;},
+  NEW_WORD_RATIO:10,
+  REVIEW_WORD_RATIO:3,
+  get REVIEW_TARGET_RATIO(){return this.REVIEW_WORD_RATIO/(this.NEW_WORD_RATIO+this.REVIEW_WORD_RATIO);},
+  calculateReviewCountForTotal(totalCount){
+    return totalCount>0?Math.max(1,Math.round(totalCount*this.REVIEW_TARGET_RATIO)):0;
+  },
+  calculateAllReviewCount(newWordCount){
+    return newWordCount>0?Math.max(1,Math.round(newWordCount*this.REVIEW_WORD_RATIO/this.NEW_WORD_RATIO)):0;
+  },
+  calculatePartialMixCounts(totalCount,newWordAvailable){
+    const reviewCount=this.calculateReviewCountForTotal(totalCount);
+    const newCount=Math.max(0,totalCount-reviewCount);
+    if(newWordAvailable>=newCount)return {newCount,reviewCount};
+    const limitedNewCount=Math.max(0,newWordAvailable);
+    return {newCount:limitedNewCount,reviewCount:this.calculateAllReviewCount(limitedNewCount)};
+  },
   updateLangLessonNote(bank,lessonId){
     const note=document.getElementById('lang-lesson-note');if(!note||!bank)return;
     const count=this.getBankScopeWords(bank,lessonId).length,review=this.calculateAllReviewCount(count);
-    note.textContent='本课 '+count+' 个词；选择“全部”时会听写本课全部词，并按 40% 复习占比推算、最多混入 '+review+' 个复习词。';
+    note.textContent='本课 '+count+' 个词；生词:复习词 = 10:3。听写整课时最多混入 '+review+' 个复习词。';
+  },
+  showLessonCoveragePrompt(lessonName,newWordCount){
+    const partialTotal=Math.min(this.dailyCount,newWordCount);
+    const partialReview=this.calculateReviewCountForTotal(partialTotal);
+    const partialNew=Math.max(0,partialTotal-partialReview);
+    const allReview=this.calculateAllReviewCount(newWordCount);
+    document.getElementById('lesson-coverage-sub').textContent='“'+lessonName+'”共有 '+newWordCount+' 个生词。复习词按 10:3 目标比例混入。';
+    document.getElementById('lesson-coverage-all-detail').textContent='本课 '+newWordCount+' 个生词 + 最多 '+allReview+' 个复习词';
+    document.getElementById('lesson-coverage-partial-detail').textContent='按当前设置共 '+partialTotal+' 词：约 '+partialNew+' 个生词 + '+partialReview+' 个复习词';
+    document.getElementById('lesson-coverage-mask').classList.add('show');
+  },
+  closeLessonCoveragePrompt(){
+    document.getElementById('lesson-coverage-mask').classList.remove('show');
+  },
+  chooseLessonCoverage(choice){
+    if(choice!=='all'&&choice!=='partial')return;
+    this.closeLessonCoveragePrompt();
+    this.beginDictation(choice);
   },
 
   toggleCustomInput(){
@@ -3383,14 +3438,14 @@ const App={
     return a;
   },
 
-  beginDictation(){
+  beginDictation(lessonCoverage=''){
     // 等待云端同步完成，避免用本地过期数据开始听写（导致已掌握词重复出现）
     if(!this.cloudSyncReady){
       App.showToast('正在同步云端数据，请稍候...');
       const checkTimer=setInterval(()=>{
         if(this.cloudSyncReady){
           clearInterval(checkTimer);
-          this.beginDictation();
+          this.beginDictation(lessonCoverage);
         }
       },500);
       return;
@@ -3410,24 +3465,30 @@ const App={
       const scopeName=lesson?lesson.name:'其他';
       const all=(bank.lessons||[]).length?this.getBankScopeWords(bank,lessonId):this.getBankAllWords(bank);
       if(!all.length){App.showToast('“'+scopeName+'”里还没有词语');return;}
+      if(lesson&&this.dailyCount>0&&lessonCoverage!=='all'&&lessonCoverage!=='partial'){
+        this.showLessonCoveragePrompt(scopeName,all.length);
+        return;
+      }
       let reviewWords=[],newWords=[],cnt;
-      if(this.dailyCount===0){
-        // “全部”必须覆盖本课全部生词；再按 40% 的目标占比反推复习词数量
+      const useAll=this.dailyCount===0||(!!lesson&&lessonCoverage==='all');
+      if(useAll){
+        // “全部”必须覆盖本课全部生词；再按 10:3 的目标比例反推复习词数量
         cnt=all.length;
         const scopeTexts=new Set(all.map(w=>w.text.toLocaleLowerCase()));
         reviewWords=this.pickReviewWordsExcluding(this.mode,this.calculateAllReviewCount(all.length),scopeTexts);
         newWords=all.map(w=>({...w}));
       }else{
         cnt=Math.min(this.dailyCount,all.length);
-        reviewWords=this.pickReviewWords(this.mode,cnt);
         const reviewBank=this.getReviewBank();
         const reviewBankTexts=new Set((reviewBank[this.mode]||[]).map(w=>w.text));
-        const newTarget=Math.max(0,cnt-reviewWords.length);
         const newWordsPool=all.filter(w=>!reviewBankTexts.has(w.text));
+        const mix=this.calculatePartialMixCounts(cnt,newWordsPool.length);
+        reviewWords=this.pickReviewWords(this.mode,mix.reviewCount);
+        const newTarget=Math.min(newWordsPool.length,mix.newCount+Math.max(0,mix.reviewCount-reviewWords.length));
         newWords=(this.curSettings().dictOrder==='shuffle')?this.shuffleArray(newWordsPool).slice(0,newTarget):newWordsPool.slice(0,newTarget);
       }
       words=[...reviewWords.map(w=>({text:w.text,hint:w.hint||'',fromReview:true})),...newWords.map(w=>({text:w.text,hint:w.hint||'',fromReview:false}))];
-      source={type:bank.source==='preset'?'preset':'customBank',mode:this.mode,grade:bank.name+((bank.lessons||[]).length?' · '+scopeName:''),bankName:bank.name,bankId:bank.id,lessonId,lessonName:scopeName,totalCount:all.length,sessionCount:words.length,mixedReview:reviewWords.length>0,reviewCount:reviewWords.length};
+      source={type:bank.source==='preset'?'preset':'customBank',mode:this.mode,grade:bank.name+((bank.lessons||[]).length?' · '+scopeName:''),bankName:bank.name,bankId:bank.id,lessonId,lessonName:scopeName,lessonCoverage:useAll?'all':'partial',totalCount:all.length,sessionCount:words.length,mixedReview:reviewWords.length>0,reviewCount:reviewWords.length};
     }else{
       // 从预设词表构建词库，并去重（词库中可能存在重复词条）
       const all=(()=>{
@@ -3448,12 +3509,13 @@ const App={
         newWords=all.map(w=>({...w}));
       }else{
         // 混合复习库词：优先级 今天到期 > 积压 > 新词
-        reviewWords=this.pickReviewWords(this.mode,cnt);
         // 用整个复习库来过滤：复习库中已有的词（含已掌握/已过关的）不再作为新词出现
         const reviewBank=this.getReviewBank();
         const reviewBankTexts=new Set((reviewBank[this.mode]||[]).map(w=>w.text));
-        const newTarget=Math.max(0,cnt-reviewWords.length);
         const newWordsPool=all.filter(w=>!reviewBankTexts.has(w.text));
+        const mix=this.calculatePartialMixCounts(cnt,newWordsPool.length);
+        reviewWords=this.pickReviewWords(this.mode,mix.reviewCount);
+        const newTarget=Math.min(newWordsPool.length,mix.newCount+Math.max(0,mix.reviewCount-reviewWords.length));
         newWords=(this.curSettings().dictOrder==='shuffle')?this.shuffleArray(newWordsPool).slice(0,newTarget):newWordsPool.slice(0,newTarget);
       }
       // 拼接：复习词在前，新词在后
