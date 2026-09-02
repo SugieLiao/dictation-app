@@ -646,6 +646,7 @@
   .merge-toast .mt-btns{display:flex;gap:8px;pointer-events:auto;}
   .merge-toast .mt-btns button{padding:6px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none;}
   .merge-toast .mt-ok{background:var(--primary);color:#fff;}
+  .merge-toast .mt-ok:disabled{background:var(--border);color:var(--muted);cursor:not-allowed;}
   .merge-toast .mt-cancel{background:var(--border);color:var(--text);}
 
   /* 词库选择（内联） */
@@ -1123,7 +1124,7 @@
       <span class="mt-text" id="merge-text"></span>
       <div class="mt-btns">
         <button class="mt-cancel" onclick="App.ocrCancelMerge()">取消</button>
-        <button class="mt-ok" onclick="App.ocrConfirmMerge()">合并</button>
+        <button class="mt-ok" id="merge-confirm-btn" onclick="App.ocrConfirmMerge()">合并</button>
       </div>
     </div>
 
@@ -5642,7 +5643,8 @@ const App={
     const dragged=this._ocrMergeDragged;
     const hasMergeSelection=!this._ocrTwoFingerScroll&&this._ocrMergeIndices.length>1;
     if(hasMergeSelection)this.ocrShowMergeToast();
-    if(dragged||hasMergeSelection)this._ocrMergeIgnoreClickUntil=Date.now()+1200;
+    // 只屏蔽拖动刚结束时浏览器补发的 click；不能吞掉用户紧接着点选的新词。
+    if(dragged||hasMergeSelection)this._ocrMergeIgnoreClickUntil=Date.now()+160;
     this.ocrClearMergeState();
   },
 
@@ -5699,30 +5701,54 @@ const App={
     });
   },
 
+  ocrSetMergePendingIndices(rawIndices){
+    const indices=[...new Set(rawIndices)]
+      .filter(i=>Number.isInteger(i)&&i>=0&&i<this.ocrWords.length)
+      .sort((a,b)=>a-b);
+    const toast=document.getElementById('merge-toast');
+    const confirmBtn=document.getElementById('merge-confirm-btn');
+    if(!indices.length){
+      this._ocrMergePending=null;
+      this.ocrApplyMergePendingState();
+      toast.classList.remove('show');
+      if(confirmBtn)confirmBtn.disabled=false;
+      return false;
+    }
+    const merged=indices.map(i=>this.ocrWords[i].text).join('');
+    this._ocrMergePending={indices,merged};
+    this.ocrApplyMergePendingState();
+    document.getElementById('merge-text').textContent=indices.length<2
+      ?'已选 1 个词，请再选择至少 1 个词'
+      :'已选 '+indices.length+' 个词，合并为：'+merged;
+    toast.classList.add('show');
+    if(confirmBtn)confirmBtn.disabled=indices.length<2;
+    return indices.length>=2;
+  },
+
+  ocrToggleMergePendingWord(i){
+    const indices=this._ocrMergePending?this._ocrMergePending.indices.slice():[];
+    const at=indices.indexOf(i);
+    if(at>=0)indices.splice(at,1);
+    else indices.push(i);
+    return this.ocrSetMergePendingIndices(indices);
+  },
+
   ocrPersistCurrentMergeSelection(){
     const prior=this._ocrMergePending?this._ocrMergePending.indices:[];
     const indices=[...new Set([...prior,...this._ocrMergeIndices])].sort((a,b)=>a-b);
     if(indices.length<2)return false;
-    const texts=indices.map(i=>this.ocrWords[i].text);
-    const merged=texts.join('');
-    this._ocrMergePending={indices,merged};
-    this.ocrApplyMergePendingState();
-    document.getElementById('merge-text').textContent='已选 '+indices.length+' 个词，合并为：'+merged;
-    document.getElementById('merge-toast').classList.add('show');
-    return true;
+    return this.ocrSetMergePendingIndices(indices);
   },
 
   ocrShowMergeToast(){
     // 状态通常已在 pointermove 中持久化；结束时再同步一次作为兜底。
     if(!this.ocrPersistCurrentMergeSelection())return;
-    const {indices,merged}=this._ocrMergePending;
-    document.getElementById('merge-text').textContent='已选 '+indices.length+' 个词，合并为：'+merged;
-    document.getElementById('merge-toast').classList.add('show');
   },
 
   ocrConfirmMerge(){
     const p=this._ocrMergePending;
     if(!p)return;
+    if(p.indices.length<2){this.showToast('请至少选择 2 个词再合并');return;}
     const {indices,merged}=p;
     // 用第一个位置放合并结果，其他标记删除
     this.ocrWords[indices[0]].text=merged;
@@ -5739,12 +5765,16 @@ const App={
 
   ocrCancelMerge(){
     document.getElementById('merge-toast').classList.remove('show');
+    const confirmBtn=document.getElementById('merge-confirm-btn');
+    if(confirmBtn)confirmBtn.disabled=false;
     this._ocrMergePending=null;
     this.ocrClearMergeState();
   },
 
   // ===== 词语选择 =====
   ocrToggleWord(i){
+    // 已进入待合并状态后，单击只增删合并集合成员，不改变词语本身的选中状态。
+    if(this._ocrMergePending){this.ocrToggleMergePendingWord(i);return;}
     this.ocrWords[i].selected=!this.ocrWords[i].selected;
     this.ocrRenderWords();
     this.ocrUpdateConfirmBtn();

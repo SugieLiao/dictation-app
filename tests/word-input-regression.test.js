@@ -12,7 +12,7 @@ assert(html.includes('☑️ 选择多个词语并调整课文'));
 assert(/id="ocr-file-input"[^>]*capture="environment"/.test(html), '拍照入口应使用后置相机');
 assert(/id="ocr-gallery-input"[^>]*accept="image\/\*"(?![^>]*capture)/.test(html), '相册入口不应强制调用相机');
 assert(html.includes('ocrTriggerGallery(){document.getElementById(\'ocr-gallery-input\').click();}'));
-assert(html.includes("if(dragged||hasMergeSelection)this._ocrMergeIgnoreClickUntil=Date.now()+1200;"), '拖动合并后应抑制手机端延迟误触点击');
+assert(html.includes("if(dragged||hasMergeSelection)this._ocrMergeIgnoreClickUntil=Date.now()+160;"), '拖动合并后只应短暂抑制浏览器补发点击');
 assert(html.includes("chip.addEventListener('pointercancel',(e)=>{this.ocrFinishMergeGesture(e,chip);});"), 'pointercancel 也必须完成累计选择');
 assert(html.includes('this.ocrPersistCurrentMergeSelection();'), '拖动经过新词时必须立即持久化累计选择');
 assert(html.includes('单击选择 · 双击修改 · 拖动合并'));
@@ -200,6 +200,8 @@ const realClearTimeout = sandbox.clearTimeout;
 let fakeTimer = null;
 let fakeTimerId = 0;
 const tapActions = [];
+const realOcrToggleWord = App.ocrToggleWord;
+const realOcrEditSuggestedWord = App.ocrEditSuggestedWord;
 sandbox.setTimeout = fn => { fakeTimer = fn; return ++fakeTimerId; };
 sandbox.clearTimeout = () => { fakeTimer = null; };
 App.ocrToggleWord = index => tapActions.push(['toggle', index]);
@@ -215,8 +217,11 @@ assert.deepStrictEqual(tapActions, [['toggle', 2], ['edit', 3]]);
 assert.strictEqual(fakeTimer, null, '双击后不应残留单击任务');
 sandbox.setTimeout = realSetTimeout;
 sandbox.clearTimeout = realClearTimeout;
+App.ocrToggleWord = realOcrToggleWord;
+App.ocrEditSuggestedWord = realOcrEditSuggestedWord;
 
 const mergeText = {textContent: ''};
+const mergeConfirm = {disabled: false};
 const mergeToastClasses = new Set();
 const mergeToast = {classList: {add: value => mergeToastClasses.add(value), remove: value => mergeToastClasses.delete(value)}};
 const makeMergeChip = index => {
@@ -234,32 +239,58 @@ const makeMergeChip = index => {
     }
   };
 };
-const mergeChips = [0, 1, 2, 3].map(makeMergeChip);
+const mergeChips = [0, 1, 2, 3, 4].map(makeMergeChip);
 sandbox.document = {
-  getElementById: id => id === 'merge-text' ? mergeText : id === 'merge-toast' ? mergeToast : element,
+  getElementById: id => id === 'merge-text' ? mergeText : id === 'merge-toast' ? mergeToast : id === 'merge-confirm-btn' ? mergeConfirm : element,
   querySelectorAll: selector => selector === '#ocr-words-grid .ow-chip' ? mergeChips : []
 };
-App.ocrWords = ['人山', '人海', '齐头', '并进'].map(text => ({text, selected: true}));
+App.ocrWords = ['人山', '人海', '齐头', '并进', '山崩'].map(text => ({text, selected: true}));
 App._ocrMergePending = null;
 App._ocrMergeIndices = [0, 1];
 assert.strictEqual(App.ocrPersistCurrentMergeSelection(), true);
-assert.deepStrictEqual(mergeChips.map(chip => chip.classes.has('merge-pending')), [true, true, false, false]);
+assert.deepStrictEqual(mergeChips.map(chip => chip.classes.has('merge-pending')), [true, true, false, false, false]);
 // 模拟手机浏览器没有派发 pointerup / pointercancel：直接清理临时状态，累计选择仍须存在。
 App.ocrClearMergeState();
 assert.deepStrictEqual(Array.from(App._ocrMergePending.indices), [0, 1]);
-assert.deepStrictEqual(mergeChips.map(chip => chip.classes.has('merge-pending')), [true, true, false, false]);
+assert.deepStrictEqual(mergeChips.map(chip => chip.classes.has('merge-pending')), [true, true, false, false, false]);
 App._ocrMergeIndices = [2, 3];
 App.ocrShowMergeToast();
 assert.deepStrictEqual(Array.from(App._ocrMergePending.indices), [0, 1, 2, 3]);
 assert.strictEqual(App._ocrMergePending.merged, '人山人海齐头并进');
 assert.strictEqual(mergeText.textContent, '已选 4 个词，合并为：人山人海齐头并进');
 assert(mergeToastClasses.has('show'));
+
+// 拖动选 3 个后，单击第 4、5 个应依次加入；再单击第 5 个应只取消它。
+App.ocrSetMergePendingIndices([0, 1, 2]);
+App.ocrToggleWord(3);
+assert.deepStrictEqual(Array.from(App._ocrMergePending.indices), [0, 1, 2, 3]);
+App.ocrToggleWord(4);
+assert.deepStrictEqual(Array.from(App._ocrMergePending.indices), [0, 1, 2, 3, 4]);
+assert.strictEqual(mergeText.textContent, '已选 5 个词，合并为：人山人海齐头并进山崩');
+App.ocrToggleWord(4);
+assert.deepStrictEqual(Array.from(App._ocrMergePending.indices), [0, 1, 2, 3]);
+assert.strictEqual(mergeText.textContent, '已选 4 个词，合并为：人山人海齐头并进');
+assert(App.ocrWords.every(word => word.selected), '增删待合并成员不应改变词语本身的选中状态');
+
+App.ocrSetMergePendingIndices([0]);
+assert.strictEqual(mergeConfirm.disabled, true, '只剩 1 个词时不能执行合并');
+assert.strictEqual(mergeText.textContent, '已选 1 个词，请再选择至少 1 个词');
+App.ocrToggleWord(0);
+assert.strictEqual(App._ocrMergePending, null, '取消最后一个待合并词后应退出待合并状态');
+assert.strictEqual(mergeToastClasses.has('show'), false);
+assert.strictEqual(mergeConfirm.disabled, false);
+
+App.ocrSetMergePendingIndices([0, 1, 2, 3]);
 mergeChips.forEach(chip => {
   chip.classes.add('merge-active');
   chip.classes.add('merge-hover');
 });
 App.ocrClearMergeState();
-assert(mergeChips.every(chip => chip.classes.has('merge-pending')), '松手清理后累计选择必须保持高亮');
+assert.deepStrictEqual(
+  mergeChips.map(chip => chip.classes.has('merge-pending')),
+  [true, true, true, true, false],
+  '松手清理后累计选择必须保持高亮'
+);
 assert(mergeChips.every(chip => !chip.classes.has('merge-active') && !chip.classes.has('merge-hover')));
 App.ocrCancelMerge();
 assert(mergeChips.every(chip => !chip.classes.has('merge-pending')), '仅在取消合并后清除累计选择');
@@ -282,7 +313,7 @@ App._ocrMergeIndices = [0, 1, 2];
 App._ocrMergeDragged = true;
 gestureHandlers.pointercancel(touchEvent(9, 300));
 assert.deepStrictEqual(Array.from(App._ocrMergePending.indices), [0, 1, 2], '单指 pointercancel 必须保留已划过的词');
-assert.deepStrictEqual(mergeChips.map(chip => chip.classes.has('merge-pending')), [true, true, true, false]);
+assert.deepStrictEqual(mergeChips.map(chip => chip.classes.has('merge-pending')), [true, true, true, false, false]);
 assert.strictEqual(App._ocrMergeStartIdx, -1);
 App.ocrCancelMerge();
 gestureHandlers.pointerdown(touchEvent(1, 300));
