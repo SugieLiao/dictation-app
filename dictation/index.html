@@ -492,6 +492,8 @@
   }
   .modal-head .m-close:active{background:#e8e8e8;}
   .modal-body{padding:12px 16px;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+  #word-edit-mask.keyboard-aware{align-items:center;overflow-y:auto;padding:max(12px,env(safe-area-inset-top)) 16px max(12px,env(safe-area-inset-bottom));}
+  #word-edit-mask.keyboard-aware .modal-card{max-height:calc(100% - 8px);}
   .detail-grid{display:flex;flex-wrap:wrap;gap:8px;}
   .dw-item{
     display:flex;align-items:center;gap:6px;
@@ -627,20 +629,20 @@
   .ocr-words-head .ow-actions{display:flex;gap:6px;}
   .ocr-words-head .ow-actions button{font-size:12px;padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--muted);cursor:pointer;font-weight:500;transition:all .12s;}
   .ocr-words-head .ow-actions button:hover{background:var(--primary);color:#fff;border-color:var(--primary);}
-  .ocr-words-grid{display:flex;flex-wrap:wrap;gap:8px;position:relative;user-select:none;}
+  .ocr-words-grid{display:flex;flex-wrap:wrap;gap:8px;position:relative;user-select:none;touch-action:none;}
   .ow-chip{padding:8px 14px;border:2px solid transparent;border-radius:10px;font-size:15px;font-weight:500;cursor:pointer;transition:all .12s;background:transparent;color:var(--muted);user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;touch-action:none;display:flex;align-items:center;gap:6px;position:relative;z-index:1;}
   .ow-chip:hover:not(.selected){border-color:transparent;background:transparent;color:var(--text);}
   .ow-chip.selected{border-color:var(--primary);background:#fff4ec;color:var(--primary-dark);}
-  .ow-chip.merge-hover,.ow-chip.merge-active{border-color:#d84315;background:#ff7a00;color:#fff;font-weight:700;box-shadow:0 0 0 4px rgba(255,122,0,.28),0 6px 16px rgba(216,67,21,.3);z-index:3;}
+  .ow-chip.merge-hover,.ow-chip.merge-active,.ow-chip.merge-pending{border-color:#d84315;background:#ff7a00;color:#fff;font-weight:700;box-shadow:0 0 0 4px rgba(255,122,0,.28),0 6px 16px rgba(216,67,21,.3);z-index:3;}
   .ow-chip.merge-active{background:#e65100;border-color:#bf360c;}
-  .ow-chip.merge-hover::after,.ow-chip.merge-active::after{content:'✓';position:absolute;top:-9px;right:-9px;width:21px;height:21px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:#bf360c;color:#fff;border:2px solid #fff;font-size:12px;font-weight:900;box-shadow:0 2px 7px rgba(0,0,0,.25);}
+  .ow-chip.merge-hover::after,.ow-chip.merge-active::after,.ow-chip.merge-pending::after{content:'✓';position:absolute;top:-9px;right:-9px;width:21px;height:21px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:#bf360c;color:#fff;border:2px solid #fff;font-size:12px;font-weight:900;box-shadow:0 2px 7px rgba(0,0,0,.25);}
   .ow-chip .ow-hint{font-size:11px;color:var(--muted);font-weight:400;}
-  .ow-chip.merge-hover .ow-hint,.ow-chip.merge-active .ow-hint{color:#fff;}
+  .ow-chip.merge-hover .ow-hint,.ow-chip.merge-active .ow-hint,.ow-chip.merge-pending .ow-hint{color:#fff;}
 
   /* 合并提示弹窗 */
   .merge-toast{position:fixed;bottom:120px;left:50%;transform:translateX(-50%);z-index:1500;background:var(--card);border-radius:14px;padding:16px 20px;box-shadow:0 8px 32px rgba(0,0,0,.25);display:none;align-items:center;gap:12px;flex-wrap:wrap;justify-content:center;max-width:90vw;}
   .merge-toast.show{display:flex;}
-  .merge-toast .mt-text{font-size:15px;font-weight:600;color:var(--text);white-space:nowrap;}
+  .merge-toast .mt-text{font-size:14px;font-weight:600;color:var(--text);white-space:normal;word-break:break-all;line-height:1.5;max-width:min(68vw,360px);max-height:72px;overflow:auto;}
   .merge-toast .mt-btns{display:flex;gap:8px;}
   .merge-toast .mt-btns button{padding:6px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none;}
   .merge-toast .mt-ok{background:var(--primary);color:#fff;}
@@ -1160,7 +1162,7 @@
           </div>
         </div>
         <div class="ocr-words-grid" id="ocr-words-grid"></div>
-        <div class="hint-text" style="margin-top:10px;">💡 已选 <b id="ocr-selected-count">0</b> 个词；单击选择或取消，双击修改</div>
+        <div class="hint-text" style="margin-top:10px;">💡 已选 <b id="ocr-selected-count">0</b> 个词；单击选择，双击修改，拖动可分多次累计合并，双指滑动页面</div>
       </div>
 
       <!-- 手动添加词语 -->
@@ -1378,7 +1380,7 @@
             <label style="font-size:13px;color:var(--muted);display:block;margin-bottom:5px;">词语</label>
             <input type="text" id="word-edit-text" placeholder="输入词语" autocomplete="off" style="width:100%;padding:10px 12px;font-size:16px;border:1px solid var(--border);border-radius:8px;box-sizing:border-box;background:var(--card);color:var(--text);" onkeydown="if(event.key==='Enter')App.submitWordEdit()">
           </div>
-          <div>
+          <div id="word-edit-hint-field">
             <label style="font-size:13px;color:var(--muted);display:block;margin-bottom:5px;">提示（可选）</label>
             <input type="text" id="word-edit-hint" placeholder="如：拼音或释义" autocomplete="off" style="width:100%;padding:10px 12px;font-size:14px;border:1px solid var(--border);border-radius:8px;box-sizing:border-box;background:var(--card);color:var(--text);" onkeydown="if(event.key==='Enter')App.submitWordEdit()">
           </div>
@@ -4058,10 +4060,11 @@ const App={
     document.getElementById('word-edit-sub').textContent = '修改后保存即可';
     document.getElementById('word-edit-text').value = word.text || '';
     document.getElementById('word-edit-hint').value = word.hint || '';
+    document.getElementById('word-edit-hint-field').style.display = '';
+    document.getElementById('word-edit-text').placeholder = '输入词语';
     document.getElementById('word-edit-msg').innerHTML = '';
     document.getElementById('word-edit-msg').style.color = '';
-    document.getElementById('word-edit-mask').classList.add('show');
-    setTimeout(() => document.getElementById('word-edit-text').focus(), 100);
+    this.openWordEditMask();
   },
 
   // 添加词语（无需密码）
@@ -4071,18 +4074,66 @@ const App={
     document.getElementById('word-edit-sub').textContent = '直接添加，无需密码';
     document.getElementById('word-edit-text').value = '';
     document.getElementById('word-edit-hint').value = '';
+    document.getElementById('word-edit-hint-field').style.display = '';
+    document.getElementById('word-edit-text').placeholder = '输入词语';
     document.getElementById('word-edit-msg').innerHTML = '';
     document.getElementById('word-edit-msg').style.color = '';
-    document.getElementById('word-edit-mask').classList.add('show');
-    setTimeout(() => document.getElementById('word-edit-text').focus(), 100);
+    this.openWordEditMask();
+  },
+
+  openWordEditMask(){
+    const mask=document.getElementById('word-edit-mask');
+    mask.classList.add('show','keyboard-aware');
+    this.closeWordEditViewportWatcher();
+    const handler=()=>this.updateWordEditViewport();
+    this._wordEditViewportHandler=handler;
+    if(window.visualViewport){
+      window.visualViewport.addEventListener('resize',handler);
+      window.visualViewport.addEventListener('scroll',handler);
+    }
+    handler();
+    setTimeout(()=>{
+      const input=document.getElementById('word-edit-text');
+      try{input.focus({preventScroll:true});}catch(err){input.focus();}
+      this.updateWordEditViewport();
+      setTimeout(()=>input.scrollIntoView({block:'center',inline:'nearest'}),60);
+    },100);
+  },
+
+  updateWordEditViewport(){
+    const mask=document.getElementById('word-edit-mask');
+    if(!mask||!mask.classList.contains('show'))return;
+    const viewport=window.visualViewport;
+    mask.style.top=Math.max(0,viewport?viewport.offsetTop:0)+'px';
+    mask.style.height=Math.max(180,viewport?viewport.height:window.innerHeight)+'px';
+    mask.style.bottom='auto';
+  },
+
+  closeWordEditViewportWatcher(){
+    const handler=this._wordEditViewportHandler;
+    if(handler&&window.visualViewport){
+      window.visualViewport.removeEventListener('resize',handler);
+      window.visualViewport.removeEventListener('scroll',handler);
+    }
+    this._wordEditViewportHandler=null;
   },
 
   closeWordEditModal(){
-    document.getElementById('word-edit-mask').classList.remove('show');
+    this.closeWordEditViewportWatcher();
+    const mask=document.getElementById('word-edit-mask');
+    mask.classList.remove('show','keyboard-aware');
+    mask.style.top='';
+    mask.style.height='';
+    mask.style.bottom='';
+    document.getElementById('word-edit-hint-field').style.display='';
     this._wordEditTarget = null;
   },
 
   submitWordEdit(){
+    if(this._wordEditTarget&&this._wordEditTarget.context==='ocr'){
+      this.submitOcrWordEdit();
+      return;
+    }
     const text = document.getElementById('word-edit-text').value.trim();
     const hint = document.getElementById('word-edit-hint').value.trim();
     const msg = document.getElementById('word-edit-msg');
@@ -4110,7 +4161,7 @@ const App={
       }
       this.saveReviewBank(bank);
       this._refreshReviewUI();
-      document.getElementById('word-edit-mask').classList.remove('show');
+      this.closeWordEditModal();
       this.showToast('✏️ 词语已修改：' + text);
     } else {
       // 添加模式 - 如果已存在则重置状态（streak=0，重新开始复习）
@@ -4128,13 +4179,13 @@ const App={
         list[dupIdx].archived = false;
         this.saveReviewBank(bank);
         this._refreshReviewUI();
-        document.getElementById('word-edit-mask').classList.remove('show');
+        this.closeWordEditModal();
         this.showToast('🔄 「' + text + '」已重置为待复习状态');
       } else {
         list.push({ text, hint, streak: 0, last: now, nextReview: this.getNextReviewTs(0) });
         this.saveReviewBank(bank);
         this._refreshReviewUI();
-        document.getElementById('word-edit-mask').classList.remove('show');
+        this.closeWordEditModal();
         this.showToast('➕ 「' + text + '」已添加到复习库');
       }
     }
@@ -5014,6 +5065,11 @@ const App={
   _ocrMergeIndices:[],        // 拖动涉及的 chip 索引集合
   _ocrMergeDragged:false,
   _ocrMergeIgnoreClickUntil:0,
+  _ocrMergePending:null,
+  _ocrTouchPointers:new Map(),
+  _ocrTwoFingerScroll:false,
+  _ocrTwoFingerLastY:null,
+  _ocrGridGestureHandlers:null,
   _ocrTapTimer:null,
   _ocrTapIndex:-1,
   _ocrTapAt:0,
@@ -5035,6 +5091,10 @@ const App={
     this._ocrMergeIndices=[];
     this._ocrMergeDragged=false;
     this._ocrMergeIgnoreClickUntil=0;
+    this._ocrMergePending=null;
+    this._ocrTouchPointers.clear();
+    this._ocrTwoFingerScroll=false;
+    this._ocrTwoFingerLastY=null;
     this.ocrCancelPendingWordTap();
     const isChars=this.ocrEntryMode==='chars';
     document.getElementById('ocr-page-title').textContent=(isChars?'✨ 生字拍照组词':'📷 拍照识词')+' - '+(lang==='zh'?'语文':'英语');
@@ -5458,10 +5518,12 @@ const App={
   ocrRenderWords(){
     this.ocrCancelPendingWordTap();
     const grid=document.getElementById('ocr-words-grid');
+    this.ocrBindGridTwoFingerScroll(grid);
     grid.innerHTML='';
     this.ocrWords.forEach((w,i)=>{
       const chip=document.createElement('div');
-      chip.className='ow-chip'+(w.selected?' selected':'');
+      const mergePending=!!(this._ocrMergePending&&this._ocrMergePending.indices.includes(i));
+      chip.className='ow-chip'+(w.selected?' selected':'')+(mergePending?' merge-pending':'');
       chip.dataset.idx=i;
       const sourceHtml=w.sourceChar?`<span class="ow-hint">${this._escHtml(w.sourceChar)}→</span>`:'';
       const hintHtml=w.hint?`<span class="ow-hint">${this._escHtml(w.hint)}</span>`:'';
@@ -5474,7 +5536,7 @@ const App={
       });
       // 拖动合并 - pointer 事件
       chip.addEventListener('pointerdown',(e)=>{
-        if(e.pointerType==='mouse'&&e.button!==0)return;
+        if(this._ocrTwoFingerScroll||(e.pointerType==='mouse'&&e.button!==0))return;
         e.preventDefault();
         try{chip.setPointerCapture(e.pointerId);}catch(err){}
         this._ocrMergeStartIdx=i;
@@ -5484,7 +5546,7 @@ const App={
         chip.classList.add('merge-active');
       });
       chip.addEventListener('pointermove',(e)=>{
-        if(this._ocrMergeStartIdx<0)return;
+        if(this._ocrTwoFingerScroll||this._ocrMergeStartIdx<0)return;
         e.preventDefault();
         const el=document.elementFromPoint(e.clientX,e.clientY);
         const targetChip=el?el.closest('.ow-chip'):null;
@@ -5513,6 +5575,63 @@ const App={
     });
     document.getElementById('ocr-selected-count').textContent=
       this.ocrWords.filter(w=>w.selected).length;
+  },
+
+  ocrBindGridTwoFingerScroll(grid){
+    const old=this._ocrGridGestureHandlers;
+    if(old&&old.grid===grid){
+      grid.removeEventListener('pointerdown',old.down,true);
+      grid.removeEventListener('pointermove',old.move,true);
+      grid.removeEventListener('pointerup',old.up,true);
+      grid.removeEventListener('pointercancel',old.up,true);
+    }
+    const midpointY=()=>{
+      const points=[...this._ocrTouchPointers.values()];
+      return points.length?points.reduce((sum,p)=>sum+p.y,0)/points.length:null;
+    };
+    const down=e=>{
+      if(e.pointerType!=='touch')return;
+      this._ocrTouchPointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+      if(this._ocrTouchPointers.size<2)return;
+      this._ocrTwoFingerScroll=true;
+      this._ocrTwoFingerLastY=midpointY();
+      this._ocrMergeIgnoreClickUntil=Date.now()+700;
+      this.ocrCancelPendingWordTap();
+      this.ocrClearMergeState();
+      e.preventDefault();
+      e.stopPropagation();
+    };
+    const move=e=>{
+      if(e.pointerType!=='touch'||!this._ocrTouchPointers.has(e.pointerId))return;
+      this._ocrTouchPointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+      if(!this._ocrTwoFingerScroll)return;
+      e.preventDefault();
+      e.stopPropagation();
+      if(this._ocrTouchPointers.size<2)return;
+      const nextY=midpointY();
+      if(this._ocrTwoFingerLastY!==null&&nextY!==null)window.scrollBy(0,this._ocrTwoFingerLastY-nextY);
+      this._ocrTwoFingerLastY=nextY;
+    };
+    const up=e=>{
+      if(e.pointerType!=='touch')return;
+      const wasTwoFinger=this._ocrTwoFingerScroll;
+      this._ocrTouchPointers.delete(e.pointerId);
+      if(!wasTwoFinger)return;
+      e.preventDefault();
+      e.stopPropagation();
+      this._ocrMergeIgnoreClickUntil=Date.now()+700;
+      if(this._ocrTouchPointers.size===0){
+        this._ocrTwoFingerScroll=false;
+        this._ocrTwoFingerLastY=null;
+      }else{
+        this._ocrTwoFingerLastY=midpointY();
+      }
+    };
+    grid.addEventListener('pointerdown',down,true);
+    grid.addEventListener('pointermove',move,true);
+    grid.addEventListener('pointerup',up,true);
+    grid.addEventListener('pointercancel',up,true);
+    this._ocrGridGestureHandlers={grid,down,move,up};
   },
 
   ocrCancelPendingWordTap(){
@@ -5551,18 +5670,20 @@ const App={
     this._ocrMergeIndices=[];
     this._ocrMergeDragged=false;
     document.querySelectorAll('#ocr-words-grid .ow-chip').forEach(c=>{
-      c.classList.remove('merge-active','merge-hover');
+      c.classList.remove('merge-active','merge-hover','merge-pending');
+      const idx=Number(c.dataset.idx);
+      if(this._ocrMergePending&&this._ocrMergePending.indices.includes(idx))c.classList.add('merge-pending');
     });
     this.ocrWords.forEach(w=>{delete w._mergeMark;});
   },
 
   ocrShowMergeToast(){
-    const indices=[...this._ocrMergeIndices].sort((a,b)=>a-b);
+    const prior=this._ocrMergePending?this._ocrMergePending.indices:[];
+    const indices=[...new Set([...prior,...this._ocrMergeIndices])].sort((a,b)=>a-b);
     const texts=indices.map(i=>this.ocrWords[i].text);
     const merged=texts.join('');
-    document.getElementById('merge-text').textContent='合并为：'+merged;
+    document.getElementById('merge-text').textContent='已选 '+indices.length+' 个词，合并为：'+merged;
     document.getElementById('merge-toast').classList.add('show');
-    // 暂存
     this._ocrMergePending={indices,merged};
   },
 
@@ -5623,13 +5744,37 @@ const App={
   },
   ocrEditSuggestedWord(i){
     const word=this.ocrWords[i];if(!word)return;
-    const title=word.sourceChar?'为生字“'+word.sourceChar+'”修改组词':'修改识别词语';
-    const initialValue=word.text+(word.hint?'：'+word.hint:'');
-    const value=prompt(title+'；“|”或空格用于拆分，冒号后填写说明。',initialValue);if(value===null)return;
+    if(this._ocrMergePending)this.ocrCancelMerge();
+    this._wordEditTarget={context:'ocr',index:i,sourceChar:word.sourceChar||''};
+    document.getElementById('word-edit-title').textContent=word.sourceChar?'✏️ 修改“'+word.sourceChar+'”的组词':'✏️ 修改识别词语';
+    document.getElementById('word-edit-sub').textContent='可用“|”或空格拆分；冒号后填写说明';
+    document.getElementById('word-edit-text').value=word.text+(word.hint?'：'+word.hint:'');
+    document.getElementById('word-edit-text').placeholder='词语 | 词语：说明';
+    document.getElementById('word-edit-hint').value='';
+    document.getElementById('word-edit-hint-field').style.display='none';
+    document.getElementById('word-edit-msg').textContent='';
+    document.getElementById('word-edit-msg').style.color='';
+    this.openWordEditMask();
+  },
+
+  submitOcrWordEdit(){
+    const target=this._wordEditTarget;
+    if(!target||target.context!=='ocr')return;
+    const value=document.getElementById('word-edit-text').value.trim();
+    const msg=document.getElementById('word-edit-msg');
     const parsed=this.parseManualWords(value).map(item=>({...item,text:item.text.replace(/[^\u4e00-\u9fff\u3400-\u4dbfa-zA-Z0-9]/g,'')})).filter(item=>item.text);
     if(!parsed.length){this.showToast('词语不能为空');return;}
-    const replacements=parsed.map(item=>({...item,sourceChar:word.sourceChar||'',selected:true}));
-    this.ocrWords.splice(i,1,...replacements);this.ocrRenderWords();this.ocrUpdateConfirmBtn();
+    if(target.index<0||target.index>=this.ocrWords.length){
+      msg.style.color='var(--red)';
+      msg.textContent='该词语已发生变化，请关闭后重试';
+      return;
+    }
+    const replacements=parsed.map(item=>({...item,sourceChar:target.sourceChar,selected:true}));
+    const index=target.index;
+    this.closeWordEditModal();
+    this.ocrWords.splice(index,1,...replacements);
+    this.ocrRenderWords();
+    this.ocrUpdateConfirmBtn();
   },
 
   // ===== 确认按钮 =====
