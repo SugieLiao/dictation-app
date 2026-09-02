@@ -5558,6 +5558,9 @@ const App={
             this._ocrMergeDragged=true;
             this.ocrWords[ti]._mergeMark=true;
             targetChip.classList.add('merge-hover');
+            // 不等松手：划过第二个词后立即写入累计状态。
+            // 即使手机浏览器随后吞掉结束事件，已选词也不会丢失。
+            this.ocrPersistCurrentMergeSelection();
           }
         }
       });
@@ -5696,14 +5699,23 @@ const App={
     });
   },
 
-  ocrShowMergeToast(){
+  ocrPersistCurrentMergeSelection(){
     const prior=this._ocrMergePending?this._ocrMergePending.indices:[];
     const indices=[...new Set([...prior,...this._ocrMergeIndices])].sort((a,b)=>a-b);
+    if(indices.length<2)return false;
     const texts=indices.map(i=>this.ocrWords[i].text);
     const merged=texts.join('');
-    // 先写入持久累计状态，再更新界面，避免 pointerup 清理时丢失高亮。
     this._ocrMergePending={indices,merged};
     this.ocrApplyMergePendingState();
+    document.getElementById('merge-text').textContent='已选 '+indices.length+' 个词，合并为：'+merged;
+    document.getElementById('merge-toast').classList.add('show');
+    return true;
+  },
+
+  ocrShowMergeToast(){
+    // 状态通常已在 pointermove 中持久化；结束时再同步一次作为兜底。
+    if(!this.ocrPersistCurrentMergeSelection())return;
+    const {indices,merged}=this._ocrMergePending;
     document.getElementById('merge-text').textContent='已选 '+indices.length+' 个词，合并为：'+merged;
     document.getElementById('merge-toast').classList.add('show');
   },
