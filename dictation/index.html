@@ -640,10 +640,10 @@
   .ow-chip.merge-hover .ow-hint,.ow-chip.merge-active .ow-hint,.ow-chip.merge-pending .ow-hint{color:#fff;}
 
   /* 合并提示弹窗 */
-  .merge-toast{position:fixed;bottom:120px;left:50%;transform:translateX(-50%);z-index:1500;background:var(--card);border-radius:14px;padding:16px 20px;box-shadow:0 8px 32px rgba(0,0,0,.25);display:none;align-items:center;gap:12px;flex-wrap:wrap;justify-content:center;max-width:90vw;}
+  .merge-toast{position:fixed;bottom:120px;left:50%;transform:translateX(-50%);z-index:1500;background:var(--card);border-radius:14px;padding:16px 20px;box-shadow:0 8px 32px rgba(0,0,0,.25);display:none;align-items:center;gap:12px;flex-wrap:wrap;justify-content:center;max-width:90vw;pointer-events:none;}
   .merge-toast.show{display:flex;}
   .merge-toast .mt-text{font-size:14px;font-weight:600;color:var(--text);white-space:normal;word-break:break-all;line-height:1.5;max-width:min(68vw,360px);max-height:72px;overflow:auto;}
-  .merge-toast .mt-btns{display:flex;gap:8px;}
+  .merge-toast .mt-btns{display:flex;gap:8px;pointer-events:auto;}
   .merge-toast .mt-btns button{padding:6px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none;}
   .merge-toast .mt-ok{background:var(--primary);color:#fff;}
   .merge-toast .mt-cancel{background:var(--border);color:var(--text);}
@@ -5561,16 +5561,10 @@ const App={
           }
         }
       });
-      chip.addEventListener('pointerup',(e)=>{
-        try{chip.releasePointerCapture(e.pointerId);}catch(err){}
-        const dragged=this._ocrMergeDragged;
-        if(this._ocrMergeStartIdx>=0&&this._ocrMergeIndices.length>1){
-          this.ocrShowMergeToast();
-        }
-        if(dragged)this._ocrMergeIgnoreClickUntil=Date.now()+700;
-        this.ocrClearMergeState();
-      });
-      chip.addEventListener('pointercancel',()=>{this.ocrClearMergeState();});
+      chip.addEventListener('pointerup',(e)=>{this.ocrFinishMergeGesture(e,chip);});
+      // iOS/Safari 在滚动或系统手势竞争时可能以 pointercancel 结束拖动，
+      // 只要已经划过多个词，也应当视为一次有效的累计选择。
+      chip.addEventListener('pointercancel',(e)=>{this.ocrFinishMergeGesture(e,chip);});
       grid.appendChild(chip);
     });
     document.getElementById('ocr-selected-count').textContent=
@@ -5616,7 +5610,12 @@ const App={
       if(e.pointerType!=='touch')return;
       const wasTwoFinger=this._ocrTwoFingerScroll;
       this._ocrTouchPointers.delete(e.pointerId);
-      if(!wasTwoFinger)return;
+      if(!wasTwoFinger){
+        // 捕获阶段兜底：即使 pointer capture 丢失或目标发生变化，
+        // 单指拖动仍能在 pointerup / pointercancel 时完成累计选择。
+        this.ocrFinishMergeGesture(e);
+        return;
+      }
       e.preventDefault();
       e.stopPropagation();
       this._ocrMergeIgnoreClickUntil=Date.now()+700;
@@ -5632,6 +5631,16 @@ const App={
     grid.addEventListener('pointerup',up,true);
     grid.addEventListener('pointercancel',up,true);
     this._ocrGridGestureHandlers={grid,down,move,up};
+  },
+
+  ocrFinishMergeGesture(e,chip){
+    if(chip){try{chip.releasePointerCapture(e.pointerId);}catch(err){}}
+    if(this._ocrMergeStartIdx<0)return;
+    const dragged=this._ocrMergeDragged;
+    const hasMergeSelection=!this._ocrTwoFingerScroll&&this._ocrMergeIndices.length>1;
+    if(hasMergeSelection)this.ocrShowMergeToast();
+    if(dragged||hasMergeSelection)this._ocrMergeIgnoreClickUntil=Date.now()+1200;
+    this.ocrClearMergeState();
   },
 
   ocrCancelPendingWordTap(){
