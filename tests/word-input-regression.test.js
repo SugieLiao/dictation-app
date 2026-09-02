@@ -14,6 +14,7 @@ assert(/id="ocr-gallery-input"[^>]*accept="image\/\*"(?![^>]*capture)/.test(html
 assert(html.includes('ocrTriggerGallery(){document.getElementById(\'ocr-gallery-input\').click();}'));
 assert(html.includes("if(dragged||hasMergeSelection)this._ocrMergeIgnoreClickUntil=Date.now()+1200;"), '拖动合并后应抑制手机端延迟误触点击');
 assert(html.includes("chip.addEventListener('pointercancel',(e)=>{this.ocrFinishMergeGesture(e,chip);});"), 'pointercancel 也必须完成累计选择');
+assert(html.includes('this.ocrPersistCurrentMergeSelection();'), '拖动经过新词时必须立即持久化累计选择');
 assert(html.includes('单击选择 · 双击修改 · 拖动合并'));
 assert(html.includes('拖动可分多次累计合并，双指滑动页面'));
 assert(/\.merge-toast\{[^}]*pointer-events:none;/.test(html), '合并提示层不应拦截后续拖动手势');
@@ -241,7 +242,11 @@ sandbox.document = {
 App.ocrWords = ['人山', '人海', '齐头', '并进'].map(text => ({text, selected: true}));
 App._ocrMergePending = null;
 App._ocrMergeIndices = [0, 1];
-App.ocrShowMergeToast();
+assert.strictEqual(App.ocrPersistCurrentMergeSelection(), true);
+assert.deepStrictEqual(mergeChips.map(chip => chip.classes.has('merge-pending')), [true, true, false, false]);
+// 模拟手机浏览器没有派发 pointerup / pointercancel：直接清理临时状态，累计选择仍须存在。
+App.ocrClearMergeState();
+assert.deepStrictEqual(Array.from(App._ocrMergePending.indices), [0, 1]);
 assert.deepStrictEqual(mergeChips.map(chip => chip.classes.has('merge-pending')), [true, true, false, false]);
 App._ocrMergeIndices = [2, 3];
 App.ocrShowMergeToast();
