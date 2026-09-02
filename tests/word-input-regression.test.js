@@ -6,14 +6,16 @@ const html = fs.readFileSync(require('path').join(__dirname, '..', 'dictation-ap
 assert(/\.ow-chip\{[^}]*border:2px solid transparent;[^}]*background:transparent;[^}]*color:var\(--muted\)/.test(html));
 assert(/\.ow-chip\{[^}]*touch-action:none;/.test(html), '词语拖动手势不应被页面滚动接管');
 assert(html.includes('.ow-chip:hover:not(.selected){border-color:transparent;background:transparent;color:var(--text);}'));
-assert(html.includes(".ow-chip.merge-hover,.ow-chip.merge-active{border-color:#d84315;background:#ff7a00;color:#fff;"), '拖动合并高亮应使用高对比样式');
-assert(html.includes(".ow-chip.merge-hover::after,.ow-chip.merge-active::after{content:'✓';"), '拖动合并高亮应显示勾选标记');
+assert(html.includes(".ow-chip.merge-hover,.ow-chip.merge-active,.ow-chip.merge-pending{border-color:#d84315;background:#ff7a00;color:#fff;"), '拖动合并高亮应使用高对比样式并保留累计状态');
+assert(html.includes(".ow-chip.merge-hover::after,.ow-chip.merge-active::after,.ow-chip.merge-pending::after{content:'✓';"), '拖动合并高亮应显示勾选标记');
 assert(html.includes('☑️ 选择多个词语并调整课文'));
 assert(/id="ocr-file-input"[^>]*capture="environment"/.test(html), '拍照入口应使用后置相机');
 assert(/id="ocr-gallery-input"[^>]*accept="image\/\*"(?![^>]*capture)/.test(html), '相册入口不应强制调用相机');
 assert(html.includes('ocrTriggerGallery(){document.getElementById(\'ocr-gallery-input\').click();}'));
 assert(html.includes("if(dragged)this._ocrMergeIgnoreClickUntil=Date.now()+700;"), '拖动合并后应抑制误触点击');
 assert(html.includes('单击选择 · 双击修改 · 拖动合并'));
+assert(html.includes('拖动可分多次累计合并，双指滑动页面'));
+assert(html.includes('window.visualViewport.addEventListener(\'resize\',handler);'), '编辑弹窗应跟随可视键盘区域');
 assert.strictEqual(html.includes('class="ow-edit"'), false, '识别结果不应再显示修改小按钮');
 const appStart = html.indexOf('const App={');
 const appEnd = html.indexOf('\n};\n\nApp.init();', appStart);
@@ -74,18 +76,35 @@ App.ocrWords = [];
 App.ocrAddWord();
 assert.deepStrictEqual(Array.from(App.ocrWords, word => word.text), ['人山', '人海', '高山']);
 
-sandbox.prompt = () => '人山|人海 高山';
+const modalFields = {
+  'word-edit-title': {textContent: ''},
+  'word-edit-sub': {textContent: ''},
+  'word-edit-text': {value: '', placeholder: '', style: {}},
+  'word-edit-hint': {value: '', style: {}},
+  'word-edit-hint-field': {style: {}},
+  'word-edit-msg': {textContent: '', style: {}}
+};
+sandbox.document = {getElementById: id => modalFields[id] || element};
+const realOpenWordEditMask = App.openWordEditMask;
+const realCloseWordEditModal = App.closeWordEditModal;
+App.openWordEditMask = () => {};
+App.closeWordEditModal = () => { App._wordEditTarget = null; };
 App.ocrWords = [{text: '人山人海', hint: '', sourceChar: '人', selected: true}];
 App.ocrEditSuggestedWord(0);
+modalFields['word-edit-text'].value = '人山|人海 高山';
+App.submitOcrWordEdit();
 assert.deepStrictEqual(Array.from(App.ocrWords, word => word.text), ['人山', '人海', '高山']);
 
-sandbox.prompt = () => '人山：很多人 | 人海';
 App.ocrWords = [{text: '人山人海', hint: '', sourceChar: '', selected: true}];
 App.ocrEditSuggestedWord(0);
+modalFields['word-edit-text'].value = '人山：很多人 | 人海';
+App.submitOcrWordEdit();
 assert.deepStrictEqual(
   Array.from(App.ocrWords, word => ({text: word.text, hint: word.hint})),
   [{text: '人山', hint: '很多人'}, {text: '人海', hint: ''}]
 );
+App.openWordEditMask = realOpenWordEditMask;
+App.closeWordEditModal = realCloseWordEditModal;
 
 const bank = {id: 'bank-1', name: '测试词库', other: [{text: '人山人海', hint: ''}], lessons: []};
 App.bankManagerLang = 'zh';
@@ -192,6 +211,49 @@ assert.deepStrictEqual(tapActions, [['toggle', 2], ['edit', 3]]);
 assert.strictEqual(fakeTimer, null, '双击后不应残留单击任务');
 sandbox.setTimeout = realSetTimeout;
 sandbox.clearTimeout = realClearTimeout;
+
+const mergeText = {textContent: ''};
+const mergeToastClasses = new Set();
+const mergeToast = {classList: {add: value => mergeToastClasses.add(value), remove: value => mergeToastClasses.delete(value)}};
+sandbox.document = {
+  getElementById: id => id === 'merge-text' ? mergeText : id === 'merge-toast' ? mergeToast : element,
+  querySelectorAll: () => []
+};
+App.ocrWords = ['人山', '人海', '齐头', '并进'].map(text => ({text, selected: true}));
+App._ocrMergePending = null;
+App._ocrMergeIndices = [0, 1];
+App.ocrShowMergeToast();
+App._ocrMergeIndices = [2, 3];
+App.ocrShowMergeToast();
+assert.deepStrictEqual(Array.from(App._ocrMergePending.indices), [0, 1, 2, 3]);
+assert.strictEqual(App._ocrMergePending.merged, '人山人海齐头并进');
+assert.strictEqual(mergeText.textContent, '已选 4 个词，合并为：人山人海齐头并进');
+assert(mergeToastClasses.has('show'));
+
+const gestureHandlers = {};
+const fakeGrid = {
+  addEventListener: (name, handler) => { gestureHandlers[name] = handler; },
+  removeEventListener: () => {}
+};
+let scrolledBy = 0;
+sandbox.window = {scrollBy: (_x, y) => { scrolledBy += y; }};
+const realClearMergeState = App.ocrClearMergeState;
+App.ocrClearMergeState = () => {};
+App._ocrGridGestureHandlers = null;
+App._ocrTouchPointers = new Map();
+App._ocrTwoFingerScroll = false;
+App.ocrBindGridTwoFingerScroll(fakeGrid);
+const touchEvent = (pointerId, clientY) => ({pointerType: 'touch', pointerId, clientX: 10, clientY, preventDefault(){}, stopPropagation(){}});
+gestureHandlers.pointerdown(touchEvent(1, 300));
+gestureHandlers.pointerdown(touchEvent(2, 340));
+assert.strictEqual(App._ocrTwoFingerScroll, true);
+gestureHandlers.pointermove(touchEvent(1, 260));
+gestureHandlers.pointermove(touchEvent(2, 300));
+assert.notStrictEqual(scrolledBy, 0, '双指移动应滚动页面');
+gestureHandlers.pointerup(touchEvent(1, 260));
+gestureHandlers.pointerup(touchEvent(2, 300));
+assert.strictEqual(App._ocrTwoFingerScroll, false);
+App.ocrClearMergeState = realClearMergeState;
 
 assert.strictEqual(html.includes('api.jsonbin.io'), false);
 assert.strictEqual(html.includes("API_KEY:"), false);
