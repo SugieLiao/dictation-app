@@ -5670,11 +5670,21 @@ const App={
     this._ocrMergeIndices=[];
     this._ocrMergeDragged=false;
     document.querySelectorAll('#ocr-words-grid .ow-chip').forEach(c=>{
-      c.classList.remove('merge-active','merge-hover','merge-pending');
-      const idx=Number(c.dataset.idx);
-      if(this._ocrMergePending&&this._ocrMergePending.indices.includes(idx))c.classList.add('merge-pending');
+      // 松手只清除本次拖动的临时状态；累计选择状态必须持续保留。
+      c.classList.remove('merge-active','merge-hover');
     });
+    this.ocrApplyMergePendingState();
     this.ocrWords.forEach(w=>{delete w._mergeMark;});
+  },
+
+  ocrApplyMergePendingState(){
+    const pending=new Set(this._ocrMergePending?this._ocrMergePending.indices:[]);
+    document.querySelectorAll('#ocr-words-grid .ow-chip').forEach(c=>{
+      const isPending=pending.has(Number(c.dataset.idx));
+      c.classList.toggle('merge-pending',isPending);
+      if(isPending)c.dataset.mergePending='true';
+      else delete c.dataset.mergePending;
+    });
   },
 
   ocrShowMergeToast(){
@@ -5682,9 +5692,11 @@ const App={
     const indices=[...new Set([...prior,...this._ocrMergeIndices])].sort((a,b)=>a-b);
     const texts=indices.map(i=>this.ocrWords[i].text);
     const merged=texts.join('');
+    // 先写入持久累计状态，再更新界面，避免 pointerup 清理时丢失高亮。
+    this._ocrMergePending={indices,merged};
+    this.ocrApplyMergePendingState();
     document.getElementById('merge-text').textContent='已选 '+indices.length+' 个词，合并为：'+merged;
     document.getElementById('merge-toast').classList.add('show');
-    this._ocrMergePending={indices,merged};
   },
 
   ocrConfirmMerge(){

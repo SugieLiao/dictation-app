@@ -215,20 +215,46 @@ sandbox.clearTimeout = realClearTimeout;
 const mergeText = {textContent: ''};
 const mergeToastClasses = new Set();
 const mergeToast = {classList: {add: value => mergeToastClasses.add(value), remove: value => mergeToastClasses.delete(value)}};
+const makeMergeChip = index => {
+  const classes = new Set(['ow-chip']);
+  return {
+    dataset: {idx: String(index)},
+    classes,
+    classList: {
+      add: (...values) => values.forEach(value => classes.add(value)),
+      remove: (...values) => values.forEach(value => classes.delete(value)),
+      toggle: (value, force) => {
+        if (force === undefined ? !classes.has(value) : force) classes.add(value);
+        else classes.delete(value);
+      }
+    }
+  };
+};
+const mergeChips = [0, 1, 2, 3].map(makeMergeChip);
 sandbox.document = {
   getElementById: id => id === 'merge-text' ? mergeText : id === 'merge-toast' ? mergeToast : element,
-  querySelectorAll: () => []
+  querySelectorAll: selector => selector === '#ocr-words-grid .ow-chip' ? mergeChips : []
 };
 App.ocrWords = ['人山', '人海', '齐头', '并进'].map(text => ({text, selected: true}));
 App._ocrMergePending = null;
 App._ocrMergeIndices = [0, 1];
 App.ocrShowMergeToast();
+assert.deepStrictEqual(mergeChips.map(chip => chip.classes.has('merge-pending')), [true, true, false, false]);
 App._ocrMergeIndices = [2, 3];
 App.ocrShowMergeToast();
 assert.deepStrictEqual(Array.from(App._ocrMergePending.indices), [0, 1, 2, 3]);
 assert.strictEqual(App._ocrMergePending.merged, '人山人海齐头并进');
 assert.strictEqual(mergeText.textContent, '已选 4 个词，合并为：人山人海齐头并进');
 assert(mergeToastClasses.has('show'));
+mergeChips.forEach(chip => {
+  chip.classes.add('merge-active');
+  chip.classes.add('merge-hover');
+});
+App.ocrClearMergeState();
+assert(mergeChips.every(chip => chip.classes.has('merge-pending')), '松手清理后累计选择必须保持高亮');
+assert(mergeChips.every(chip => !chip.classes.has('merge-active') && !chip.classes.has('merge-hover')));
+App.ocrCancelMerge();
+assert(mergeChips.every(chip => !chip.classes.has('merge-pending')), '仅在取消合并后清除累计选择');
 
 const gestureHandlers = {};
 const fakeGrid = {
