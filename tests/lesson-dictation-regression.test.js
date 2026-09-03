@@ -11,6 +11,7 @@ assert(langScreenStart >= 0 && langScreenEnd > langScreenStart, '无法读取听
 assert(!langScreenHtml.includes('App.openBankManager(App.langPageMode)'), '听写设置页面不应显示词库管理入口');
 assert(!langScreenHtml.includes('App.ocrOpen(App.langPageMode)'), '听写设置页面不应显示拍照听写入口');
 assert(html.includes('onclick="App.openBankManager(\'zh\')"'), '首页词库管理功能应继续保留');
+assert(!html.includes("if(bank.source!=='preset')c.style.borderStyle='dashed';"), '听写页新建词库应与原有词库统一使用实线边框');
 assert(html.includes('id="lesson-coverage-mask"'), '选择课文且数量非全部时应提供范围弹窗');
 assert(html.includes('<span class="choice-title">全部（默认）</span>'));
 assert(html.includes('<span class="choice-title">部分</span>'));

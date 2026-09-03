@@ -3277,7 +3277,6 @@ const App={
       const c=document.createElement('div'),cnt=this.getBankWordCount(bank);
       c.className='chip'+(selected&&selected.id===bank.id?' active':'');
       c.textContent=(bank.source==='preset'?'': '📚 ')+bank.name+(bank.source==='preset'?'':' ('+cnt+')');
-      if(bank.source!=='preset')c.style.borderStyle='dashed';
       c.onclick=()=>{
         wrap.querySelectorAll('.chip').forEach(x=>x.classList.remove('active'));c.classList.add('active');selected=bank;
         this.grade=bank.name;settings.grade=bank.name;settings.gradeType=bank.source==='preset'?'preset':'custom';settings.bankId=bank.id;
