@@ -2015,31 +2015,46 @@ const App={
   // 参考统编四年级教材的写字表、词语表与常用组词补充；优先短小、日常、四年级可理解的词。
   // 这一层独立于用户当前词库，因此即使词库里没有，也能为生字提供常见组词。
   GRADE4_REFERENCE_WORDS:'潮水 据说 根据 大堤 河堤 堤岸 堤坝 宽阔 盼望 滚动 翻滚 顿时 停顿 逐渐 逐步 追逐 渐渐 渐变 堵塞 堵车 堵住 犹如 犹豫 山崩 崩塌 地震 震动 霎时 余波 多余 浩荡 浩大 浩瀚 墙壁 围墙 墙角 柔和 河床 新鲜 修补 满意 招待 传说 豌豆 暖和 黑暗 丰满 等待 强壮 虚弱 愉快 曾经 水沟 感激 牵手 费用 必须 老虎 比较 竭力 劳累 狠心 牙齿 幼儿 猴子 段落 套装 裤子 椅子 品质 丑陋 词语 亦可 照顾 尝试 浮动 扔掉 划船 手枪 枪口 呼唤 一亿 顺利 瞧见 丈夫 子曰 获得 无奈 鸟巢 身躯 发愣 发颤 攀登 辫子 呵护 掐住 俩人 吃亏 撤退 课堂 士兵 仇恨 元帅 溃败 秦朝 出征 催促 喝醉 杰出 英雄 项目 振奋 效果 戎装 诸位 竞争 唯一 豹子 派出 娶妻 媳妇 妇女 淹没 逼迫 骗人 杂兴 稀少 篱笆 蜻蜓 蝴蝶 住宿 徐徐 疏远 茅屋 屋檐 老翁 笼子 依赖 剥开 构成 装饰 蹲下 凤凰 顺序 例如 率领 寻觅 耸立 踏步 倘若 绘画 和谐 寄信 睡眠 安慰 慰藉 占卜 锐利 河滩 帐子 闪烁 蝙蝠 霸气 老鹰 怒吼 松脂 拂拭 美餐 晌午 辣椒 渗出 挣扎 番茄 埋藏 刷子 推测 详细 笨重 迟钝 鸽子 丝毫 凌空 末期 描绘 隧道 形态 一吨 头颅 膨大 四肢 翅翼 开辟 纳米 拥有 冰箱 臭味 蔬菜 碳素 钢铁 隐形 健康 细胞 疾病 预防 病灶 需要 繁星 浪漫 消灭 藤萝 膝盖 波涛 躲开 瓶子 拥挤 交叉 指挥 白桦 毛茸茸 刺绣 潇洒 稻穗 朦胧 寂静 朝霞 涂抹 忧愁 考虑 贪玩 尽职 屏息 磨蹭 稿纸 腔调 解闷 毒蛇 遭遇 遭殃 花盆 生机勃勃 讨厌 忠厚 毒手 成绩 孵化 警戒 歪头 咕咕 鸡汤 挖掘 埋伏 啼叫 狂吠 局促 偏颇 京剧 一丝不苟 譬如 侍候 饭馆 附近 脾气 敏捷 昂首 供养 添加 扩大 范围 努力 刹那 灿烂 代替 镶嵌 紫色 仅仅 浙江 罗列 杜鹃 狭窄 葱郁 肩膀 臀部 移动 额角 陆地 牛乳 石笋 端正 来源 囊括 萤火虫 恭敬 勤劳 博学 贫穷 心不在焉 相逢 士卒 晋级 土炕 铅笔 呜咽 着哩 枪栓 胳膊 抢劫 丝绸 敌人 尸首 趁机 慌忙 芙蓉 洛阳 水壶 大雁 砚台 乾坤 伦理 腹部 剖开 窟窿 混乱 嘶哑 维护 秩序 岗位 主宰 措施 调遣 实践 介绍 妖怪 规矩 乖巧 撵走 烫伤 丫头 拽住 幸福 舔食 葵花 瘦小 木棒 罢工 丰硕 允许 砌墙 门牌 禁止 惩罚 踪迹 呼啸 自私 脸颊 拆除 即使 科学 横竖 绳子 苍蝇 证明 研究 雷达 显示 驾驶 改变 超过 幻想 日益 创造 雨露 斧头 奔流 猛烈 猎人 嘴角 绝望 尖叫 力量 假日 云彩 年纪 纪念 鼓舞 居然 摸索 跪下 捶打 围绕 脱离 昏乱 摔倒 凭借 文艺 表演 班级 角色 期待 充分 自信 紧张 否则 旋转 失败 预料 自豪 严肃 默默 清晰 抱负 胸怀 赞叹 表情 非凡 体会 分量 响亮 管理 人烟 新娘 干旱 迎接 徒弟 求饶 灌溉 收成'.split(/\s+/),
-  // 人教版四年级上册（2024 学年用书）末尾“词语表”中，第1课之外的全部课次。
-  // 仅作为一次性词库补全数据，不替换用户已经录入的第1课，也不会给书末未列出的课次虚构词语。
+  // 用户实拍版四年级上册写字表的常用组词补充。词语均包含对应生字，供离线组词与教材词库生成共用。
+  GRADE4_VOLUME1_CHAR_WORDS:'跟随 谈话 躺下 揭晓 光滑 擦洗 涨水 帽子 脑袋 扣子 懂事 一溜烟 圆筒 摆放 玻璃 提纲 生锈 泡沫 综合 氧气 结账 矿物 俱乐部 残阳 铺路 评价 文章 脚步 触角 痕迹 大腿 增长 苏醒 照耀 整个 女娃 一颗 忍受 屈服 肝脏 花卉 玫瑰 牡丹 花蕾 茉莉 海棠 梧桐 牲畜 陡峭 呼啦 山岭 砖头 修筑 间隔 打仗 扶手 耗费 智慧 走廊 栽树 竹竿 半山腰 辉煌 镜子 狮子 拉萨 昭君 陵寝 寝宫 都江堰 尼泊尔 天鹅 骑马 拳头 竟然 拖拉 捧起 哄堂大笑 摘下 韭菜 芹菜 大蒜 红薯 莲藕 芋头 生姜 主席 抛出 奉献 邀请 崛起 干脆 燃烧 水杯 将士 鬼怪 塞外 重要'.split(/\s+/),
+  // 以下目录、250 个写字表生字和 220 个词语表词语，逐项录自用户 2026-09-03 提供的教材实拍页。
+  // 每课先保留教材“词语表”原词，再为“写字表”中尚未覆盖的生字补一个四年级常用词。
   GRADE4_VOLUME1_2024_INFO:Object.freeze({
-    id:'pep-grade4-volume1-2024-word-list',
+    id:'pep-grade4-volume1-user-photo-edition-2026-09-03',
     version:'v1',
-    scope:'教材末尾词语表（第128—130页）',
-    lessonCount:15,
-    wordCount:224
+    scope:'用户实拍教材目录、写字表（第125—126页）和词语表（第127—129页）',
+    lessonCount:25,
+    numberedLessonCount:21,
+    gardenCount:4,
+    characterCount:250,
+    wordCount:220
   }),
   GRADE4_VOLUME1_2024_LESSONS:Object.freeze([
-    {number:2,title:'走月亮',words:'柔和 鹅卵石 河床 新鲜 修补 坑坑洼洼 庄稼 风俗 葡萄 满意 水稻 成熟 招待 传说'.split(/\s+/)},
-    {number:5,title:'一个豆荚里的五粒豆',words:'豌豆 按照 暖洋洋 舒适 黑暗 恐怕 僵硬 丰满 等待 强壮 虚弱 耐心 愉快 兴奋 曾经 水沟 感激'.split(/\s+/)},
-    {number:6,title:'夜间飞行的秘密',words:'蚊子 即使 灵巧 科学家 横七竖八 绳子 苍蝇 证明 研究 雷达 显示 驾驶员'.split(/\s+/)},
-    {number:7,title:'呼风唤雨的世纪',words:'呼风唤雨 世纪 技术 改变 程度 超过 腾云驾雾 幻想 原子核 奥秘 日益 联系 物质 哲学 任何 创造 改善'.split(/\s+/)},
-    {number:10,title:'爬山虎的脚',words:'爬山虎 操场 嫩红 舒服 均匀 重叠 空隙 叶柄 反面 触角 弯曲 细小 痕迹 瞧不起 牢固 休想'.split(/\s+/)},
-    {number:11,title:'蟋蟀的住宅',words:'住宅 临时 功夫 随遇而安 慎重 选择 住址 优良 洞穴 大厅 卧室 专家 平整 清洁 卫生 疲劳'.split(/\s+/)},
-    {number:12,title:'盘古开天地',words:'睁眼 黑乎乎 翻身 斧头 缓缓 上升 下降 精疲力竭 血液 奔流不息 汗毛 茂盛 滋润 雨露'.split(/\s+/)},
-    {number:14,title:'普罗米修斯',words:'人间 悲惨 情景 危害 猛兽 严厉 敬佩 悄悄 坚定 违抗 狠心 尖利 著名 愤愤不平 获得'.split(/\s+/)},
-    {number:16,title:'麻雀',words:'打猎 猛烈 无可奈何 拍打 嘴角 分明 牙齿 绝望 尖叫 身躯 掩护 幼儿 搏斗 庞大 安然 强大 力量'.split(/\s+/)},
-    {number:17,title:'爬天都峰',words:'假日 云彩 石级 发颤 年纪 奋力 猴子 纪念 辫子 笑呵呵 鼓舞 居然'.split(/\s+/)},
-    {number:18,title:'牛和鹅',words:'甚至 顽皮 故意 脖子 扑打 忙乱 大概 助威 昏乱 结实 汉子 可笑 无缘无故 平白'.split(/\s+/)},
-    {number:19,title:'一只窝囊的大老虎',words:'文艺 表演 角色 殷切 期待 排练 危机 通情达理 充分 自信 提示 撤换 紧张 哄堂大笑 砸锅 至今'.split(/\s+/)},
-    {number:20,title:'陀螺',words:'冰天雪地 否则 旋转 重整旗鼓 况且 得心应手 椅子 仍然 尤其 手舞足蹈 恨不得 预料 摇头晃脑 不动声色 顽强 溃败 自豪'.split(/\s+/)},
-    {number:22,title:'为中华之崛起而读书',words:'严肃 清晰 抱负 胸怀 赞叹 表情 忘怀 果真 非凡 左顾右盼 指望 训斥 体会 分量 响亮'.split(/\s+/)},
-    {number:26,title:'西门豹治邺',words:'管理 人烟 媳妇 新娘 眼睁睁 干旱 迎接 徒弟 面如土色 求饶 灌溉 收成'.split(/\s+/)}
+    {key:'lesson-1',number:1,title:'观潮',chars:'据随堤顿逐渐堵墙浩崩霎余',words:'奇观 据说 人山人海 顿时 风平浪静 逐渐 齐头并进 浩浩荡荡 山崩地裂 霎时 余波'.split(/\s+/)},
+    {key:'lesson-2',number:2,title:'繁星',chars:'繁怀寂谈熟躺模糊围舞',words:'繁星 密密麻麻 忘记 谈话 渐渐 模糊 周围 飞舞 柔和 梦幻 怀抱 沉睡'.split(/\s+/)},
+    {key:'lesson-4',number:4,title:'一个豆荚里的五粒豆',chars:'舒适揭晓滚滑擦探曾沟涨',words:'暖洋洋 舒适 揭晓 身份 暖和 的确 曾经 打滚 水沟 注视'.split(/\s+/)},
+    {key:'lesson-5',number:5,title:'夜间飞行的秘密',chars:'蚊即题绳嘴蝇研究驾驶',words:'蚊子 即使 问题 绳子 苍蝇 证明 相互 配合 研究 类似 能够'.split(/\s+/)},
+    {key:'lesson-6',number:6,title:'万帽子店',chars:'帽脑袋假扣懂溜筒摆玻璃',words:'帽子 脑袋 舒服 假如 设法 懂事 一溜烟 各式各样 摆放 玻璃'.split(/\s+/)},
+    {key:'garden-2',number:null,title:'语文园地二',chars:'纲棒锈沫综氧账矿俱',words:'提纲 生锈 泡沫 综合 氧气 结账 矿物 俱乐部'.split(/\s+/)},
+    {key:'lesson-8',number:8,title:'古诗三首',chars:'残铺壁横侧峰庐缘降评章输',words:[]},
+    {key:'lesson-9',number:9,title:'爬山虎的脚',chars:'虎脚操嫩隙柄触痕迹瞧',words:'爬山虎 操场 嫩绿 新鲜 均匀 空隙 叶柄 触角 弯曲 痕迹 瞧不起 牢固'.split(/\s+/)},
+    {key:'lesson-10',number:10,title:'蟋蟀的住宅',chars:'宅毫重选择址厅专修较腿增',words:'住宅 选择 住址 大厅 柔弱 平坦 光滑 修理 重要 增长'.split(/\s+/)},
+    {key:'lesson-11',number:11,title:'盘古开天地',chars:'醒翻缓踏丈撑疲竭耀肢整',words:'宇宙 黑乎乎 翻身 下降 精疲力竭 飘动 照耀 四肢 奔流不息 茂盛 整个'.split(/\s+/)},
+    {key:'lesson-12',number:12,title:'精卫填海',chars:'填帝曰娃衔',words:[]},
+    {key:'lesson-13',number:13,title:'普罗米修斯',chars:'喷颗败敬佩忍既遭屈肝脏获',words:'喷射 气急败坏 严厉 立即 执行 敬佩 坚定 忍受 遭受 尽管 屈服 肝脏 获得'.split(/\s+/)},
+    {key:'garden-4',number:null,title:'语文园地四',chars:'卉玫瑰牡丹蕾茉莉棠',words:'花卉 玫瑰 牡丹 花蕾 茉莉 海棠'.split(/\s+/)},
+    {key:'lesson-15',number:15,title:'麻雀',chars:'嗅猛烈奈躯掩浑梧牲庞强量',words:'麻雀 悄悄 猛烈 无可奈何 身躯 掩护 紧张 浑身 梧桐 庞大 强大 力量 勇气'.split(/\s+/)},
+    {key:'lesson-16',number:16,title:'爬天都峰',chars:'哩陡级链颤纪攀猴呵啦鼓',words:'石级 发颤 年纪 奋力 猴子 纪念 笑呵呵 鼓舞'.split(/\s+/)},
+    {key:'lesson-17',number:17,title:'长城',chars:'岭旋扩砖筑隔仗扶耗智慧',words:'崇山峻岭 盘旋 扩建 修筑 平整 打仗 自然 当地 耗费 大量 智慧 工程 奇迹'.split(/\s+/)},
+    {key:'lesson-18',number:18,title:'颐和园',chars:'绕廊栽竿腰煌镜隐狮',words:'柱子 栏杆 人物 神清气爽 建筑 伫立 半山腰 金碧辉煌 镜子 隐隐约约 游人 狮子 姿态'.split(/\s+/)},
+    {key:'garden-6',number:null,title:'语文园地六',chars:'萨昭陵寝堰尼绸廊',words:'陵寝 景观 丝绸'.split(/\s+/)},
+    {key:'lesson-20',number:20,title:'牛和鹅',chars:'鹅骑拳坚竟胸捶拖胳膊握摔',words:'虽然 拳头 故意 神气 忙乱 鞋子 助威 胳膊 纷纷 可笑 无缘无故'.split(/\s+/)},
+    {key:'lesson-21',number:21,title:'一只窝囊的大老虎',chars:'表演俩练捧示技撤推哄堂摘',words:'文艺 表演 角色 排练 主意 通情达理 充分 提示 演技 撤换 等候 哄堂大笑 垂头丧气'.split(/\s+/)},
+    {key:'lesson-23',number:23,title:'王戎不取道旁李',chars:'戎诸竞唯',words:[]},
+    {key:'garden-7',number:null,title:'语文园地七',chars:'韭芹椒蒜薯藕芋姜',words:'韭菜 芹菜 辣椒 红薯 莲藕 芋头'.split(/\s+/)},
+    {key:'lesson-24',number:24,title:'我将无我，不负人民',chars:'席抛激奉训亿勤邀',words:'主席 举行 心情 补充 激动 状态 奉献 运动员 训练 建设 勤劳 邀请'.split(/\s+/)},
+    {key:'lesson-25',number:25,title:'为中华之崛起而读书',chars:'崛肃脆默晰离凡惩斥燃',words:'崛起 严肃 干脆 默默 若有所思 清晰 离开 随便 忘怀 非凡 惩处 训斥 燃烧 响亮'.split(/\s+/)},
+    {key:'lesson-27',number:27,title:'古诗三首',chars:'词葡萄杯塞秦将杰鬼雄项',words:[]}
   ]),
   // ===== rate / repeat / voiceURI / dailyCount / showHint 通过 getter 动态指向当前语言 =====
   get rate(){return this[this.mode+'Settings'].rate;},
@@ -2174,7 +2189,7 @@ const App={
       if(this.enSettings.dailyCount>0&&this.enSettings.dailyCount<15)this.enSettings.dailyCount=15;
     }catch(e){}
     this.migrateReviewBank();
-    this.applyGrade4Volume1WordList();
+    this.applyGrade4Volume1WordList(false);
     this.syncSettingsUI();
     this.bindSettings();
     this.initVoicePicker();
@@ -2223,7 +2238,7 @@ const App={
     this.initVoicePicker();
     this.migrateReviewBank();
     this.applyPresetAdditions();
-    this.applyGrade4Volume1WordList();
+    this.applyGrade4Volume1WordList(false);
     this.renderHomeEntries();
     this.updateUserSwitchBtn();
     // 4. 异步从云端拉取数据（不阻塞页面渲染）
@@ -2286,9 +2301,15 @@ const App={
           this.mergeCloudData(selectedUserData);
         }
       }
+      // 云端合并完成后才允许新建教材词库，避免本地空缓存与云端旧词库形成同名副本。
+      const grade4CatalogResult=this.applyGrade4Volume1WordList(true);
+      if(grade4CatalogResult.updatedBanks>0){this.renderHomeEntries();this.refreshWordBankViewsAfterSync();}
       // 每次重新连线后都推送一次本地数据；新 D1 为空时会自动完成首次迁移。
       await CloudSync.push();
     }else{
+      // 离线时也要能使用内置教材词库；恢复网络后的常规同步会把它上传。
+      const grade4CatalogResult=this.applyGrade4Volume1WordList(true);
+      if(grade4CatalogResult.updatedBanks>0){this.renderHomeEntries();this.refreshWordBankViewsAfterSync();}
       CloudSync.updateIndicator('offline');
     }
     this.cloudSyncReady=true;
@@ -2755,7 +2776,8 @@ const App={
     return {text:(parts.shift()||'').trim(),hint:parts.join('|').trim()};
   },
   _normalizeWordBankStore(input){
-    const store={version:2,zh:[],en:[],deleted:[]};
+    const store={version:2,catalogVersions:{},zh:[],en:[],deleted:[]};
+    if(input&&input.catalogVersions&&typeof input.catalogVersions==='object'&&!Array.isArray(input.catalogVersions))store.catalogVersions={...input.catalogVersions};
     if(input&&Array.isArray(input.deleted))store.deleted=input.deleted.filter(d=>d&&d.id&&d.lang).map(d=>({id:String(d.id),lang:d.lang,ts:Number(d.ts)||0}));
     for(const lang of['zh','en']){
       const list=input&&Array.isArray(input[lang])?input[lang]:[];
@@ -2797,7 +2819,7 @@ const App={
       // 首次升级：旧自定义词库数组无损迁入“其他”
       let legacy={zh:{},en:{}};
       try{legacy=JSON.parse(localStorage.getItem(this.userKey('dict_custom_banks'))||'{"zh":{},"en":{}}');}catch(e){}
-      store={version:2,zh:[],en:[],deleted:[]};
+      store={version:2,catalogVersions:{},zh:[],en:[],deleted:[]};
       for(const lang of['zh','en']){
         const langBanks=legacy[lang]||{};
         for(const[name,words]of Object.entries(langBanks)){
@@ -2840,7 +2862,7 @@ const App={
     return normalized;
   },
   exportWordBankStoreForCloud(){
-    const store=this.getWordBankStore(),out={version:2,zh:[],en:[],deleted:(store.deleted||[]).map(d=>({...d}))};
+    const store=this.getWordBankStore(),out={version:2,catalogVersions:{...(store.catalogVersions||{})},zh:[],en:[],deleted:(store.deleted||[]).map(d=>({...d}))};
     for(const lang of['zh','en']){
       out[lang]=(store[lang]||[]).map(bank=>{
         if(bank.source!=='preset')return JSON.parse(JSON.stringify(bank));
@@ -2857,7 +2879,7 @@ const App={
   },
   mergeWordBankStores(local,cloud){
     const a=this._normalizeWordBankStore(local||{}),b=this._normalizeWordBankStore(cloud||{});
-    const out={version:2,zh:[],en:[],deleted:[]};
+    const out={version:2,catalogVersions:{...(b.catalogVersions||{}),...(a.catalogVersions||{})},zh:[],en:[],deleted:[]};
     const deleted=new Map();
     [...a.deleted,...b.deleted].forEach(d=>{
       const k=d.lang+'|'+d.id;
@@ -5602,7 +5624,7 @@ const App={
   suggestWordForChar(ch){
     const gradePrefixes=['一','二','三','四'];
     const candidates=[];let order=0;
-    for(const list of[this.GRADE4_COMMON_WORDS,this.GRADE4_REFERENCE_WORDS]){
+    for(const list of[this.GRADE4_VOLUME1_CHAR_WORDS,this.GRADE4_COMMON_WORDS,this.GRADE4_REFERENCE_WORDS]){
       for(const text of list){
         if(text!==ch&&text.includes(ch)){
           const score=200+(text.length===2?100:0)+(text.startsWith(ch)?35:0)+(text.endsWith(ch)?10:0)-order/10000;
@@ -6110,35 +6132,71 @@ const App={
     localStorage.setItem(this.userKey('dict_preset_additions'),JSON.stringify(additions));
     CloudSync.pushDebounced();
   },
-  // 只补全名为“四年级上册”的现有词库。迁移版本跟随词库同步，避免用户日后删词又被其他设备重新补回。
-  applyGrade4Volume1WordList(){
+  getGrade4Volume1LessonWords(item){
+    const result=[],seen=new Set(),official=Array.isArray(item&&item.words)?item.words:[];
+    const add=text=>{
+      const clean=String(text||'').trim(),key=clean.toLocaleLowerCase();
+      if(!clean||seen.has(key))return;
+      seen.add(key);result.push(clean);
+    };
+    official.forEach(add);
+    for(const ch of Array.from(String(item&&item.chars||''))){
+      // 同一课的词语表优先，既贴合课文，也能避免多音字取到别的读音。
+      const sameLessonWord=official.find(text=>String(text).includes(ch));
+      const suggested=sameLessonWord||this.suggestWordForChar(ch);
+      if(suggested&&suggested!==ch&&suggested.includes(ch))add(suggested);
+    }
+    return result;
+  },
+
+  // 用用户实拍教材重建“四年级上册”。根级迁移标记会随云端同步，用户日后主动删除词库后不会被自动复活。
+  applyGrade4Volume1WordList(allowCreate=true){
     const info=this.GRADE4_VOLUME1_2024_INFO;
     const store=this.getWordBankStore();
-    const banks=(store.zh||[]).filter(bank=>bank&&String(bank.name||'').trim()==='四年级上册');
-    let updatedBanks=0,lessonsAdded=0,wordsAdded=0;
+    store.catalogVersions=store.catalogVersions&&typeof store.catalogVersions==='object'?store.catalogVersions:{};
+    let banks=(store.zh||[]).filter(bank=>bank&&String(bank.name||'').trim()==='四年级上册');
+    let banksCreated=0,updatedBanks=0,lessonsAdded=0,lessonsRemoved=0,wordsAdded=0;
     const now=Date.now();
+    if(allowCreate&&!banks.length&&store.catalogVersions[info.id]!==info.version){
+      const bank={
+        id:'bank_pep_g4v1_user_20260903',name:'四年级上册',source:'custom',presetKey:'',catalogVersions:{},
+        other:[],lessons:[],createdAt:now,updatedAt:now
+      };
+      store.zh.push(bank);banks=[bank];banksCreated=1;
+    }
     for(const bank of banks){
       bank.catalogVersions=bank.catalogVersions&&typeof bank.catalogVersions==='object'?bank.catalogVersions:{};
       if(bank.catalogVersions[info.id]===info.version)continue;
+      const remaining=[];
+      for(const lesson of bank.lessons||[]){
+        if(/^lesson_pep_g4v1_2024_\d+$/.test(String(lesson&&lesson.id||''))){lessonsRemoved++;continue;}
+        remaining.push(lesson);
+      }
+      const officialLessons=[];
       for(const item of this.GRADE4_VOLUME1_2024_LESSONS){
-        const prefix='第'+item.number+'课';
+        const prefix=item.number===null?'':'第'+item.number+'课';
         const compactTitle=String(item.title||'').replace(/\s+/g,'');
-        let lesson=(bank.lessons||[]).find(candidate=>{
+        const lessonIndex=remaining.findIndex(candidate=>{
           const name=String(candidate&&candidate.name||'').replace(/\s+/g,'');
-          return name===prefix||name===prefix+compactTitle||name===compactTitle||name===String(item.number)+compactTitle;
+          if(candidate&&candidate.id==='lesson_pep_g4v1_user_'+item.key.replace(/[^a-z0-9]+/g,'_'))return true;
+          if(item.number===null)return name===compactTitle;
+          return name===prefix||name===prefix+compactTitle||name===String(item.number)+compactTitle;
         });
+        let lesson=lessonIndex>=0?remaining.splice(lessonIndex,1)[0]:null;
+        const lessonName=prefix?prefix+' '+item.title:item.title;
         if(!lesson){
           lesson={
-            id:'lesson_pep_g4v1_2024_'+item.number,
-            name:prefix+' '+item.title,
+            id:'lesson_pep_g4v1_user_'+item.key.replace(/[^a-z0-9]+/g,'_'),
+            name:lessonName,
             words:[],createdAt:now,updatedAt:now
           };
-          bank.lessons.push(lesson);
           lessonsAdded++;
+        }else if(lesson.name!==lessonName){
+          lesson.name=lessonName;lesson.updatedAt=now;
         }
         const existing=new Set((lesson.words||[]).map(word=>this._normalizeBankWord(word).text.toLocaleLowerCase()));
         let lessonChanged=false;
-        for(const text of item.words){
+        for(const text of this.getGrade4Volume1LessonWords(item)){
           const word=this._normalizeBankWord(text),key=word.text.toLocaleLowerCase();
           if(!word.text||existing.has(key))continue;
           lesson.words.push(word);
@@ -6147,13 +6205,17 @@ const App={
           lessonChanged=true;
         }
         if(lessonChanged)lesson.updatedAt=now;
+        officialLessons.push(lesson);
       }
+      bank.lessons=[...officialLessons,...remaining];
       bank.catalogVersions[info.id]=info.version;
       bank.updatedAt=now;
       updatedBanks++;
     }
-    if(updatedBanks>0)this.saveWordBankStore(store,true);
-    return {matchedBanks:banks.length,updatedBanks,lessonsAdded,wordsAdded};
+    let storeChanged=updatedBanks>0;
+    if(banks.length&&store.catalogVersions[info.id]!==info.version){store.catalogVersions[info.id]=info.version;storeChanged=true;}
+    if(storeChanged)this.saveWordBankStore(store,true);
+    return {matchedBanks:banks.length,banksCreated,updatedBanks,lessonsAdded,lessonsRemoved,wordsAdded};
   },
   // 应用预设词库扩展（含去重）
   applyPresetAdditions(){
