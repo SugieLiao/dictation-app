@@ -2135,14 +2135,18 @@ const App={
     }
   },
 
+  resetLanguageSettings(){
+    this.zhSettings={rate:0.8,repeat:2,voiceURI:'',dailyCount:20,showHint:true,dictOrder:'sequential',grade:'',gradeType:'preset',bankId:'',lessonId:''};
+    this.enSettings={rate:0.8,repeat:2,voiceURI:'',dailyCount:15,showHint:true,dictOrder:'sequential',grade:'',gradeType:'preset',bankId:'',lessonId:''};
+  },
+
   // 切换用户后重新加载该用户的数据到内存
-  reloadUserData(){
+  reloadUserData(skipCloudSync=false){
     // 重新执行 init 中加载设置的部分（但用 userKey 命名空间）
     try{
       const s=JSON.parse(localStorage.getItem(this.userKey('dict_settings'))||'{}');
       // 重置为默认值再合并，确保切换用户后状态干净
-      this.zhSettings={rate:0.8,repeat:2,voiceURI:'',dailyCount:20,showHint:true,dictOrder:'sequential',grade:'',gradeType:'preset',bankId:'',lessonId:''};
-      this.enSettings={rate:0.8,repeat:2,voiceURI:'',dailyCount:15,showHint:true,dictOrder:'sequential',grade:'',gradeType:'preset',bankId:'',lessonId:''};
+      this.resetLanguageSettings();
       if(typeof s.dailyCount!=='undefined'){
         this.zhSettings.dailyCount=s.dailyCount;
         this.enSettings.dailyCount=s.dailyCount;
@@ -2177,7 +2181,7 @@ const App={
     this.renderHomeEntries();
     this.updateUserSwitchBtn();
     // 切换用户后从云端拉取该用户数据
-    this.initCloudSync();
+    if(!skipCloudSync)this.initCloudSync();
   },
 
   // 从云端缓存恢复指定用户的所有数据到 localStorage（用于数据丢失后恢复）
@@ -2269,7 +2273,18 @@ const App={
       const cloudData=await CloudSync.pull();
       if(cloudData){
         // 合并云端数据到本地（云端优先，但保留本地比云端新的日志）
-        this.mergeCloudData(cloudData);
+        const mergeResult=this.mergeCloudData(cloudData);
+        // 首次打开或本地账号丢失时，初次请求只包含旧的临时用户。
+        // 切换到云端用户后必须用新 userId 重新拉取，否则会把空词库误上传。
+        if(mergeResult&&mergeResult.switchedUser){
+          const selectedUserData=await CloudSync.pull(true);
+          if(!selectedUserData){
+            CloudSync.updateIndicator('error');
+            this.cloudSyncReady=true;
+            return;
+          }
+          this.mergeCloudData(selectedUserData);
+        }
       }
       // 每次重新连线后都推送一次本地数据；新 D1 为空时会自动完成首次迁移。
       await CloudSync.push();
@@ -2299,15 +2314,21 @@ const App={
       if(JSON.stringify(localUsers)!==JSON.stringify(merged)){
         this.users=merged;
         localStorage.setItem('dict_users',JSON.stringify(merged));
-        // 如果当前用户在云端不存在（如本地数据丢失后重新创建了临时用户），
-        // 切换到云端第一个用户，并从云端缓存恢复该用户的所有数据
-        if(this.currentUserId&&!merged.some(u=>u.id===this.currentUserId)){
-          this.currentUserId=merged[0].id;
-          this.saveCurrentUser();
-          this.restoreUserFromCloud(this.currentUserId);
-          return;
-        }
         needRefresh=true;
+      }
+      // 即使用户列表本身没变，本地记录的当前 userId 也可能已经失效。
+      if(this.currentUserId&&!merged.some(u=>u.id===this.currentUserId)){
+        this.currentUserId=merged[0].id;
+        this.saveCurrentUser();
+        // 当前请求仍是旧用户的响应，不能用它恢复新用户，也不能继续上传。
+        // 由 initCloudSync / syncNow 使用新 userId 再拉取一次。
+        this.resetLanguageSettings();
+        this.loadFromLocalStorage();
+        this.syncSettingsUI();
+        this.renderHomeEntries();
+        this.renderUserList();
+        this.updateUserSwitchBtn();
+        return {switchedUser:true};
       }
     }
 
@@ -2383,6 +2404,7 @@ const App={
       this.refreshWordBankViewsAfterSync();
       this.showToast('已从云端同步数据');
     }
+    return {switchedUser:false};
   },
 
   // 复习库数据结构迁移（旧数据没有 streak/last/archived 字段）
@@ -6369,6 +6391,13 @@ const CloudSync={
       const cloudLog=cloudUserData.log||[];
       const mergedLog=this.mergeLogs(localLog,cloudLog);
       localStorage.setItem(App.userKey('dict_log'),JSON.stringify(mergedLog));
+      // 上传前必须合并云端词库。新设备或本地缓存丢失时，不能用只有内置词库的本地数据覆盖云端自建词库。
+      if(cloudUserData.wordBanks){
+        const localWordBanks=App.getWordBankStore();
+        const mergedWordBanks=App.mergeWordBankStores(localWordBanks,cloudUserData.wordBanks);
+        App.saveWordBankStore(mergedWordBanks,true);
+        App.refreshWordBankViewsAfterSync();
+      }
       // 更新当前用户数据
       latest.userData[uid]={...this._readLocalUserData(uid),log:mergedLog,review:mergedReview,ts:Date.now()};
       // D1 首次启用时，把当前设备上其他用户的数据也一并迁移，避免只迁移当前账号。
@@ -6486,7 +6515,12 @@ const CloudSync={
       // 1. 拉取并合并远端数据
       const cloudData=await this.pull(true);
       if(!cloudData)throw new Error('cloud unavailable');
-      App.mergeCloudData(cloudData);
+      const mergeResult=App.mergeCloudData(cloudData);
+      if(mergeResult&&mergeResult.switchedUser){
+        const selectedUserData=await this.pull(true);
+        if(!selectedUserData)throw new Error('cloud unavailable');
+        App.mergeCloudData(selectedUserData);
+      }
       // 2. 推送本地数据
       const ok=await this.push();
       if(!ok)throw new Error('cloud unavailable');
