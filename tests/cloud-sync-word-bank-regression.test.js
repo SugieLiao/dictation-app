@@ -75,6 +75,7 @@ App.refreshWordBankViewsAfterSync = () => {};
 App.showToast = () => {};
 App.migrateReviewBank = () => {};
 App.applyGrade4Volume1WordList = () => ({updatedBanks: 0});
+App.applyCatalogWordLists = () => ({updatedBanks: 0});
 CloudSync.pushDebounced = () => {};
 
 const realPush = CloudSync.push.bind(CloudSync);
