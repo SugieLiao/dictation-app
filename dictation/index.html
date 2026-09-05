@@ -2213,7 +2213,7 @@ const App={
       if(s.enSettings)Object.assign(this.enSettings,s.enSettings);
       // 确保不低于各语言最低值
       if(this.zhSettings.dailyCount>0&&this.zhSettings.dailyCount<20)this.zhSettings.dailyCount=20;
-      if(this.enSettings.dailyCount>0&&this.enSettings.dailyCount<15)this.enSettings.dailyCount=15;
+      if(this.enSettings.dailyCount>0&&this.enSettings.dailyCount<10)this.enSettings.dailyCount=10;
     }catch(e){}
     this.migrateReviewBank();
     this.applyCatalogWordLists(false);
@@ -2302,7 +2302,7 @@ const App={
       if(s.enSettings){Object.assign(this.enSettings,s.enSettings);}
       // 确保不低于各语言最低值
       if(this.zhSettings.dailyCount>0&&this.zhSettings.dailyCount<20)this.zhSettings.dailyCount=20;
-      if(this.enSettings.dailyCount>0&&this.enSettings.dailyCount<15)this.enSettings.dailyCount=15;
+      if(this.enSettings.dailyCount>0&&this.enSettings.dailyCount<10)this.enSettings.dailyCount=10;
     }catch(e){}
   },
 
@@ -2620,7 +2620,7 @@ const App={
     const s=this.curSettings();
     const lang=this.langPageMode;
     // 每种语言的最低每日听写数量
-    const minCount=lang==='zh'?20:15;
+    const minCount=lang==='zh'?20:10;
     // 如果当前设置低于最低值，自动修正
     if(s.dailyCount>0&&s.dailyCount<minCount){
       s.dailyCount=minCount;
