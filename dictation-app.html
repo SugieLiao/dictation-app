@@ -2414,6 +2414,9 @@ const App={
         }
         localStorage.setItem(this.userKey('dict_settings'),JSON.stringify(cloudData.settings));
       }
+      // 云端覆盖后仍需确保不低于各语言最低听写数量（防止旧设备存的低值回流）
+      if(this.zhSettings.dailyCount>0&&this.zhSettings.dailyCount<20)this.zhSettings.dailyCount=20;
+      if(this.enSettings.dailyCount>0&&this.enSettings.dailyCount<10)this.enSettings.dailyCount=10;
     }
 
     // 合并日志：如果云端有更多日志，用云端；否则保留本地
@@ -2619,13 +2622,8 @@ const App={
   syncSettingsUI(){
     const s=this.curSettings();
     const lang=this.langPageMode;
-    // 每种语言的最低每日听写数量
+    // 每种语言的最低每日听写数量（仅用于控制按钮显隐；数据合法性由加载/合并层保证，此处不再修正以免触发云同步循环）
     const minCount=lang==='zh'?20:10;
-    // 如果当前设置低于最低值，自动修正
-    if(s.dailyCount>0&&s.dailyCount<minCount){
-      s.dailyCount=minCount;
-      this.saveSettings();
-    }
     const syncSeg=(segId,getKey,curVal,parseFn)=>{
       const seg=document.getElementById(segId);
       if(!seg)return;
