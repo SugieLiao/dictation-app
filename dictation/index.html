@@ -3389,8 +3389,12 @@ const App={
     if((bank.other||[]).length){const o=document.createElement('option');o.value='other';o.textContent='其他 ('+bank.other.length+'词)';sel.appendChild(o);}
     const available=[...sel.options].map(o=>o.value);
     let lessonId=this.curSettings().lessonId;
-    if(!available.includes(lessonId))lessonId=available[0]||'other';
-    this.curSettings().lessonId=lessonId;sel.value=lessonId;this.saveSettings();this.updateLangLessonNote(bank,lessonId);
+    if(!available.includes(lessonId)){
+      lessonId=available[0]||'other';
+      this.curSettings().lessonId=lessonId;
+      this.saveSettings();
+    }
+    sel.value=lessonId;this.updateLangLessonNote(bank,lessonId);
   },
   selectLangLesson(lessonId){
     this.curSettings().lessonId=lessonId;this.saveSettings();
