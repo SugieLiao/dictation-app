@@ -5723,7 +5723,7 @@ const App={
       const sourceHtml=w.sourceChar?`<span class="ow-hint">${this._escHtml(w.sourceChar)}→</span>`:'';
       const hintHtml=w.hint?`<span class="ow-hint">${this._escHtml(w.hint)}</span>`:'';
       chip.innerHTML=`${sourceHtml}<span class="ow-text">${this._escHtml(w.text)}</span>${hintHtml}`;
-      chip.title='单击选择或取消，双击修改，拖动合并';
+      chip.title='单击选择或取消，双击修改，滑动选择/取消选择，拖动合并';
       // 单击切换；连续双击同一个词修改
       chip.addEventListener('click',(e)=>{
         if(this._ocrMergeStartIdx>=0||Date.now()<this._ocrMergeIgnoreClickUntil)return;
@@ -5756,6 +5756,15 @@ const App={
             // 不等松手：划过第二个词后立即写入累计状态。
             // 即使手机浏览器随后吞掉结束事件，已选词也不会丢失。
             this.ocrPersistCurrentMergeSelection();
+          }else{
+            // 滑动取消：从当前滑动列表和累计合并候选中移除该词
+            const at=this._ocrMergeIndices.indexOf(ti);
+            if(at>=0)this._ocrMergeIndices.splice(at,1);
+            this._ocrMergeDragged=true;
+            targetChip.classList.remove('merge-hover');
+            if(this._ocrMergePending&&this._ocrMergePending.indices.includes(ti)){
+              this.ocrSetMergePendingIndices(this._ocrMergePending.indices.filter(i=>i!==ti));
+            }
           }
         }
       });
