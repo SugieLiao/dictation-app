@@ -605,6 +605,9 @@
   .ocr-placeholder.has-photo{border-style:solid;border-color:var(--green);}
   .ocr-btn-row{display:flex;gap:10px;flex-wrap:wrap;}
   .ocr-btn-row .btn{flex:1;min-width:80px;}
+  .ocr-options-row{display:flex;align-items:center;gap:8px;margin:8px 0 4px;}
+  .ocr-option-label{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);cursor:pointer;user-select:none;}
+  .ocr-option-label input[type="checkbox"]{width:16px;height:16px;accent-color:var(--primary);cursor:pointer;}
   .btn-outline{border:2px solid var(--primary);background:transparent;color:var(--primary);border-radius:14px;padding:12px 16px;font-size:15px;font-weight:600;cursor:pointer;transition:all .15s;}
   .btn-outline:hover{background:#fff4ec;}
   .btn-outline:active{transform:scale(.98);}
@@ -1142,6 +1145,11 @@
       </div>
       <div class="ocr-progress" id="ocr-progress">
         <span class="spinner"></span><span id="ocr-progress-text">正在识别文字...</span>
+      </div>
+      <div class="ocr-options-row" id="ocr-options-row">
+        <label class="ocr-option-label">
+          <input type="checkbox" id="ocr-ignore-pinyin" checked> 忽略拼音（只识别汉字）
+        </label>
       </div>
       <div class="ocr-btn-row">
         <button class="btn-outline" id="ocr-btn-capture" onclick="App.ocrTriggerCapture()">📸 拍照</button>
@@ -5278,6 +5286,11 @@ const App={
     this.ocrCancelPendingWordTap();
     const isChars=this.ocrEntryMode==='chars';
     document.getElementById('ocr-page-title').textContent=(isChars?'✨ 生字拍照组词':'📷 拍照识词')+' - '+(lang==='zh'?'语文':'英语');
+    // 「忽略拼音」选项仅中文模式显示，默认选中
+    const optRow=document.getElementById('ocr-options-row');
+    if(optRow)optRow.style.display=(lang==='zh')?'flex':'none';
+    const ignoreCb=document.getElementById('ocr-ignore-pinyin');
+    if(ignoreCb)ignoreCb.checked=true;
     const modeNote=document.getElementById('ocr-mode-note');
     modeNote.classList.toggle('show',isChars);
     modeNote.textContent=isChars?'识别图片中的单个生字后，系统会从一至四年级词汇中为每个字联想一个常见词语。重复生字会完整保留；“|”或空格用于拆分，冒号后填写说明。':'';
@@ -5647,11 +5660,13 @@ const App={
     const lines=raw.split(/[\n\r]+/).map(l=>l.trim()).filter(Boolean);
     const words=[];
     const seen=new Set();
+    // 中文模式且勾选「忽略拼音」时，过滤掉字母（拼音），只保留汉字和数字
+    const ignorePinyin=this.ocrLang==='zh'&&document.getElementById('ocr-ignore-pinyin')?.checked;
+    const cleanPattern=ignorePinyin?/[^\u4e00-\u9fff\u3400-\u4dbf0-9]/g:/[^\u4e00-\u9fff\u3400-\u4dbfa-zA-Z0-9]/g;
     for(const line of lines){
       const parts=line.split(/[\s,，、|]+/).map(p=>p.trim()).filter(Boolean);
       for(const part of parts){
-        // 去除所有标点符号和特殊字符，仅保留中文字符、英文字母、数字
-        const clean=part.replace(/[^\u4e00-\u9fff\u3400-\u4dbfa-zA-Z0-9]/g,'').trim();
+        const clean=part.replace(cleanPattern,'').trim();
         if(clean.length>=1&&!seen.has(clean)){
           seen.add(clean);
           words.push({text:clean,hint:'',selected:true});
