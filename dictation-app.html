@@ -5626,6 +5626,45 @@ const App={
   },
 
   // ===== OCR 识别 =====
+  // 图像预处理：放大→灰度→对比度增强→自适应二值化，提升 Tesseract 识别率
+  _ocrPreprocessImage(imageData){
+    return new Promise((resolve)=>{
+      const img=new Image();
+      img.onload=()=>{
+        const scale=Math.max(1, 1600/Math.max(img.width,img.height)); // 长边放大到1600px
+        const w=Math.round(img.width*scale), h=Math.round(img.height*scale);
+        const canvas=document.createElement('canvas');
+        canvas.width=w;canvas.height=h;
+        const ctx=canvas.getContext('2d',{willReadFrequently:true});
+        ctx.drawImage(img,0,0,w,h);
+        const imageData=ctx.getImageData(0,0,w,h);
+        const d=imageData.data;
+        // 灰度化 + 对比度增强（S形曲线）
+        for(let i=0;i<d.length;i+=4){
+          let gray=d[i]*0.299+d[i+1]*0.587+d[i+2]*0.114;
+          // 对比度增强：将灰度映射到更宽范围
+          gray=((gray/255-0.5)*1.6+0.5)*255;
+          gray=Math.max(0,Math.min(255,gray));
+          d[i]=d[i+1]=d[i+2]=gray;
+        }
+        // 自适应阈值二值化：用局部平均判断黑白
+        const gray=new Float32Array(w*h);
+        for(let y=0;y<h;y++)for(let x=0;x<w;x++)gray[y*w+x]=d[(y*w+x)*4];
+        const win=Math.max(8,Math.round(w/80)); // 窗口大小
+        const sum=(x,y)=>{let s=0;for(let dy=-win;dy<=win;dy++){const yy=y+dy;if(yy<0||yy>=h)continue;for(let dx=-win;dx<=win;dx++){const xx=x+dx;if(xx>=0&&xx<w)s+=gray[yy*w+xx];}}return s;};
+        for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+          const avg=sum(x,y)/((2*win+1)*(2*win+1));
+          const binary=gray[y*w+x] < avg-8 ? 0 : 255;
+          const idx=(y*w+x)*4;
+          d[idx]=d[idx+1]=d[idx+2]=binary;
+        }
+        ctx.putImageData(imageData,0,0);
+        resolve(canvas);
+      };
+      img.src=imageData;
+    });
+  },
+
   async ocrRecognize(){
     if(!this.ocrImageData){App.showToast('请先拍照或选择图片');return;}
     if(!window.Tesseract){App.showToast('识别引擎正在加载，请稍后再试...');return;}
@@ -5634,11 +5673,29 @@ const App={
     const progressText=document.getElementById('ocr-progress-text');
     btn.disabled=true;btn.textContent='识别中...';
     progress.style.display='block';
-    progressText.textContent='正在识别文字...';
+    progressText.textContent='正在预处理图片...';
     try{
-      const {data:{text}}=await Tesseract.recognize(this.ocrImageData,
+      // 先尝试云端百度 OCR（如果 Worker 端配置了 Key）
+      if(this._ocrUseCloud!==false){
+        try{
+          progressText.textContent='正在云端识别...';
+          const cloudText=await this._ocrCloudRecognize(this.ocrImageData);
+          if(cloudText&&cloudText.trim()){this.ocrParseText(cloudText);progress.style.display='none';btn.disabled=false;btn.textContent='🔍 重新识别';return;}
+        }catch(e){console.warn('云端OCR失败，回退本地:',e);}
+      }
+      // 本地 Tesseract（带图像预处理）
+      progressText.textContent='正在预处理图片...';
+      const processed=await this._ocrPreprocessImage(this.ocrImageData);
+      progressText.textContent='正在识别文字...';
+      const {data:{text}}=await Tesseract.recognize(processed,
         this.ocrLang==='zh'?'chi_sim':'eng',
-        {logger:m=>{if(m.status==='recognizing text'){progressText.textContent='正在识别文字... '+Math.round((m.progress||0)*100)+'%';}}}
+        {
+          logger:m=>{if(m.status==='recognizing text'){progressText.textContent='正在识别文字... '+Math.round((m.progress||0)*100)+'%';}},
+          ...(this.ocrLang==='zh'?{
+            tessedit_pageseg_mode:'6',  // 统一为一个文本块
+            tessedit_ocr_engine_mode:'2' // LSTM only
+          }:{})
+        }
       );
       this.ocrParseText(text);
     }catch(err){
@@ -5647,6 +5704,19 @@ const App={
     }
     progress.style.display='none';
     btn.disabled=false;btn.textContent='🔍 重新识别';
+  },
+
+  // 调用 Worker 端代理的百度 OCR
+  async _ocrCloudRecognize(imageData){
+    const res=await fetch('/dictation/api/ocr',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({image:imageData,lang:this.ocrLang})
+    });
+    if(!res.ok)throw new Error('HTTP '+res.status);
+    const data=await res.json();
+    if(data.error)throw new Error(data.error);
+    return data.text||'';
   },
 
   ocrParseText(text){
