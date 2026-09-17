@@ -6267,13 +6267,41 @@ const App={
     const selected=this.ocrWords.filter(w=>w.selected);
     if(!selected.length){App.showToast('请至少选择一个词语');return;}
     if(!this.ocrSelectedBank){App.showToast('请先选择或新建词库');return;}
-    if(this._ocrBankType==='preset'){
-      // 保存到预设词库
-      this.ocrSaveToPreset(selected);
+    const doSave=()=>{
+      if(this._ocrBankType==='preset'){
+        this.ocrSaveToPreset(selected);
+      }else{
+        this.ocrSaveToCustom(selected);
+      }
+    };
+    // 未选课文时弹确认
+    if(this.ocrLessonChoice==='other'){
+      this._ocrConfirmNoLesson(selected.length,doSave);
     }else{
-      // 保存到自定义词库
-      this.ocrSaveToCustom(selected);
+      doSave();
     }
+  },
+
+  // 未选课文确认弹窗
+  _ocrConfirmNoLesson(count,cb){
+    document.getElementById('ocr-lesson-confirm-mask')?.remove();
+    const mask=document.createElement('div');
+    mask.id='ocr-lesson-confirm-mask';
+    mask.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;';
+    mask.innerHTML=
+      '<div style="background:#fff;border-radius:14px;padding:22px 24px;width:320px;max-width:90vw;box-shadow:0 8px 32px rgba(0,0,0,.2);font-family:inherit;">'+
+        '<div style="font-size:15px;font-weight:600;margin-bottom:10px;">保存确认</div>'+
+        '<div style="font-size:14px;color:#555;line-height:1.6;margin-bottom:18px;">有 <b>'+count+'</b> 个词语未选择课文，将保存到词库的「其他」中。确认保存？</div>'+
+        '<div style="display:flex;gap:10px;justify-content:flex-end;">'+
+          '<button id="ocr-lesson-confirm-cancel" style="padding:8px 18px;border:1px solid #ddd;border-radius:8px;background:#fff;font-size:14px;cursor:pointer;">取消</button>'+
+          '<button id="ocr-lesson-confirm-ok" style="padding:8px 18px;border:none;border-radius:8px;background:#4a90d9;color:#fff;font-size:14px;cursor:pointer;">确认保存</button>'+
+        '</div>'+
+      '</div>';
+    document.body.appendChild(mask);
+    const done=(ok)=>{mask.remove();if(ok)cb();};
+    mask.querySelector('#ocr-lesson-confirm-cancel').onclick=()=>done(false);
+    mask.querySelector('#ocr-lesson-confirm-ok').onclick=()=>done(true);
+    mask.onclick=(e)=>{if(e.target===mask)done(false);};
   },
   ocrSaveToPreset(selected){
     const additions=this.getPresetAdditions();
