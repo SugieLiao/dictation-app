@@ -845,15 +845,11 @@
       </button>
     </div>
 
-    <!-- 词库管理 — 与日志管理使用同款折叠卡 -->
-    <div class="card dm-section" id="bank-manager-section">
-      <div class="dm-section-header" onclick="App.toggleManagementSection('bank-manager-section')">
+    <!-- 词库管理 — 点击直接进入 -->
+    <div class="card dm-section" id="bank-manager-section" style="cursor:pointer;" onclick="App.openBankManager('zh')">
+      <div class="dm-section-header" style="pointer-events:none;">
         <div class="dmsh-left"><span style="font-size:24px;">🗃️</span><span class="dmsh-title">词库管理</span></div>
-        <span class="dmsh-arrow">▼</span>
-      </div>
-      <div class="card-body">
-        <div style="font-size:13px;color:var(--muted);line-height:1.7;margin-bottom:12px;">统一管理内置与自建词库，可按课文整理，并支持手动、OCR 与生字组词录入。</div>
-        <button class="btn btn-primary" style="width:100%;" onclick="App.openBankManager('zh')">进入词库管理</button>
+        <span class="dmsh-arrow">›</span>
       </div>
     </div>
 
