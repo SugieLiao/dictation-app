@@ -17,9 +17,66 @@ function b64ToUtf8(b64){
 
 const HTML = b64ToUtf8(${JSON.stringify(b64)});
 const SYNC_PATH = '/dictation/api/sync';
+const OCR_PATH = '/dictation/api/ocr';
 const MAX_REQUEST_BYTES = 1800000;
 const MAX_ROW_BYTES = 900000;
 const UPSERT_SQL = 'INSERT INTO sync_records (record_key, payload, updated_at) VALUES (?1, ?2, ?3) ON CONFLICT(record_key) DO UPDATE SET payload = excluded.payload, updated_at = excluded.updated_at';
+
+// 百度 OCR access_token 缓存（Worker 全局变量，同一 isolate 内复用）
+let _baiduToken = null;
+let _baiduTokenExp = 0;
+
+async function getBaiduAccessToken(env){
+  if (_baiduToken && Date.now() < _baiduTokenExp) return _baiduToken;
+  const url = 'https://aip.baidubce.com/oauth/2.0/token?grant_type=client_credentials&client_id=' +
+    encodeURIComponent(env.BAIDU_OCR_API_KEY) + '&client_secret=' + encodeURIComponent(env.BAIDU_OCR_SECRET_KEY);
+  const res = await fetch(url, { method: 'POST' });
+  const data = await res.json();
+  if (!data.access_token) throw new Error('baidu_token_failed');
+  _baiduToken = data.access_token;
+  _baiduTokenExp = Date.now() + (data.expires_in - 300) * 1000; // 提前5分钟过期
+  return _baiduToken;
+}
+
+async function handleOcrRequest(request, env){
+  if (!allowedOrigin(request)) return jsonResponse(request, { error: 'origin_not_allowed' }, 403);
+  if (request.method === 'OPTIONS') {
+    const headers = apiHeaders(request);
+    headers['access-control-allow-methods'] = 'POST, OPTIONS';
+    headers['access-control-allow-headers'] = 'Content-Type';
+    headers['access-control-max-age'] = '86400';
+    return new Response(null, { status: 204, headers });
+  }
+  if (request.method !== 'POST') return jsonResponse(request, { error: 'method_not_allowed' }, 405);
+  if (!env.BAIDU_OCR_API_KEY || !env.BAIDU_OCR_SECRET_KEY) {
+    return jsonResponse(request, { error: 'ocr_not_configured' }, 503);
+  }
+  let body;
+  try { body = await request.json(); } catch { return jsonResponse(request, { error: 'invalid_json' }, 400); }
+  if (!body || typeof body.image !== 'string') return jsonResponse(request, { error: 'missing_image' }, 400);
+  // 去掉 data:image/xxx;base64, 前缀
+  const b64 = body.image.replace(/^data:image\\/\\w+;base64,/, '');
+  if (b64.length > 1800000) return jsonResponse(request, { error: 'image_too_large' }, 413);
+  try {
+    const token = await getBaiduAccessToken(env);
+    const ocrUrl = 'https://aip.baidubce.com/rest/2.0/ocr/v1/accurate_basic?access_token=' + token;
+    const formBody = new URLSearchParams();
+    formBody.set('image', b64);
+    formBody.set('language_type', body.lang === 'en' ? 'ENG' : 'CHN_ENG');
+    const res = await fetch(ocrUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: formBody.toString()
+    });
+    const data = await res.json();
+    if (data.error_code) throw new Error('baidu_ocr_' + data.error_code + ': ' + (data.error_msg || ''));
+    const text = (data.words_result || []).map(w => w.words).join('\n');
+    return jsonResponse(request, { text }, 200);
+  } catch (error) {
+    console.error('baidu ocr failed:', error);
+    return jsonResponse(request, { error: 'ocr_failed', detail: error instanceof Error ? error.message : String(error) }, 502);
+  }
+}
 
 function validUserId(value){
   return typeof value === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(value);
@@ -135,8 +192,10 @@ export default {
         }
       });
     }
-    if (p === SYNC_PATH) {
-      if (!allowedOrigin(request)) return jsonResponse(request, { error: 'origin_not_allowed' }, 403);
+    if (p === OCR_PATH) {
+      return await handleOcrRequest(request, env);
+    }
+    if (p === SYNC_PATH) {      if (!allowedOrigin(request)) return jsonResponse(request, { error: 'origin_not_allowed' }, 403);
       if (request.method === 'OPTIONS') {
         const headers = apiHeaders(request);
         headers['access-control-allow-methods'] = 'GET, PUT, OPTIONS';
