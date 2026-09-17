@@ -70,7 +70,7 @@ async function handleOcrRequest(request, env){
     });
     const data = await res.json();
     if (data.error_code) throw new Error('baidu_ocr_' + data.error_code + ': ' + (data.error_msg || ''));
-    const text = (data.words_result || []).map(w => w.words).join('\n');
+    const text = (data.words_result || []).map(w => w.words).join('\\n');
     return jsonResponse(request, { text }, 200);
   } catch (error) {
     console.error('baidu ocr failed:', error);
