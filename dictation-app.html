@@ -6225,6 +6225,20 @@ const App={
     const store=this.getWordBankStore();
     store.catalogVersions=store.catalogVersions&&typeof store.catalogVersions==='object'?store.catalogVersions:{};
     let banks=(store.zh||[]).filter(bank=>bank&&String(bank.name||'').trim()==='四年级上册');
+    // 去重：历史上可能产生多个同名"四年级上册"，保留词语总数最多的一个，其余加入删除墓碑
+    if(banks.length>1){
+      const countWords=bank=>(bank.other||[]).length+(bank.lessons||[]).reduce((s,l)=>s+(l.words||[]).length,0);
+      banks.sort((a,b)=>countWords(b)-countWords(a));
+      const keep=banks[0];
+      for(const extra of banks.slice(1)){
+        store.zh=store.zh.filter(b=>b!==extra);
+        if(!(store.deleted||=[]).some(d=>d.id===extra.id&&d.lang==='zh')){
+          store.deleted.push({lang:'zh',id:extra.id,ts:Date.now()});
+        }
+      }
+      banks=[keep];
+      this.saveWordBankStore(store,true);
+    }
     let banksCreated=0,updatedBanks=0,lessonsAdded=0,lessonsRemoved=0,wordsAdded=0;
     const now=Date.now();
     if(allowCreate&&!banks.length&&store.catalogVersions[info.id]!==info.version){
