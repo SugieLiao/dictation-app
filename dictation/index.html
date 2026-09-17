@@ -5737,6 +5737,7 @@ const App={
         this._ocrMergeStartIdx=i;
         this._ocrMergeIndices=[i];
         this._ocrMergeDragged=false;
+        this._ocrLastHoverIdx=i;
         this.ocrWords[i]._mergeMark=true;
         chip.classList.add('merge-active');
       });
@@ -5747,17 +5748,17 @@ const App={
         const targetChip=el?el.closest('.ow-chip'):null;
         if(targetChip&&targetChip.dataset.idx!==undefined){
           const ti=parseInt(targetChip.dataset.idx);
+          // 鼠标在同一个词上微动时不重复处理，避免选中/取消跳动
+          if(ti===this._ocrLastHoverIdx)return;
+          this._ocrLastHoverIdx=ti;
           if(!this._ocrMergeIndices.includes(ti)){
             this.ocrCancelPendingWordTap();
             this._ocrMergeIndices.push(ti);
             this._ocrMergeDragged=true;
             this.ocrWords[ti]._mergeMark=true;
             targetChip.classList.add('merge-hover');
-            // 不等松手：划过第二个词后立即写入累计状态。
-            // 即使手机浏览器随后吞掉结束事件，已选词也不会丢失。
             this.ocrPersistCurrentMergeSelection();
           }else{
-            // 滑动取消：从当前滑动列表和累计合并候选中移除该词
             const at=this._ocrMergeIndices.indexOf(ti);
             if(at>=0)this._ocrMergeIndices.splice(at,1);
             this._ocrMergeDragged=true;
@@ -5886,6 +5887,7 @@ const App={
     this._ocrMergeStartIdx=-1;
     this._ocrMergeIndices=[];
     this._ocrMergeDragged=false;
+    this._ocrLastHoverIdx=-1;
     document.querySelectorAll('#ocr-words-grid .ow-chip').forEach(c=>{
       // 松手只清除本次拖动的临时状态；累计选择状态必须持续保留。
       c.classList.remove('merge-active','merge-hover');
