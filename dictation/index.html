@@ -5737,10 +5737,15 @@ const App={
         e.preventDefault();
         try{chip.setPointerCapture(e.pointerId);}catch(err){}
         this._ocrMergeStartIdx=i;
-        this._ocrMergeIndices=[i];
         this._ocrMergeDragged=false;
         this._ocrLastHoverIdx=i;
-        this.ocrWords[i]._mergeMark=true;
+        // 记录本次拖动开始时的候选快照作为基准，避免每次 pointermove 重复叠加
+        this._ocrMergeBase=this._ocrMergePending?[...this._ocrMergePending.indices]:[];
+        // 用 toggle 集合记录本次拖动中每个词的操作：true=加入, false=移除
+        this._ocrMergeToggled=new Map();
+        const inPending=this._ocrMergeBase.includes(i);
+        this._ocrMergeToggled.set(i,!inPending); // 已在候选中→移除，不在→加入
+        this._updateMergeChipHover(i);
         chip.classList.add('merge-active');
       });
       chip.addEventListener('pointermove',(e)=>{
@@ -5750,25 +5755,19 @@ const App={
         const targetChip=el?el.closest('.ow-chip'):null;
         if(targetChip&&targetChip.dataset.idx!==undefined){
           const ti=parseInt(targetChip.dataset.idx);
-          // 鼠标在同一个词上微动时不重复处理，避免选中/取消跳动
           if(ti===this._ocrLastHoverIdx)return;
           this._ocrLastHoverIdx=ti;
-          if(!this._ocrMergeIndices.includes(ti)){
-            this.ocrCancelPendingWordTap();
-            this._ocrMergeIndices.push(ti);
-            this._ocrMergeDragged=true;
-            this.ocrWords[ti]._mergeMark=true;
-            targetChip.classList.add('merge-hover');
-            this.ocrPersistCurrentMergeSelection();
+          this.ocrCancelPendingWordTap();
+          this._ocrMergeDragged=true;
+          // 反转或首次记录该词的操作方向
+          if(this._ocrMergeToggled.has(ti)){
+            this._ocrMergeToggled.set(ti,!this._ocrMergeToggled.get(ti));
           }else{
-            const at=this._ocrMergeIndices.indexOf(ti);
-            if(at>=0)this._ocrMergeIndices.splice(at,1);
-            this._ocrMergeDragged=true;
-            targetChip.classList.remove('merge-hover');
-            if(this._ocrMergePending&&this._ocrMergePending.indices.includes(ti)){
-              this.ocrSetMergePendingIndices(this._ocrMergePending.indices.filter(i=>i!==ti));
-            }
+            const inPending=this._ocrMergePending&&this._ocrMergePending.indices.includes(ti);
+            this._ocrMergeToggled.set(ti,!inPending); // 已在候选→移除，不在→加入
           }
+          this._updateMergeChipHover(ti);
+          this.ocrPersistCurrentMergeSelection();
         }
       });
       chip.addEventListener('pointerup',(e)=>{this.ocrFinishMergeGesture(e,chip);});
@@ -5843,13 +5842,25 @@ const App={
     this._ocrGridGestureHandlers={grid,down,move,up};
   },
 
+  // 根据 toggle 集合计算词 idx 的最终选中状态，并更新 hover 样式
+  _updateMergeChipHover(idx){
+    const inPending=this._ocrMergePending&&this._ocrMergePending.indices.includes(idx);
+    const op=this._ocrMergeToggled?this._ocrMergeToggled.get(idx):undefined;
+    const willSelected=op===true?true:op===false?false:inPending;
+    const chip=document.querySelector('#ocr-words-grid .ow-chip[data-idx="'+idx+'"]');
+    if(chip)chip.classList.toggle('merge-hover',willSelected);
+  },
+
   ocrFinishMergeGesture(e,chip){
     if(chip){try{chip.releasePointerCapture(e.pointerId);}catch(err){}}
     if(this._ocrMergeStartIdx<0)return;
     const dragged=this._ocrMergeDragged;
-    const hasMergeSelection=!this._ocrTwoFingerScroll&&this._ocrMergeIndices.length>1;
+    const finalSet=new Set(this._ocrMergeBase||[]);
+    if(this._ocrMergeToggled){
+      this._ocrMergeToggled.forEach((add,i)=>{if(add)finalSet.add(i);else finalSet.delete(i);});
+    }
+    const hasMergeSelection=!this._ocrTwoFingerScroll&&finalSet.size>1;
     if(hasMergeSelection)this.ocrShowMergeToast();
-    // 只屏蔽拖动刚结束时浏览器补发的 click；不能吞掉用户紧接着点选的新词。
     if(dragged||hasMergeSelection)this._ocrMergeIgnoreClickUntil=Date.now()+160;
     this.ocrClearMergeState();
   },
@@ -5890,8 +5901,9 @@ const App={
     this._ocrMergeIndices=[];
     this._ocrMergeDragged=false;
     this._ocrLastHoverIdx=-1;
+    this._ocrMergeToggled=null;
+    this._ocrMergeBase=null;
     document.querySelectorAll('#ocr-words-grid .ow-chip').forEach(c=>{
-      // 松手只清除本次拖动的临时状态；累计选择状态必须持续保留。
       c.classList.remove('merge-active','merge-hover');
     });
     this.ocrApplyMergePendingState();
@@ -5941,9 +5953,13 @@ const App={
   },
 
   ocrPersistCurrentMergeSelection(){
-    const prior=this._ocrMergePending?this._ocrMergePending.indices:[];
-    const indices=[...new Set([...prior,...this._ocrMergeIndices])].sort((a,b)=>a-b);
-    if(indices.length<2)return false;
+    const result=new Set(this._ocrMergeBase||[]);
+    if(this._ocrMergeToggled){
+      this._ocrMergeToggled.forEach((add,i)=>{
+        if(add)result.add(i);else result.delete(i);
+      });
+    }
+    const indices=[...result].sort((a,b)=>a-b);
     return this.ocrSetMergePendingIndices(indices);
   },
 
