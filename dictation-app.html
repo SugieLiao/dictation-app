@@ -6132,22 +6132,47 @@ const App={
   ocrSelectLesson(value){
     const sel=document.getElementById('ocr-lesson-select');
     if(value==='new'){
-      // 弹出对话框输入新课文名
-      const name=prompt('请输入新课文名称：',this._ocrNewLessonName||'');
-      if(name&&name.trim()){
-        this._ocrNewLessonName=name.trim();
-        this.ocrLessonChoice='__custom_new__';
-        this.ocrRenderLessonSelector(this.findManagedBank(this.ocrLang,this.ocrSelectedBankId));
-      }else{
-        // 用户取消或输入空，选回之前的值
-        this.ocrLessonChoice='other';
-        if(sel)sel.value='other';
-      }
+      this._ocrPromptNewLesson(this._ocrNewLessonName||'',(name)=>{
+        if(name&&name.trim()){
+          this._ocrNewLessonName=name.trim();
+          this.ocrLessonChoice='__custom_new__';
+          this.ocrRenderLessonSelector(this.findManagedBank(this.ocrLang,this.ocrSelectedBankId));
+        }else{
+          this.ocrLessonChoice='other';
+          if(sel)sel.value='other';
+        }
+      });
       return;
     }
     this._ocrNewLessonName='';
     this.ocrLessonChoice=value;
     const input=document.getElementById('ocr-new-lesson');if(input)input.style.display='none';
+  },
+
+  // 居中弹窗输入新课文名（替代浏览器原生 prompt）
+  _ocrPromptNewLesson(defaultValue,cb){
+    // 移除已有弹窗
+    document.getElementById('ocr-lesson-prompt-mask')?.remove();
+    const mask=document.createElement('div');
+    mask.id='ocr-lesson-prompt-mask';
+    mask.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;';
+    mask.innerHTML=
+      '<div style="background:#fff;border-radius:14px;padding:22px 24px;width:320px;max-width:90vw;box-shadow:0 8px 32px rgba(0,0,0,.2);font-family:inherit;">'+
+        '<div style="font-size:15px;font-weight:600;margin-bottom:14px;">请输入新课文名称</div>'+
+        '<input id="ocr-lesson-prompt-input" type="text" placeholder="例如：第5课" value="'+(defaultValue||'').replace(/"/g,'&quot;')+'" style="width:100%;box-sizing:border-box;padding:9px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:15px;outline:none;margin-bottom:16px;">'+
+        '<div style="display:flex;gap:10px;justify-content:flex-end;">'+
+          '<button id="ocr-lesson-prompt-cancel" style="padding:8px 18px;border:1px solid #ddd;border-radius:8px;background:#fff;font-size:14px;cursor:pointer;">取消</button>'+
+          '<button id="ocr-lesson-prompt-ok" style="padding:8px 18px;border:none;border-radius:8px;background:#4a90d9;color:#fff;font-size:14px;cursor:pointer;">确定</button>'+
+        '</div>'+
+      '</div>';
+    document.body.appendChild(mask);
+    const input=mask.querySelector('#ocr-lesson-prompt-input');
+    input.focus();input.select();
+    const done=(val)=>{mask.remove();cb(val);};
+    mask.querySelector('#ocr-lesson-prompt-cancel').onclick=()=>done(null);
+    mask.querySelector('#ocr-lesson-prompt-ok').onclick=()=>done(input.value);
+    input.onkeydown=(e)=>{if(e.key==='Enter'){e.preventDefault();done(input.value);}else if(e.key==='Escape'){done(null);}};
+    mask.onclick=(e)=>{if(e.target===mask)done(null);};
   },
 
   ocrCreateBankInline(){
