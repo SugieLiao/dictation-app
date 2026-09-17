@@ -5275,6 +5275,7 @@ const App={
     this.ocrSelectedBank=null;
     this.ocrSelectedBankId=null;
     this.ocrLessonChoice='other';
+    this._ocrNewLessonName='';
     this._ocrMergeStartIdx=-1;
     this._ocrMergeIndices=[];
     this._ocrMergeDragged=false;
@@ -5308,6 +5309,7 @@ const App={
     document.getElementById('ocr-add-word').value='';
     document.getElementById('ocr-new-bank-inline').value='';
     document.getElementById('ocr-new-lesson').value='';
+    this._ocrNewLessonName='';
     document.getElementById('merge-toast').classList.remove('show');
     if(this.ocrTargetBankId){
       const bank=this.findManagedBank(lang,this.ocrTargetBankId);
@@ -6104,10 +6106,33 @@ const App={
     sel.innerHTML='<option value="other">其他（不指定课文）</option>';
     (bank.lessons||[]).forEach(lesson=>{const o=document.createElement('option');o.value=lesson.id;o.textContent=lesson.name;sel.appendChild(o);});
     const add=document.createElement('option');add.value='new';add.textContent='＋ 新建课文';sel.appendChild(add);
+    // 恢复已输入的新课文名
+    if(this._ocrNewLessonName){
+      const o=document.createElement('option');o.value='__custom_new__';o.textContent='📝 '+this._ocrNewLessonName;sel.appendChild(o);
+    }
     const values=[...sel.options].map(o=>o.value);if(!values.includes(this.ocrLessonChoice))this.ocrLessonChoice='other';sel.value=this.ocrLessonChoice;
-    input.style.display=this.ocrLessonChoice==='new'?'block':'none';
+    if(input)input.style.display='none';
   },
-  ocrSelectLesson(value){this.ocrLessonChoice=value;const input=document.getElementById('ocr-new-lesson');if(input)input.style.display=value==='new'?'block':'none';},
+  ocrSelectLesson(value){
+    const sel=document.getElementById('ocr-lesson-select');
+    if(value==='new'){
+      // 弹出对话框输入新课文名
+      const name=prompt('请输入新课文名称：',this._ocrNewLessonName||'');
+      if(name&&name.trim()){
+        this._ocrNewLessonName=name.trim();
+        this.ocrLessonChoice='__custom_new__';
+        this.ocrRenderLessonSelector(this.findManagedBank(this.ocrLang,this.ocrSelectedBankId));
+      }else{
+        // 用户取消或输入空，选回之前的值
+        this.ocrLessonChoice='other';
+        if(sel)sel.value='other';
+      }
+      return;
+    }
+    this._ocrNewLessonName='';
+    this.ocrLessonChoice=value;
+    const input=document.getElementById('ocr-new-lesson');if(input)input.style.display='none';
+  },
 
   ocrCreateBankInline(){
     const input=document.getElementById('ocr-new-bank-inline');
@@ -6165,7 +6190,7 @@ const App={
     const store=this.getWordBankStore();
     const bank=this._findBankInStore(store,this.ocrLang,this.ocrSelectedBankId)||this._findBankInStore(store,this.ocrLang,(store[this.ocrLang].find(b=>b.name===this.ocrSelectedBank)||{}).id);
     if(!bank){App.showToast('未找到目标词库，请重新选择');return;}
-    const newLessonName=(document.getElementById('ocr-new-lesson').value||'').trim();let result;
+    const newLessonName=this.ocrLessonChoice==='__custom_new__'?(this._ocrNewLessonName||'').trim():(document.getElementById('ocr-new-lesson').value||'').trim();let result;
     try{result=this._addWordsToBank(store,this.ocrLang,bank.id,this.ocrLessonChoice,newLessonName,selected);}catch(e){App.showToast(e.message);return;}
     this.saveWordBankStore(store);
     App.showToast('✅ 已保存 '+result.added+' 个词到「'+bank.name+'」');
