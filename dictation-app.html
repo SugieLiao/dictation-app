@@ -2343,6 +2343,11 @@ const App={
     this.bindSettings();
     this.initVoicePicker();
     this.migrateReviewBank();
+    // 从听写历史迁移过关标记（只执行一次）
+    const migrateStats=this.migratePassedFromHistory();
+    if(migrateStats&&!migrateStats.alreadyMigrated){
+      console.log('[过关标记迁移] 语文:',migrateStats.zh,'英语:',migrateStats.en,'跳过(复习库中):',migrateStats.skipped);
+    }
     this.applyPresetAdditions();
     this.applyCatalogWordLists(false);
     this.renderHomeEntries();
@@ -4189,6 +4194,35 @@ const App={
     const passed=this.getPassedWords();
     delete passed[this._passedKey(mode,text)];
     this.savePassedWords(passed);
+  },
+  // 从听写历史迁移过关标记：所有听写过且不在复习库中的词标记为过关
+  migratePassedFromHistory(){
+    const migrateFlag=localStorage.getItem(this.userKey('dict_passed_migrated'));
+    if(migrateFlag==='1')return {alreadyMigrated:true};
+    let logs=[];
+    try{logs=JSON.parse(localStorage.getItem(this.userKey('dict_log'))||'[]');}catch(e){logs=[];}
+    const reviewBank=this.getReviewBank();
+    const passed=this.getPassedWords();
+    const stats={zh:0,en:0,skipped:0};
+    logs.forEach(log=>{
+      const mode=log.mode;
+      if(mode!=='zh'&&mode!=='en')return;
+      const reviewTexts=new Set((reviewBank[mode]||[]).map(w=>w.text.toLocaleLowerCase()));
+      (log.words||[]).forEach(w=>{
+        const text=(w.text||'').trim();
+        if(!text)return;
+        // 跳过复习库中的词（它们有自己的复习进度）
+        if(reviewTexts.has(text.toLocaleLowerCase())){stats.skipped++;return;}
+        const key=this._passedKey(mode,text);
+        if(!passed[key]){
+          passed[key]=log.ts||Date.now();
+          stats[mode]++;
+        }
+      });
+    });
+    this.savePassedWords(passed);
+    localStorage.setItem(this.userKey('dict_passed_migrated'),'1');
+    return stats;
   },
   getAllSourceOptions(mode){
     // 获取所有词库的所有课文作为来源选项，格式：教材名-课文名
