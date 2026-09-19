@@ -756,6 +756,9 @@
   .bm-word-chip{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--border);border-radius:9px;padding:7px 9px;background:#fff;font-size:14px;cursor:pointer;}
   .bm-word-chip .hint{font-size:11px;color:var(--muted);}
   .bm-word-chip .edit{font-size:11px;color:var(--primary);}
+  .bm-word-chip.passed{border-color:#34c759;background:#f0fff4;}
+  .bm-word-chip .passed-mark{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:#34c759;color:#fff;font-size:10px;font-weight:800;cursor:pointer;flex-shrink:0;line-height:1;}
+  .bm-word-chip .passed-mark:hover{background:#28a745;}
   .bm-bulk-guide{margin:12px 0 14px;padding:10px 12px;border:1px solid #ffe0c5;border-radius:11px;background:#fff8f1;color:var(--primary-dark);font-size:13px;line-height:1.6;}
   .bm-select-btn{display:flex;align-items:center;justify-content:center;width:100%;margin:10px 0 12px;padding:11px 14px;border:1.5px solid var(--primary);border-radius:11px;background:#fff8f1;color:var(--primary-dark);font-size:14px;font-weight:700;cursor:pointer;}
   .bm-select-btn.active{background:var(--primary);color:#fff;}
@@ -3243,9 +3246,21 @@ const App={
         chip.dataset.lessonId=lessonId;chip.dataset.wordIndex=String(idx);chip.tabIndex=0;chip.setAttribute('role','button');
         const key=this.bankManagerWordSelectionKey(lessonId,idx),selected=this.bankManagerSelectedWords.has(key);
         if(selected)chip.classList.add('selected');
+        const isPassed=this.isWordPassed(this.bankManagerLang,word.text);
+        if(isPassed)chip.classList.add('passed');
         chip.setAttribute('aria-pressed',selected?'true':'false');
-        chip.innerHTML=`${this.bankManagerBulkMode?'<span class="select-mark" aria-hidden="true">✓</span>':''}<span>${this._escHtml(word.text)}</span>${word.hint?`<span class="hint">${this._escHtml(word.hint)}</span>`:''}<span class="edit">编辑</span>`;
-        chip.onclick=e=>{if(this.bankManagerBulkMode){e.preventDefault();if(e.detail===0||Date.now()>this.bankManagerBulkIgnoreClickUntil)this.toggleBankManagerWordSelection(lessonId,idx);return;}this.editManagedWord(lessonId,idx);};
+        const passedMark=isPassed&&!this.bankManagerBulkMode?`<span class="passed-mark" title="已过关，点击取消过关">✓</span>`:'';
+        chip.innerHTML=`${this.bankManagerBulkMode?'<span class="select-mark" aria-hidden="true">✓</span>':''}<span>${this._escHtml(word.text)}</span>${word.hint?`<span class="hint">${this._escHtml(word.hint)}</span>`:''}${passedMark}<span class="edit">编辑</span>`;
+        chip.onclick=e=>{
+          if(e.target.classList.contains('passed-mark')){
+            e.stopPropagation();
+            this.unmarkWordPassed(this.bankManagerLang,word.text);
+            this.showToast('已取消「'+word.text+'」的过关标记');
+            this.renderBankManagerContent(bank);
+            return;
+          }
+          if(this.bankManagerBulkMode){e.preventDefault();if(e.detail===0||Date.now()>this.bankManagerBulkIgnoreClickUntil)this.toggleBankManagerWordSelection(lessonId,idx);return;}this.editManagedWord(lessonId,idx);
+        };
         chip.onkeydown=e=>{if(this.bankManagerBulkMode&&(e.key==='Enter'||e.key===' ')){e.preventDefault();this.toggleBankManagerWordSelection(lessonId,idx);}};
         list.appendChild(chip);
       });
@@ -3663,6 +3678,9 @@ const App={
       // 普通课文词去重
       const seenNew=new Set();
       newWordPool=newWordPool.filter(w=>{const t=w.text.toLocaleLowerCase();if(seenNew.has(t))return false;seenNew.add(t);return true;});
+      // 过滤掉已经过关的词
+      const passedCount=newWordPool.filter(w=>this.isWordPassed(this.mode,w.text)).length;
+      newWordPool=newWordPool.filter(w=>!this.isWordPassed(this.mode,w.text));
       const totalAvailable=newWordPool.length;
       if(!totalAvailable){App.showToast('所选内容中没有词语');return;}
       const scopeName=scopeNames.length>3?scopeNames.slice(0,3).join('、')+'等':scopeNames.join('、');
@@ -3930,6 +3948,10 @@ const App={
     this.words.forEach((w,i)=>{
       const isWrong=checkedIdx.has(i);
       const existing=existMap.get(w.text);
+      // 写对的课文词（非复习库混入词）标记为过关
+      if(!isWrong&&!w.fromReview){
+        this.markWordPassed(this.mode,w.text);
+      }
       if(existing){
         // 已在复习库中的词：更新掌握进度 + 艾宾浩斯下次复习时间，不会重复加入
         if(isWrong){
@@ -4145,6 +4167,29 @@ const App={
     panel.innerHTML=html;
   },
 
+  // ========== 过关标记 ==========
+  getPassedWords(){
+    try{return JSON.parse(localStorage.getItem(this.userKey('dict_passed'))||'{}');}catch(e){return {};}
+  },
+  savePassedWords(passed){
+    localStorage.setItem(this.userKey('dict_passed'),JSON.stringify(passed));
+    CloudSync.pushDebounced();
+  },
+  _passedKey(mode,text){return mode+'::'+text.toLocaleLowerCase();},
+  isWordPassed(mode,text){
+    const passed=this.getPassedWords();
+    return !!passed[this._passedKey(mode,text)];
+  },
+  markWordPassed(mode,text){
+    const passed=this.getPassedWords();
+    passed[this._passedKey(mode,text)]=Date.now();
+    this.savePassedWords(passed);
+  },
+  unmarkWordPassed(mode,text){
+    const passed=this.getPassedWords();
+    delete passed[this._passedKey(mode,text)];
+    this.savePassedWords(passed);
+  },
   getAllSourceOptions(mode){
     // 获取所有词库的所有课文作为来源选项，格式：教材名-课文名
     const banks=this.getManagedBanks(mode);
