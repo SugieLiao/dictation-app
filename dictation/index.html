@@ -302,6 +302,36 @@
   }
   .rw-item .rw-due.due-now{background:#fff0ed;color:var(--red);}
   .rw-item .rw-due.due-future{background:#f0f4ff;color:var(--blue);}
+  /* 复习库表格 */
+  .rw-table{width:100%;border-collapse:collapse;margin-top:8px;}
+  .rw-table .rw-th{
+    text-align:left;font-size:12px;font-weight:600;color:var(--muted);
+    padding:8px 10px;border-bottom:2px solid var(--border);cursor:pointer;
+    user-select:none;white-space:nowrap;
+  }
+  .rw-table .rw-th:hover{color:var(--text);}
+  .rw-table .rw-th.active{color:var(--primary);border-bottom-color:var(--primary);}
+  .rw-table .rw-row{border-bottom:1px solid var(--border-light);}
+  .rw-table .rw-row:hover{background:var(--card-hover);}
+  .rw-table .rw-cell{padding:10px;vertical-align:middle;font-size:13px;}
+  .rw-table .rw-cell-word{min-width:180px;}
+  .rw-table .rw-cell-word .rw-text{font-size:15px;font-weight:600;color:var(--text);margin-right:6px;}
+  .rw-table .rw-cell-word .rw-hint{font-size:11px;color:var(--muted);margin-right:6px;}
+  .rw-table .rw-cell-word .rw-streak{display:inline-flex;gap:3px;vertical-align:middle;}
+  .rw-table .rw-cell-word .rw-streak .dot{width:6px;height:6px;border-radius:50%;background:var(--border);}
+  .rw-table .rw-cell-word .rw-streak .dot.on{background:var(--green);}
+  .rw-table .rw-cell-date{color:var(--muted);font-size:12px;white-space:nowrap;}
+  .rw-table .rw-cell-source{max-width:160px;}
+  .rw-table .rw-cell-source .rw-source{font-size:11px;color:var(--muted);}
+  .rw-table .rw-cell-source .rw-source-unknown{color:#ccc;}
+  .rw-table .rw-cell-due{white-space:nowrap;text-align:right;}
+  .rw-table .rw-cell-due .rw-due{
+    font-size:10px;padding:2px 7px;border-radius:8px;font-weight:600;margin-right:6px;
+  }
+  .rw-table .rw-cell-due .rw-due.due-now{background:#fff0ed;color:var(--red);}
+  .rw-table .rw-cell-due .rw-due.due-future{background:#f0f4ff;color:var(--blue);}
+  .rw-table .rw-cell-due .rw-replay{color:var(--primary);font-size:16px;cursor:pointer;margin-right:4px;}
+
   /* 复习库编辑模式 */
   .rw-edit-btn{
     flex-shrink:0;width:30px;height:30px;border:1px solid var(--border);
@@ -2127,7 +2157,7 @@ const App={
   sessionSource:null, // {type:'preset'|'custom'|'review'|'continue', mode, grade, customText, startIdx}
   // 复习库页面状态
   reviewLang:'zh',    // 当前查看的语言 'zh'|'en'
-  reviewSortBy:'due', // 'due'|'source'|'streak'
+  reviewSortBy:'due', // 'word'|'addedAt'|'source'|'due'
   // 日志页面状态
   logLang:'zh',       // 当前查看的语言
   logView:'calendar', // 'calendar' | 'table'
@@ -3944,10 +3974,10 @@ const App={
       }else if(!w.fromReview){
         // 真正的新词（不在复习库中且不是复习库听写）：写错→加入复习库；写对→标记为已掌握
         if(isWrong){
-          bank[this.mode].push({text:w.text,hint:w.hint||'',streak:0,last:today,nextReview:this.getNextReviewTs(0),source:reviewSource});
+          bank[this.mode].push({text:w.text,hint:w.hint||'',streak:0,last:today,nextReview:this.getNextReviewTs(0),source:reviewSource,addedAt:Date.now()});
           added++;
         }else{
-          bank[this.mode].push({text:w.text,hint:w.hint||'',streak:3,last:today,nextReview:0});
+          bank[this.mode].push({text:w.text,hint:w.hint||'',streak:3,last:today,nextReview:0,addedAt:Date.now()});
           mastered++;
         }
         existMap.set(w.text,bank[this.mode][bank[this.mode].length-1]);
@@ -4097,23 +4127,30 @@ const App={
     const langLabel=this.reviewLang==='zh'?'语文':'英语';
     const dueCnt=items.filter(w=>!w.nextReview||w.nextReview<=now).length;
     let html='';
-    const sortOpts=[['due','按到期时间'],['source','按来源'],['streak','按掌握进度']];
-    const sortHtml=sortOpts.map(([v,l])=>`<button class="btn btn-ghost" style="padding:4px 10px;font-size:12px;${this.reviewSortBy===v?'background:var(--primary);color:#fff;border-color:var(--primary);':''}" onclick="App.setReviewSort('${v}')">${l}</button>`).join('');
     html+=`<div class="review-head">
       <div class="rh-info">${langLabel} · 共 <b>${items.length}</b> 个词待复习${dueCnt>0?` · <b>${dueCnt}</b> 个已到期`:''}<br><span style="font-size:11px;">📅 按艾宾浩斯遗忘曲线安排复习</span></div>
-      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">${sortHtml}${items.length?`<button class="btn btn-primary" onclick="App.startReview()">开始听写</button>`:''}</div>
+      <div>${items.length?`<button class="btn btn-primary" onclick="App.startReview()">开始听写</button>`:''}</div>
     </div>`;
     if(!items.length){
       html+=`<div class="empty-box"><span class="big-emoji">🎯</span>${langLabel}没有待复习的词<br>听写中写错的词会自动出现在这里</div>`;
     }else{
       // 排序
-      if(this.reviewSortBy==='source'){
+      if(this.reviewSortBy==='word'){
+        items.sort((a,b)=>(a.text||'').localeCompare(b.text||'','zh'));
+      }else if(this.reviewSortBy==='addedAt'){
+        items.sort((a,b)=>(b.addedAt||0)-(a.addedAt||0));
+      }else if(this.reviewSortBy==='source'){
         items.sort((a,b)=>(a.source||'~').localeCompare(b.source||'~','zh'));
-      }else if(this.reviewSortBy==='streak'){
-        items.sort((a,b)=>(b.streak||0)-(a.streak||0));
       }else{
         items.sort((a,b)=>(a.nextReview||0)-(b.nextReview||0));
       }
+      // 表头
+      const cols=[['word','词语'],['addedAt','加入日期'],['source','来源'],['due','到期日']];
+      const headerHtml=cols.map(([k,l])=>{
+        const active=this.reviewSortBy===k;
+        return `<th class="rw-th${active?' active':''}" onclick="App.setReviewSort('${k}')">${l}${active?' ▾':''}</th>`;
+      }).join('');
+      html+=`<table class="rw-table"><thead><tr>${headerHtml}</tr></thead><tbody>`;
       items.forEach(w=>{
         const streak=w.streak||0;
         const dots=[0,1,2].map(k=>`<span class="dot ${k<streak?'on':''}"></span>`).join('');
@@ -4123,20 +4160,20 @@ const App={
           ?`<span class="rw-due due-future">${dueLabel}</span>`
           :`<span class="rw-due due-now">到期</span>`;
         const sourceHtml=w.source?`<span class="rw-source" title="来源：${w.source}">${w.source}</span>`:`<span class="rw-source rw-source-unknown">未知来源</span>`;
+        const addedDate=w.addedAt?new Date(w.addedAt).toISOString().slice(0,10):'-';
         const editBtns = this._editButtons(w.key, w.text);
-        html+=`<div class="rw-item">
-          <span class="rw-text">${w.text}</span>
-          ${hintHtml}
-          ${sourceHtml}
-          <span class="rw-streak" title="掌握进度 ${streak}/3">${dots}</span>
-          ${dueHtml}
-          <span class="rw-replay" onclick="App.replayReviewWord('${w.key}')">🔊</span>
-          ${editBtns}
-        </div>`;
+        html+=`<tr class="rw-row">
+          <td class="rw-cell rw-cell-word"><span class="rw-text">${w.text}</span>${hintHtml}<span class="rw-streak" title="掌握进度 ${streak}/3">${dots}</span></td>
+          <td class="rw-cell rw-cell-date">${addedDate}</td>
+          <td class="rw-cell rw-cell-source">${sourceHtml}</td>
+          <td class="rw-cell rw-cell-due">${dueHtml}<span class="rw-replay" onclick="App.replayReviewWord('${w.key}')">🔊</span>${editBtns}</td>
+        </tr>`;
       });
+      html+='</tbody></table>';
     }
     panel.innerHTML=html;
   },
+
   renderReviewMastered(){
     const bank=this.getReviewBank();
     const panel=document.getElementById('review-panel-mastered');
