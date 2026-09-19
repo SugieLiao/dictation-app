@@ -185,7 +185,7 @@ addResult = App._addWordsToBank(duplicateStore, 'zh', duplicateBank.id, 'lesson-
 assert.strictEqual(addResult.added, 0);
 
 const refreshedViews = [];
-App.renderLangGradeChips = () => refreshedViews.push('lang');
+App.renderLangLessonSelector = () => refreshedViews.push('lang');
 App.renderBankManager = () => refreshedViews.push('banks');
 sandbox.document = {querySelector: () => ({id: 'screen-lang'})};
 App.refreshWordBankViewsAfterSync();
