@@ -3162,7 +3162,18 @@ const App={
     root.querySelector('#bm-create-bank').onclick=()=>this.createManagedBank();
     const input=root.querySelector('#bm-new-bank-name');input.onkeydown=e=>{if(e.key==='Enter')this.createManagedBank();};
     const list=root.querySelector('#bm-bank-list');
-    if(!banks.length){list.innerHTML='<div class="bm-empty">还没有自建词库。<br>在下方输入名称开始创建。</div>';return;}
+    // 复习库入口
+    const reviewBank=this.getReviewBank();
+    const reviewWords=(reviewBank[lang]||[]);
+    const reviewPending=reviewWords.filter(w=>(w.streak||0)<3).length;
+    const reviewMastered=reviewWords.filter(w=>(w.streak||0)>=3).length;
+    const reviewCard=document.createElement('div');
+    reviewCard.className='bm-bank-card';
+    reviewCard.style.border='2px solid var(--primary)';
+    reviewCard.innerHTML=`<div class="bm-bank-top"><span style="font-size:22px;">🔁</span><div class="bm-bank-name">复习库</div><div class="bm-bank-count">${reviewWords.length} 词 ›</div></div><div class="bm-bank-meta">待复习 ${reviewPending} 词 · 已掌握 ${reviewMastered} 词 · 按艾宾浩斯遗忘曲线复习</div>`;
+    reviewCard.onclick=()=>{this.reviewLang=lang;this.go('review');this.renderReviewPending();this.renderReviewMastered();this.renderReviewCounts();};
+    list.appendChild(reviewCard);
+    if(!banks.length){return;}
     banks.slice().sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0)).forEach(bank=>{
       const card=document.createElement('div');card.className='bm-bank-card';card.dataset.bankId=bank.id;
       const lessonNames=(bank.lessons||[]).map(l=>l.name);
@@ -3460,19 +3471,6 @@ const App={
       wrap.appendChild(sep);
     }
     customBanks.forEach(renderBankChip);
-    // 复习库 chip
-    const reviewBank=this.getReviewBank();
-    const reviewCount=(reviewBank[mode]||[]).filter(w=>(w.streak||0)<3).length;
-    const reviewChip=document.createElement('div');
-    reviewChip.className='chip'+(settings.currentBankId==='__review__'?' active':'');
-    reviewChip.textContent='🔁 复习库 ('+reviewCount+')';
-    reviewChip.onclick=()=>{
-      settings.currentBankId='__review__';
-      this.saveSettings();
-      this.renderLangGradeChips();
-      this.renderLangLessonSelector();
-    };
-    wrap.appendChild(reviewChip);
     if(settings.currentBankId)this.renderLangLessonSelector();
   },
 
@@ -3497,10 +3495,9 @@ const App={
     if(!currentBankId){row.style.display='none';return;}
     row.style.display='block';
     list.innerHTML='';
-    const isReviewOnly=currentBankId==='__review__';
-    if(label)label.textContent=isReviewOnly?'选择复习来源（可多选）':'选择课文（可多选，含复习库）';
-    // 如果不是复习库专属视图，先显示普通教材的课文
-    if(!isReviewOnly){
+    if(label)label.textContent='选择课文（可多选）';
+    // 显示普通教材的课文
+    {
       const bank=this.findManagedBank(mode,currentBankId);
       if(bank){
         const lessons=bank.lessons||[];
@@ -3533,30 +3530,6 @@ const App={
       sep.style.cssText='width:100%;height:1px;background:var(--border);margin:8px 0;';
       list.appendChild(sep);
     }
-    // 显示复习库来源（始终显示，除非复习库为空）
-    const reviewBank=this.getReviewBank();
-    const reviewWords=(reviewBank[mode]||[]).filter(w=>(w.streak||0)<3);
-    const sourceMap={};
-    reviewWords.forEach(w=>{const s=w.source||'未知来源';if(!sourceMap[s])sourceMap[s]=0;sourceMap[s]++;});
-    const sources=Object.keys(sourceMap).sort((a,b)=>a.localeCompare(b,'zh'));
-    if(sources.length){
-      const reviewHeader=document.createElement('div');
-      reviewHeader.style.cssText='font-size:12px;color:var(--muted);font-weight:600;margin:8px 0 6px;width:100%;flex-basis:100%;';
-      reviewHeader.textContent='🔁 复习库来源';
-      list.appendChild(reviewHeader);
-      sources.forEach(src=>{
-        const cnt=sourceMap[src];
-        const key=this._reviewSourceKey(src);
-        const checked=settings.selectedLessonKeys.includes(key);
-        const item=document.createElement('div');
-        item.className='lesson-multi-item'+(checked?' selected':'');
-        item.innerHTML='<input type="checkbox" '+(checked?'checked':'')+'><span>'+this._escHtml(src)+'</span><span class="lm-count">('+cnt+'词)</span>';
-        item.onclick=()=>{this.toggleLessonKey(key);};
-        list.appendChild(item);
-      });
-    }else if(isReviewOnly){
-      list.innerHTML='<div style="font-size:13px;color:var(--muted);padding:16px;text-align:center;">复习库中暂无待复习的词语</div>';
-    }
     this.updateLangLessonNote();
   },
 
@@ -3577,18 +3550,11 @@ const App={
     if(!currentBankId)return;
     const currentKeys=[];
     // 当前教材的课文
-    if(currentBankId!=='__review__'){
-      const bank=this.findManagedBank(mode,currentBankId);
-      if(bank){
-        (bank.lessons||[]).forEach(l=>currentKeys.push(this._lessonKey(bank.id,l.id)));
-        if((bank.other||[]).length)currentKeys.push(this._lessonKey(bank.id,'other'));
-      }
+    const bank=this.findManagedBank(mode,currentBankId);
+    if(bank){
+      (bank.lessons||[]).forEach(l=>currentKeys.push(this._lessonKey(bank.id,l.id)));
+      if((bank.other||[]).length)currentKeys.push(this._lessonKey(bank.id,'other'));
     }
-    // 复习库来源（始终包含）
-    const reviewBank=this.getReviewBank();
-    const reviewWords=(reviewBank[mode]||[]).filter(w=>(w.streak||0)<3);
-    const sources=new Set(reviewWords.map(w=>w.source||'未知来源'));
-    sources.forEach(s=>currentKeys.push(this._reviewSourceKey(s)));
     if(selectAll){
       currentKeys.forEach(k=>{if(!settings.selectedLessonKeys.includes(k))settings.selectedLessonKeys.push(k);});
     }else{
@@ -3673,10 +3639,9 @@ const App={
       if(!words.length){App.showToast('请粘贴至少一个词');return;}
       source={type:'custom',mode:this.mode,grade:this.grade,customText:custom};
     }else if((this.curSettings().selectedLessonKeys||[]).length>0){
-      // 统一混合模式：普通课文 + 复习库来源
+      // 普通课文选择 + 自动混入复习词
       const keys=this.curSettings().selectedLessonKeys;
-      let newWordPool=[];      // 普通课文的词（可能是新词或已在复习库中的词）
-      let reviewWordPool=[];    // 复习库来源的词
+      let newWordPool=[];
       const scopeNames=[];
       const bankNames=new Set();
       keys.forEach(key=>{
@@ -3691,53 +3656,38 @@ const App={
             const ws=(bank.lessons||[]).length?this.getBankScopeWords(bank,parsed.lessonId):this.getBankAllWords(bank);
             newWordPool=newWordPool.concat(ws);
           }
-        }else{
-          const reviewBank=this.getReviewBank();
-          const words=(reviewBank[this.mode]||[]).filter(w=>(w.streak||0)<3);
-          const matched=words.filter(w=>(w.source||'未知来源')===parsed.source);
-          reviewWordPool=reviewWordPool.concat(matched);
-          scopeNames.push('复习库·'+parsed.source);
         }
       });
       // 普通课文词去重
       const seenNew=new Set();
       newWordPool=newWordPool.filter(w=>{const t=w.text.toLocaleLowerCase();if(seenNew.has(t))return false;seenNew.add(t);return true;});
-      // 复习库词去重
-      const seenReview=new Set();
-      reviewWordPool=reviewWordPool.filter(w=>{const t=w.text.toLocaleLowerCase();if(seenReview.has(t))return false;seenReview.add(t);return true;});
-      // 复习库词中与普通课文重复的，只保留复习库版本（避免重复）
-      const reviewTexts=new Set(reviewWordPool.map(w=>w.text.toLocaleLowerCase()));
-      newWordPool=newWordPool.filter(w=>!reviewTexts.has(w.text.toLocaleLowerCase()));
-      const totalAvailable=newWordPool.length+reviewWordPool.length;
+      const totalAvailable=newWordPool.length;
       if(!totalAvailable){App.showToast('所选内容中没有词语');return;}
       const scopeName=scopeNames.length>3?scopeNames.slice(0,3).join('、')+'等':scopeNames.join('、');
-      // 如果用户没有选复习库来源，普通课文词仍按10:3比例自动混入复习词
+      // 按10:3比例自动混入复习词
       let autoReviewWords=[];
-      if(reviewWordPool.length===0&&newWordPool.length>0){
+      if(newWordPool.length>0){
         const scopeTexts=new Set(newWordPool.map(w=>w.text.toLocaleLowerCase()));
         const reviewCount=this.dailyCount===0?this.calculateAllReviewCount(newWordPool.length):this.calculateReviewCountForTotal(Math.min(this.dailyCount,newWordPool.length));
         autoReviewWords=this.pickReviewWordsExcluding(this.mode,reviewCount,scopeTexts);
       }
-      const allReviewWords=[...reviewWordPool,...autoReviewWords];
       // 处理每日数量限制
       let cnt=this.dailyCount>0?Math.min(this.dailyCount,totalAvailable+autoReviewWords.length):totalAvailable+autoReviewWords.length;
-      // 按比例分配：复习库来源的词优先保留（因为它们是到期需要复习的）
+      // 复习词优先，剩余名额给普通课文词
       let finalReviewWords=[],finalNewWords=[];
       if(this.dailyCount===0){
-        // 全部：所有词都听
-        finalReviewWords=allReviewWords;
+        finalReviewWords=autoReviewWords;
         finalNewWords=newWordPool;
       }else{
-        // 有限数量：复习词优先，剩余名额给普通课文词
-        const reviewTake=Math.min(allReviewWords.length,cnt);
-        finalReviewWords=allReviewWords.slice(0,reviewTake);
+        const reviewTake=Math.min(autoReviewWords.length,cnt);
+        finalReviewWords=autoReviewWords.slice(0,reviewTake);
         const remain=cnt-reviewTake;
         if(remain>0&&newWordPool.length){
           const newPool=(this.curSettings().dictOrder==='shuffle')?this.shuffleArray(newWordPool):newWordPool;
           finalNewWords=newPool.slice(0,remain);
         }
       }
-      // 普通课文词中，已在复习库中的标记为 fromReview，不在的标记为 fromReview:false
+      // 标记 fromReview
       const reviewBank=this.getReviewBank();
       const reviewBankTexts=new Set((reviewBank[this.mode]||[]).map(w=>w.text));
       words=[
@@ -3747,7 +3697,7 @@ const App={
       const bankNameStr=[...bankNames].join('、');
       source={type:'mixed',mode:this.mode,grade:scopeName,bankName:bankNameStr,bankId:'mixed',lessonIds:keys,lessonName:scopeName,lessonCoverage:this.dailyCount===0?'all':'partial',totalCount:totalAvailable,sessionCount:words.length,mixedReview:finalReviewWords.length>0,reviewCount:finalReviewWords.length};
     }else{
-      App.showToast('请先选择要听写的课文或复习内容');return;
+      App.showToast('请先选择要听写的课文');return;
     }
     // 如果设置了乱序，打乱词语顺序
     const cs=this.curSettings();
