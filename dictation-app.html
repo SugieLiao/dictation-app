@@ -2107,6 +2107,7 @@ const App={
   sessionSource:null, // {type:'preset'|'custom'|'review'|'continue', mode, grade, customText, startIdx}
   // 复习库页面状态
   reviewLang:'zh',    // 当前查看的语言 'zh'|'en'
+  reviewSortBy:'due', // 'due'|'source'|'streak'
   // 日志页面状态
   logLang:'zh',       // 当前查看的语言
   logView:'calendar', // 'calendar' | 'table'
@@ -2489,6 +2490,7 @@ const App={
         if(typeof w.streak==='undefined'){w.streak=0;changed=true;}
         if(typeof w.last==='undefined'){w.last='';changed=true;}
         if(typeof w.archived==='undefined'){w.archived=false;changed=true;}
+        if(typeof w.source==='undefined'){w.source='';changed=true;}
         // 艾宾浩斯：补 nextReview 字段
         if(typeof w.nextReview==='undefined'){
           // 旧数据：有 last 日期的按 streak 给默认间隔，否则立即可复习
@@ -2511,8 +2513,8 @@ const App={
     try{review=JSON.parse(localStorage.getItem(this.userKey('dict_review'))||'{"zh":[],"en":[]}');}catch(e){review={zh:[],en:[]};}
     if(!review.zh)review.zh=[];
     if(!review.en)review.en=[];
-    review.zh.forEach(w=>{if(typeof w.streak==='undefined')w.streak=0;if(typeof w.last==='undefined')w.last='';if(typeof w.archived==='undefined')w.archived=false;});
-    review.en.forEach(w=>{if(typeof w.streak==='undefined')w.streak=0;if(typeof w.last==='undefined')w.last='';if(typeof w.archived==='undefined')w.archived=false;});
+    review.zh.forEach(w=>{if(typeof w.streak==='undefined')w.streak=0;if(typeof w.last==='undefined')w.last='';if(typeof w.archived==='undefined')w.archived=false;if(typeof w.source==='undefined')w.source='';});
+    review.en.forEach(w=>{if(typeof w.streak==='undefined')w.streak=0;if(typeof w.last==='undefined')w.last='';if(typeof w.archived==='undefined')w.archived=false;if(typeof w.source==='undefined')w.source='';});
     return review;
   },
   saveReviewBank(bank){localStorage.setItem(this.userKey('dict_review'),JSON.stringify(bank));CloudSync.pushDebounced();},
@@ -3820,7 +3822,7 @@ const App={
         }else{
           // 新词写对→直接标记为已掌握（streak=3），不再出现
           if(!existMap.has(w.text)){
-            bank[this.mode].push({text:w.text,hint:w.hint||'',streak:3,last:today,nextReview:0});
+            bank[this.mode].push({text:w.text,hint:w.hint||'',streak:3,last:today,nextReview:0,source:reviewSource});
             existMap.set(w.text,bank[this.mode][bank[this.mode].length-1]);
             newAdded++;
           }
@@ -3855,6 +3857,14 @@ const App={
     if(!bank[this.mode])bank[this.mode]=[];
     const existMap=new Map(bank[this.mode].map(w=>[w.text,w]));
     const today=new Date().toISOString().slice(0,10);
+    // 计算来源：词库名-课文名
+    let reviewSource='';
+    if(this.sessionSource&&this.sessionSource.bankName){
+      reviewSource=this.sessionSource.bankName;
+      if(this.sessionSource.lessonName&&this.sessionSource.lessonName!=='其他（不指定课文）'){
+        reviewSource+='-'+this.sessionSource.lessonName;
+      }
+    }
     let added=0;       // 本次新增入复习库的新词
     let mastered=0;    // 本次新达到3次正确(掌握)的复习词
     this.words.forEach((w,i)=>{
@@ -3878,7 +3888,7 @@ const App={
         // 新词：写错→加入复习库（艾宾浩斯：1天后复习）；写对→标记为已掌握（不再出现）
         if(!existMap.has(w.text)){
           if(isWrong){
-            bank[this.mode].push({text:w.text,hint:w.hint||'',streak:0,last:today,nextReview:this.getNextReviewTs(0)});
+            bank[this.mode].push({text:w.text,hint:w.hint||'',streak:0,last:today,nextReview:this.getNextReviewTs(0),source:reviewSource});
             added++;
           }else{
             bank[this.mode].push({text:w.text,hint:w.hint||'',streak:3,last:today,nextReview:0});
@@ -3996,6 +4006,11 @@ const App={
     document.getElementById('rlang-zh-cnt').textContent=`(${(bank.zh||[]).length})`;
     document.getElementById('rlang-en-cnt').textContent=`(${(bank.en||[]).length})`;
   },
+  setReviewSort(by){
+    this.reviewSortBy=by;
+    this.renderReviewPending();
+    this.renderReviewMastered();
+  },
   switchReviewTab(tab){
     const tp=document.getElementById('tab-review-pending');
     const tm=document.getElementById('tab-review-mastered');
@@ -4026,15 +4041,23 @@ const App={
     const langLabel=this.reviewLang==='zh'?'语文':'英语';
     const dueCnt=items.filter(w=>!w.nextReview||w.nextReview<=now).length;
     let html='';
+    const sortOpts=[['due','按到期时间'],['source','按来源'],['streak','按掌握进度']];
+    const sortHtml=sortOpts.map(([v,l])=>`<button class="btn btn-ghost" style="padding:4px 10px;font-size:12px;${this.reviewSortBy===v?'background:var(--primary);color:#fff;border-color:var(--primary);':''}" onclick="App.setReviewSort('${v}')">${l}</button>`).join('');
     html+=`<div class="review-head">
       <div class="rh-info">${langLabel} · 共 <b>${items.length}</b> 个词待复习${dueCnt>0?` · <b>${dueCnt}</b> 个已到期`:''}<br><span style="font-size:11px;">📅 按艾宾浩斯遗忘曲线安排复习</span></div>
-      ${items.length?`<button class="btn btn-primary" onclick="App.startReview()">开始听写</button>`:''}
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">${sortHtml}${items.length?`<button class="btn btn-primary" onclick="App.startReview()">开始听写</button>`:''}</div>
     </div>`;
     if(!items.length){
       html+=`<div class="empty-box"><span class="big-emoji">🎯</span>${langLabel}没有待复习的词<br>听写中写错的词会自动出现在这里</div>`;
     }else{
-      // 排序：已到期在前，未到期按 nextReview 升序
-      items.sort((a,b)=>(a.nextReview||0)-(b.nextReview||0));
+      // 排序
+      if(this.reviewSortBy==='source'){
+        items.sort((a,b)=>(a.source||'~').localeCompare(b.source||'~','zh'));
+      }else if(this.reviewSortBy==='streak'){
+        items.sort((a,b)=>(b.streak||0)-(a.streak||0));
+      }else{
+        items.sort((a,b)=>(a.nextReview||0)-(b.nextReview||0));
+      }
       items.forEach(w=>{
         const streak=w.streak||0;
         const dots=[0,1,2].map(k=>`<span class="dot ${k<streak?'on':''}"></span>`).join('');
@@ -4043,10 +4066,12 @@ const App={
         const dueHtml=dueLabel
           ?`<span class="rw-due due-future">${dueLabel}</span>`
           :`<span class="rw-due due-now">到期</span>`;
+        const sourceHtml=w.source?`<span class="rw-source" title="来源：${w.source}">${w.source}</span>`:`<span class="rw-source rw-source-unknown">未知来源</span>`;
         const editBtns = this._editButtons(w.key, w.text);
         html+=`<div class="rw-item">
           <span class="rw-text">${w.text}</span>
           ${hintHtml}
+          ${sourceHtml}
           <span class="rw-streak" title="掌握进度 ${streak}/3">${dots}</span>
           ${dueHtml}
           <span class="rw-replay" onclick="App.replayReviewWord('${w.key}')">🔊</span>
@@ -4074,10 +4099,12 @@ const App={
       items.forEach(w=>{
         const hintHtml=w.hint?`<span class="rw-hint">${w.hint}</span>`:'';
         const tag=w.archived?'<span class="rw-tag archived">已归档</span>':'<span class="rw-tag">已掌握</span>';
+        const sourceHtml=w.source?`<span class="rw-source" title="来源：${w.source}">${w.source}</span>`:`<span class="rw-source rw-source-unknown">未知来源</span>`;
         const editBtns = this._editButtons(w.key, w.text);
         html+=`<div class="rw-item">
           <span class="rw-text">${w.text}</span>
           ${hintHtml}
+          ${sourceHtml}
           ${tag}
           <span class="rw-replay" onclick="App.replayReviewWord('${w.key}')">🔊</span>
           ${editBtns}
