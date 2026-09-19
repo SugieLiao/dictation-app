@@ -729,6 +729,12 @@
   .bm-bulk-actions button{flex:0 0 auto;border:0;border-radius:9px;padding:9px 15px;background:var(--primary);color:#fff;font-size:14px;font-weight:700;cursor:pointer;}
   .bm-bulk-actions button:disabled{background:var(--border);color:var(--muted);cursor:not-allowed;}
   .bm-lesson-empty{padding:12px;color:var(--muted);font-size:13px;}
+  .lesson-multi-list{display:flex;flex-wrap:wrap;gap:6px;max-height:180px;overflow-y:auto;padding:4px;}
+  .lesson-multi-item{display:flex;align-items:center;gap:5px;padding:5px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;cursor:pointer;user-select:none;background:var(--card);transition:all .12s;}
+  .lesson-multi-item:hover{border-color:var(--primary);}
+  .lesson-multi-item.selected{border-color:var(--primary);background:#fff4ec;color:var(--primary-dark);font-weight:500;}
+  .lesson-multi-item input[type="checkbox"]{width:15px;height:15px;accent-color:var(--primary);cursor:pointer;}
+  .lesson-multi-item .lm-count{font-size:11px;color:var(--muted);margin-left:2px;}
   .bm-scope-row{display:none;margin-top:10px;padding:11px 12px;background:#fff8f1;border:1px solid #ffe0c5;border-radius:11px;}
   .bm-scope-row.show{display:block;}
   .bm-scope-row label{font-size:13px;font-weight:600;display:block;margin-bottom:6px;}
@@ -990,8 +996,14 @@
       <div class="section-title">📚 选择词库</div>
       <div class="chips" id="lang-chips-grade"></div>
       <div class="bm-scope-row" id="lang-lesson-row">
-        <label for="lang-lesson-select">选择要听写的课文</label>
-        <select id="lang-lesson-select" onchange="App.selectLangLesson(this.value)"></select>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <label style="font-size:13px;font-weight:600;">选择要听写的课文（可多选）</label>
+          <div style="display:flex;gap:6px;">
+            <button class="btn btn-ghost" style="padding:3px 10px;font-size:12px;" onclick="App.toggleAllLessons(true)">全选</button>
+            <button class="btn btn-ghost" style="padding:3px 10px;font-size:12px;" onclick="App.toggleAllLessons(false)">全不选</button>
+          </div>
+        </div>
+        <div id="lang-lesson-multi" class="lesson-multi-list"></div>
         <div class="bm-all-note" id="lang-lesson-note"></div>
       </div>
       <div id="lang-custom-toggle" class="custom-toggle" onclick="App.toggleCustomInput()">+ 自定义听写内容</div>
@@ -2003,8 +2015,8 @@ const App={
   idx:0,
   cloudSyncReady:false, // 云端同步是否已完成（防止同步未完成就开始听写导致数据丢失）
   // 每种语言独立的设置：rate 语速、repeat 朗读次数、voiceURI 语音库、dailyCount 听写数量、showHint 显示提示
-  zhSettings:{rate:0.8,repeat:2,voiceURI:'edge:zh-CN-XiaoxiaoNeural',dailyCount:20,showHint:true,dictOrder:'sequential',grade:'',gradeType:'preset',bankId:'',lessonId:''},
-  enSettings:{rate:0.8,repeat:2,voiceURI:'edge:en-US-JennyNeural',dailyCount:15,showHint:true,dictOrder:'sequential',grade:'',gradeType:'preset',bankId:'',lessonId:''},
+  zhSettings:{rate:0.8,repeat:2,voiceURI:'edge:zh-CN-XiaoxiaoNeural',dailyCount:20,showHint:true,dictOrder:'sequential',grade:'',gradeType:'preset',bankId:'',lessonId:'',lessonIds:[]},
+  enSettings:{rate:0.8,repeat:2,voiceURI:'edge:en-US-JennyNeural',dailyCount:15,showHint:true,dictOrder:'sequential',grade:'',gradeType:'preset',bankId:'',lessonId:'',lessonIds:[]},
   // 四年级常用语料：生字拍照后优先从这里组词；结果仍可在保存前修改
   GRADE4_COMMON_WORDS:'潮水 宽阔 笼罩 薄雾 屹立 沸腾 横贯 霎时 余波 恢复 淘洗 鹅卵石 坑洼 填补 庄稼 风俗 跃出 葡萄 稻穗 成熟 镀亮 田埂 闪烁 霸占 睡眠 坠落 怀抱 招待 传说 修补 茂盛 滋润 祖先 悲惨 猛兽 敬佩 坚定 违抗 铁环 锁链 著名 愤怒 既然 暮色 吟诗 题目 侧面 山峰 庐山 缘分 投降 骚扰 逊色 输赢 操场 嫩红 舒服 均匀 重叠 空隙 叶柄 枯萎 牢固 隐蔽 搜索 慎重 倾斜 平坦 扒土 住宅 临时 选择 地址 优良 洞穴 大厅 卧室 专家 卫生 疲劳 豌豆 按照 舒适 恐怕 僵硬 玩具 耐心 探索 驾驶 世纪 技术 改善 奥秘 联系 物质 哲学 任何 创造 超过 幻想 原子核 程度 船舶 兰花 益虫 证明 雷达 蚊子 灵巧 模仿 显示 绳子 苍蝇 研究 推进 屋檐 嫩茎 繁星 纳凉 静寂 模糊 摇坠 梦幻 嗅觉 呆立 绒毛 庞大 掩护 搏斗 嘶哑 严肃 清晰 抱负 胸怀 赞叹 表情 忘怀 果真 非凡 指望 训斥 体会 分量 响亮 拒绝 签订 宁可 租界 纠缠 要求 打扰 昔日 茅屋 土炕 明媚 甚至 顽强 故意 扑打 忙乱 助威 结实 汉子 可笑 旋转 奋勇 况且 预料 尤其 顽皮 脖子 大概 惹怒 握住 窝囊 羡慕 殷切 排练 逃跑 砸锅 炎帝 溺水 返回 衔来 睁眼 翻身 劈开 缓缓 浑浊 支撑 肌肤 血液 汗毛 熄灭 喷火 缺少'.split(/\s+/),
   // 内置离线参考库：只保存组词功能需要的字词索引，不包含学习手册原文、图片或版式。
@@ -2183,8 +2195,8 @@ const App={
   },
 
   resetLanguageSettings(){
-    this.zhSettings={rate:0.8,repeat:2,voiceURI:'',dailyCount:20,showHint:true,dictOrder:'sequential',grade:'',gradeType:'preset',bankId:'',lessonId:''};
-    this.enSettings={rate:0.8,repeat:2,voiceURI:'',dailyCount:15,showHint:true,dictOrder:'sequential',grade:'',gradeType:'preset',bankId:'',lessonId:''};
+    this.zhSettings={rate:0.8,repeat:2,voiceURI:'',dailyCount:20,showHint:true,dictOrder:'sequential',grade:'',gradeType:'preset',bankId:'',lessonId:'',lessonIds:[]};
+    this.enSettings={rate:0.8,repeat:2,voiceURI:'',dailyCount:15,showHint:true,dictOrder:'sequential',grade:'',gradeType:'preset',bankId:'',lessonId:'',lessonIds:[]};
   },
 
   // 切换用户后重新加载该用户的数据到内存
@@ -2220,7 +2232,7 @@ const App={
       if(this.zhSettings.dailyCount>0&&this.zhSettings.dailyCount<20)this.zhSettings.dailyCount=20;
       if(this.enSettings.dailyCount>0&&this.enSettings.dailyCount<10)this.enSettings.dailyCount=10;
     }catch(e){}
-    this.migrateReviewBank();
+    this.migrateReviewBank();this.migrateLessonIds();
     this.applyCatalogWordLists(false);
     this.syncSettingsUI();
     this.bindSettings();
@@ -2588,6 +2600,14 @@ const App={
 
   // 当前语言分区页所对应的设置对象（由 langPageMode 决定）
   curSettings(){return this[this.langPageMode+'Settings'];},
+  migrateLessonIds(){
+    ['zh','en'].forEach(m=>{
+      const s=this[m+'Settings'];
+      if(s&&(!s.lessonIds||!Array.isArray(s.lessonIds))){
+        s.lessonIds=(s.lessonId&&s.lessonId!=='')?[s.lessonId]:[];
+      }
+    });
+  },
 
   bindSettings(){
     // 4 个分段按钮：每次听写数量、朗读时显示提示、语速、每词朗读次数
@@ -2603,7 +2623,7 @@ const App={
           this.saveSettings();
           if(segId==='seg-count'){
             const bank=this.findManagedBank(this.langPageMode,this.curSettings().bankId||this.curSettings().grade);
-            if(bank)this.updateLangLessonNote(bank,this.curSettings().lessonId||'other');
+            if(bank)this.updateLangLessonNote(bank);
           }
         };
       });
@@ -3372,7 +3392,7 @@ const App={
       c.onclick=()=>{
         wrap.querySelectorAll('.chip').forEach(x=>x.classList.remove('active'));c.classList.add('active');selected=bank;
         this.grade=bank.name;settings.grade=bank.name;settings.gradeType=bank.source==='preset'?'preset':'custom';settings.bankId=bank.id;
-        const validIds=new Set((bank.lessons||[]).map(l=>l.id));if(!validIds.has(settings.lessonId)&&settings.lessonId!=='other')settings.lessonId='';
+        settings.lessonIds=[];
         this.saveSettings();this.renderLangLessonSelector(bank);
       };
       wrap.appendChild(c);
@@ -3384,27 +3404,140 @@ const App={
       wrap.appendChild(sep);
     }
     customBanks.forEach(renderBankChip);
-    this.renderLangLessonSelector(selected);
+    // 分隔线
+    if(allBanks.length){
+      const sep=document.createElement('div');
+      sep.style.cssText='width:100%;height:1px;background:var(--border);margin:4px 0;';
+      wrap.appendChild(sep);
+    }
+    // 复习库 chip
+    const reviewBank=this.getReviewBank();
+    const reviewCount=(reviewBank[mode]||[]).filter(w=>(w.streak||0)<3).length;
+    const isReviewSelected=settings.bankId==='__review__';
+    const reviewChip=document.createElement('div');
+    reviewChip.className='chip'+(isReviewSelected?' active':'');
+    reviewChip.textContent='🔁 复习库 ('+reviewCount+')';
+    reviewChip.onclick=()=>{
+      wrap.querySelectorAll('.chip').forEach(x=>x.classList.remove('active'));
+      reviewChip.classList.add('active');
+      settings.bankId='__review__';settings.grade='复习库';settings.gradeType='review';
+      if(!settings.reviewSources)settings.reviewSources=[];
+      this.saveSettings();
+      this.renderLangLessonSelector(null);
+    };
+    wrap.appendChild(reviewChip);
+    this.renderLangLessonSelector(isReviewSelected?null:selected);
   },
 
   renderLangLessonSelector(bank){
-    const row=document.getElementById('lang-lesson-row'),sel=document.getElementById('lang-lesson-select');if(!row||!sel)return;
-    if(!bank||(bank.lessons||[]).length===0){row.classList.remove('show');if(bank)this.curSettings().lessonId='other';return;}
-    row.classList.add('show');sel.innerHTML='';
-    (bank.lessons||[]).forEach(lesson=>{const o=document.createElement('option');o.value=lesson.id;o.textContent=lesson.name+' ('+(lesson.words||[]).length+'词)';sel.appendChild(o);});
-    if((bank.other||[]).length){const o=document.createElement('option');o.value='other';o.textContent='其他 ('+bank.other.length+'词)';sel.appendChild(o);}
-    const available=[...sel.options].map(o=>o.value);
-    let lessonId=this.curSettings().lessonId;
-    if(!available.includes(lessonId)){
-      lessonId=available[0]||'other';
-      this.curSettings().lessonId=lessonId;
+    const row=document.getElementById('lang-lesson-row'),list=document.getElementById('lang-lesson-multi');if(!row||!list)return;
+    const settings=this.curSettings();
+    // 复习库模式：按来源分组
+    if(settings.bankId==='__review__'){
+      row.classList.add('show');
+      list.innerHTML='';
+      const reviewBank=this.getReviewBank();
+      const words=(reviewBank[this.langPageMode]||[]).filter(w=>(w.streak||0)<3);
+      // 按来源分组
+      const sourceMap={};
+      words.forEach(w=>{const s=w.source||'未知来源';if(!sourceMap[s])sourceMap[s]=[];sourceMap[s].push(w);});
+      const sources=Object.keys(sourceMap).sort((a,b)=>a.localeCompare(b,'zh'));
+      if(!settings.reviewSources)settings.reviewSources=[];
+      // 默认全选
+      if(!settings.reviewSources.length&&sources.length){
+        settings.reviewSources=[...sources];
+        this.saveSettings();
+      }
+      sources.forEach(src=>{
+        const cnt=sourceMap[src].length;
+        const checked=settings.reviewSources.includes(src);
+        const item=document.createElement('div');
+        item.className='lesson-multi-item'+(checked?' selected':'');
+        item.innerHTML='<input type="checkbox" '+(checked?'checked':'')+'><span>'+this._escHtml(src)+'</span><span class="lm-count">('+cnt+'词)</span>';
+        item.onclick=()=>{this.toggleReviewSource(src);};
+        list.appendChild(item);
+      });
+      if(!sources.length){
+        list.innerHTML='<div style="font-size:13px;color:var(--muted);padding:8px;">复习库中暂无待复习的词</div>';
+      }
+      this.updateLangLessonNote(null,null);
+      return;
+    }
+    // 普通词库模式
+    if(!bank||(bank.lessons||[]).length===0){
+      row.classList.remove('show');
+      if(bank)settings.lessonIds=['other'];
+      return;
+    }
+    row.classList.add('show');
+    list.innerHTML='';
+    if(!settings.lessonIds||!Array.isArray(settings.lessonIds))settings.lessonIds=[];
+    const available=[];
+    (bank.lessons||[]).forEach(lesson=>{available.push(lesson.id);});
+    if((bank.other||[]).length)available.push('other');
+    // 默认全选
+    if(!settings.lessonIds.length&&available.length){
+      settings.lessonIds=[...available];
       this.saveSettings();
     }
-    sel.value=lessonId;this.updateLangLessonNote(bank,lessonId);
+    // 过滤掉不存在的
+    settings.lessonIds=settings.lessonIds.filter(id=>available.includes(id));
+    (bank.lessons||[]).forEach(lesson=>{
+      const cnt=(lesson.words||[]).length;
+      const checked=settings.lessonIds.includes(lesson.id);
+      const item=document.createElement('div');
+      item.className='lesson-multi-item'+(checked?' selected':'');
+      item.innerHTML='<input type="checkbox" '+(checked?'checked':'')+'><span>'+this._escHtml(lesson.name)+'</span><span class="lm-count">('+cnt+'词)</span>';
+      item.onclick=()=>{this.toggleLesson(lesson.id);};
+      list.appendChild(item);
+    });
+    if((bank.other||[]).length){
+      const cnt=bank.other.length;
+      const checked=settings.lessonIds.includes('other');
+      const item=document.createElement('div');
+      item.className='lesson-multi-item'+(checked?' selected':'');
+      item.innerHTML='<input type="checkbox" '+(checked?'checked':'')+'><span>其他</span><span class="lm-count">('+cnt+'词)</span>';
+      item.onclick=()=>{this.toggleLesson('other');};
+      list.appendChild(item);
+    }
+    this.updateLangLessonNote(bank,null);
   },
-  selectLangLesson(lessonId){
-    this.curSettings().lessonId=lessonId;this.saveSettings();
-    const bank=this.findManagedBank(this.langPageMode,this.curSettings().bankId||this.curSettings().grade);this.updateLangLessonNote(bank,lessonId);
+  toggleLesson(lessonId){
+    const settings=this.curSettings();
+    if(!settings.lessonIds)settings.lessonIds=[];
+    const idx=settings.lessonIds.indexOf(lessonId);
+    if(idx>=0)settings.lessonIds.splice(idx,1);
+    else settings.lessonIds.push(lessonId);
+    this.saveSettings();
+    const bank=this.findManagedBank(this.langPageMode,settings.bankId||settings.grade);
+    this.renderLangLessonSelector(bank);
+  },
+  toggleReviewSource(src){
+    const settings=this.curSettings();
+    if(!settings.reviewSources)settings.reviewSources=[];
+    const idx=settings.reviewSources.indexOf(src);
+    if(idx>=0)settings.reviewSources.splice(idx,1);
+    else settings.reviewSources.push(src);
+    this.saveSettings();
+    this.renderLangLessonSelector(null);
+  },
+  toggleAllLessons(selectAll){
+    const settings=this.curSettings();
+    if(settings.bankId==='__review__'){
+      const reviewBank=this.getReviewBank();
+      const words=(reviewBank[this.langPageMode]||[]).filter(w=>(w.streak||0)<3);
+      const sources=[...new Set(words.map(w=>w.source||'未知来源'))];
+      settings.reviewSources=selectAll?sources:[];
+    }else{
+      const bank=this.findManagedBank(this.langPageMode,settings.bankId||settings.grade);
+      if(bank){
+        const ids=(bank.lessons||[]).map(l=>l.id);
+        if((bank.other||[]).length)ids.push('other');
+        settings.lessonIds=selectAll?ids:[];
+      }
+    }
+    this.saveSettings();
+    this.renderLangLessonSelector(settings.bankId==='__review__'?null:this.findManagedBank(this.langPageMode,settings.bankId||settings.grade));
   },
   NEW_WORD_RATIO:10,
   REVIEW_WORD_RATIO:3,
@@ -3423,9 +3556,22 @@ const App={
     return {newCount:limitedNewCount,reviewCount:this.calculateAllReviewCount(limitedNewCount)};
   },
   updateLangLessonNote(bank,lessonId){
-    const note=document.getElementById('lang-lesson-note');if(!note||!bank)return;
-    const count=this.getBankScopeWords(bank,lessonId).length,review=this.calculateAllReviewCount(count);
-    note.textContent='本课 '+count+' 个词；生词:复习词 = 10:3。听写整课时最多混入 '+review+' 个复习词。';
+    const note=document.getElementById('lang-lesson-note');if(!note)return;
+    const settings=this.curSettings();
+    if(settings.bankId==='__review__'){
+      const reviewBank=this.getReviewBank();
+      const words=(reviewBank[this.langPageMode]||[]).filter(w=>(w.streak||0)<3);
+      const selected=settings.reviewSources||[];
+      const count=words.filter(w=>selected.includes(w.source||'未知来源')).length;
+      note.textContent='已选 '+selected.length+' 个来源，共 '+count+' 个待复习词。';
+      return;
+    }
+    if(!bank)return;
+    const lessonIds=settings.lessonIds||[];
+    let count=0;
+    lessonIds.forEach(id=>{count+=this.getBankScopeWords(bank,id).length;});
+    const review=this.calculateAllReviewCount(count);
+    note.textContent='已选 '+lessonIds.length+' 篇课文，共 '+count+' 个词；生词:复习词 = 10:3。最多混入 '+review+' 个复习词。';
   },
   showLessonCoveragePrompt(lessonName,newWordCount){
     const partialTotal=Math.min(this.dailyCount,newWordCount);
@@ -3579,23 +3725,47 @@ const App={
       words=this.parseCustom(custom,this.mode);
       if(!words.length){App.showToast('请粘贴至少一个词');return;}
       source={type:'custom',mode:this.mode,grade:this.grade,customText:custom};
+    }else if(this.curSettings().bankId==='__review__'){
+      // 复习库模式：按来源筛选
+      const reviewBank=this.getReviewBank();
+      const allWords=(reviewBank[this.mode]||[]).filter(w=>(w.streak||0)<3);
+      const selectedSources=this.curSettings().reviewSources||[];
+      const all=allWords.filter(w=>selectedSources.includes(w.source||'未知来源'));
+      if(!all.length){App.showToast('所选来源中没有待复习的词');return;}
+      const cnt=this.dailyCount>0?Math.min(this.dailyCount,all.length):all.length;
+      // 复习库听写不混入额外复习词（本身就是复习词）
+      words=(this.curSettings().dictOrder==='shuffle')?this.shuffleArray(all).slice(0,cnt):all.slice(0,cnt);
+      words=words.map(w=>({text:w.text,hint:w.hint||'',fromReview:true}));
+      const sourceNames=selectedSources.length>3?selectedSources.slice(0,3).join('、')+'等':selectedSources.join('、');
+      source={type:'review',mode:this.mode,grade:'复习库',bankName:'复习库',bankId:'__review__',lessonIds:selectedSources,lessonName:sourceNames,lessonCoverage:'all',totalCount:all.length,sessionCount:words.length,mixedReview:false,reviewCount:0};
     }else if(this.curSettings().bankId){
-      // 从统一的 v2 词库读取（内置与自建都走同一路径）；有课文时只读取当前课文
+      // 从统一的 v2 词库读取（内置与自建都走同一路径）；支持多课文
       const bank=this.findManagedBank(this.mode,this.curSettings().bankId||this.grade);
       if(!bank){App.showToast('未找到该词库，请重新选择');this.renderLangGradeChips();return;}
-      const lessonId=(bank.lessons||[]).length?(this.curSettings().lessonId||((bank.lessons[0]||{}).id)): 'other';
-      const lesson=(bank.lessons||[]).find(l=>l.id===lessonId);
-      const scopeName=lesson?lesson.name:'其他';
-      const all=(bank.lessons||[]).length?this.getBankScopeWords(bank,lessonId):this.getBankAllWords(bank);
-      if(!all.length){App.showToast('“'+scopeName+'”里还没有词语');return;}
-      if(lesson&&this.dailyCount>0&&lessonCoverage!=='all'&&lessonCoverage!=='partial'){
+      const lessonIds=(this.curSettings().lessonIds&&this.curSettings().lessonIds.length)?this.curSettings().lessonIds:((bank.lessons||[]).length?[(bank.lessons[0]||{}).id]:['other']);
+      // 收集所有选中课文的词语
+      let all=[];
+      const scopeNames=[];
+      lessonIds.forEach(id=>{
+        const lesson=(bank.lessons||[]).find(l=>l.id===id);
+        if(lesson)scopeNames.push(lesson.name);
+        else if(id==='other')scopeNames.push('其他');
+        const ws=(bank.lessons||[]).length?this.getBankScopeWords(bank,id):this.getBankAllWords(bank);
+        all=all.concat(ws);
+      });
+      // 去重
+      const seen=new Set();all=all.filter(w=>{const t=w.text.toLocaleLowerCase();if(seen.has(t))return false;seen.add(t);return true;});
+      const scopeName=scopeNames.length>3?scopeNames.slice(0,3).join('、')+'等':scopeNames.join('、');
+      if(!all.length){App.showToast('所选课文里还没有词语');return;}
+      // 只选一篇课文时显示覆盖提示；多选时跳过
+      const singleLesson=lessonIds.length===1;
+      if(singleLesson&&this.dailyCount>0&&lessonCoverage!=='all'&&lessonCoverage!=='partial'){
         this.showLessonCoveragePrompt(scopeName,all.length);
         return;
       }
       let reviewWords=[],newWords=[],cnt;
-      const useAll=this.dailyCount===0||(!!lesson&&lessonCoverage==='all');
+      const useAll=this.dailyCount===0||(singleLesson&&lessonCoverage==='all');
       if(useAll){
-        // “全部”必须覆盖本课全部生词；再按 10:3 的目标比例反推复习词数量
         cnt=all.length;
         const scopeTexts=new Set(all.map(w=>w.text.toLocaleLowerCase()));
         reviewWords=this.pickReviewWordsExcluding(this.mode,this.calculateAllReviewCount(all.length),scopeTexts);
@@ -3611,7 +3781,7 @@ const App={
         newWords=(this.curSettings().dictOrder==='shuffle')?this.shuffleArray(newWordsPool).slice(0,newTarget):newWordsPool.slice(0,newTarget);
       }
       words=[...reviewWords.map(w=>({text:w.text,hint:w.hint||'',fromReview:true})),...newWords.map(w=>({text:w.text,hint:w.hint||'',fromReview:false}))];
-      source={type:bank.source==='preset'?'preset':'customBank',mode:this.mode,grade:bank.name+((bank.lessons||[]).length?' · '+scopeName:''),bankName:bank.name,bankId:bank.id,lessonId,lessonName:scopeName,lessonCoverage:useAll?'all':'partial',totalCount:all.length,sessionCount:words.length,mixedReview:reviewWords.length>0,reviewCount:reviewWords.length};
+      source={type:bank.source==='preset'?'preset':'customBank',mode:this.mode,grade:bank.name+' · '+scopeName,bankName:bank.name,bankId:bank.id,lessonIds,lessonName:scopeName,lessonCoverage:useAll?'all':'partial',totalCount:all.length,sessionCount:words.length,mixedReview:reviewWords.length>0,reviewCount:reviewWords.length};
     }else{
       // 从预设词表构建词库，并去重（词库中可能存在重复词条）
       const all=(()=>{
