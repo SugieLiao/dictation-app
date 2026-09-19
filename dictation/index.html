@@ -3522,7 +3522,7 @@ const App={
     const sources=Object.keys(sourceMap).sort((a,b)=>a.localeCompare(b,'zh'));
     if(sources.length){
       const reviewHeader=document.createElement('div');
-      reviewHeader.style.cssText='font-size:12px;color:var(--muted);font-weight:600;margin:4px 0 6px;';
+      reviewHeader.style.cssText='font-size:12px;color:var(--muted);font-weight:600;margin:8px 0 6px;width:100%;flex-basis:100%;';
       reviewHeader.textContent='🔁 复习库来源';
       list.appendChild(reviewHeader);
       sources.forEach(src=>{
