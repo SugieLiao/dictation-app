@@ -1006,9 +1006,9 @@
       <div class="bm-scope-row" id="lang-lesson-row" style="display:none;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
           <label id="lang-lesson-label" style="font-size:13px;font-weight:600;">选择课文（可多选）</label>
-          <div style="display:flex;gap:6px;">
-            <button class="btn btn-ghost" style="padding:3px 10px;font-size:12px;" onclick="App.toggleAllLessons(true)">全选</button>
-            <button class="btn btn-ghost" style="padding:3px 10px;font-size:12px;" onclick="App.toggleAllLessons(false)">全不选</button>
+          <div style="display:flex;gap:6px;flex-shrink:0;">
+            <button class="btn btn-ghost" style="padding:3px 10px;font-size:12px;white-space:nowrap;" onclick="App.toggleAllLessons(true)">全选</button>
+            <button class="btn btn-ghost" style="padding:3px 10px;font-size:12px;white-space:nowrap;" onclick="App.toggleAllLessons(false)">全不选</button>
           </div>
         </div>
         <div id="lang-lesson-multi" class="lesson-multi-list"></div>
@@ -3448,17 +3448,53 @@ const App={
     if(!currentBankId){row.style.display='none';return;}
     row.style.display='block';
     list.innerHTML='';
-    if(currentBankId==='__review__'){
-      // 显示复习库来源
-      if(label)label.textContent='选择复习来源（可多选）';
-      const reviewBank=this.getReviewBank();
-      const reviewWords=(reviewBank[mode]||[]).filter(w=>(w.streak||0)<3);
-      const sourceMap={};
-      reviewWords.forEach(w=>{const s=w.source||'未知来源';if(!sourceMap[s])sourceMap[s]=0;sourceMap[s]++;});
-      const sources=Object.keys(sourceMap).sort((a,b)=>a.localeCompare(b,'zh'));
-      if(!sources.length){
-        list.innerHTML='<div style="font-size:13px;color:var(--muted);padding:16px;text-align:center;">复习库中暂无待复习的词语</div>';
+    const isReviewOnly=currentBankId==='__review__';
+    if(label)label.textContent=isReviewOnly?'选择复习来源（可多选）':'选择课文（可多选，含复习库）';
+    // 如果不是复习库专属视图，先显示普通教材的课文
+    if(!isReviewOnly){
+      const bank=this.findManagedBank(mode,currentBankId);
+      if(bank){
+        const lessons=bank.lessons||[];
+        const hasOther=(bank.other||[]).length>0;
+        if(lessons.length||hasOther){
+          lessons.forEach(lesson=>{
+            const cnt=(lesson.words||[]).length;
+            const key=this._lessonKey(bank.id,lesson.id);
+            const checked=settings.selectedLessonKeys.includes(key);
+            const item=document.createElement('div');
+            item.className='lesson-multi-item'+(checked?' selected':'');
+            item.innerHTML='<input type="checkbox" '+(checked?'checked':'')+'><span>'+this._escHtml(lesson.name)+'</span><span class="lm-count">('+cnt+'词)</span>';
+            item.onclick=()=>{this.toggleLessonKey(key);};
+            list.appendChild(item);
+          });
+          if(hasOther){
+            const cnt=bank.other.length;
+            const key=this._lessonKey(bank.id,'other');
+            const checked=settings.selectedLessonKeys.includes(key);
+            const item=document.createElement('div');
+            item.className='lesson-multi-item'+(checked?' selected':'');
+            item.innerHTML='<input type="checkbox" '+(checked?'checked':'')+'><span>其他</span><span class="lm-count">('+cnt+'词)</span>';
+            item.onclick=()=>{this.toggleLessonKey(key);};
+            list.appendChild(item);
+          }
+        }
       }
+      // 分隔线
+      const sep=document.createElement('div');
+      sep.style.cssText='width:100%;height:1px;background:var(--border);margin:8px 0;';
+      list.appendChild(sep);
+    }
+    // 显示复习库来源（始终显示，除非复习库为空）
+    const reviewBank=this.getReviewBank();
+    const reviewWords=(reviewBank[mode]||[]).filter(w=>(w.streak||0)<3);
+    const sourceMap={};
+    reviewWords.forEach(w=>{const s=w.source||'未知来源';if(!sourceMap[s])sourceMap[s]=0;sourceMap[s]++;});
+    const sources=Object.keys(sourceMap).sort((a,b)=>a.localeCompare(b,'zh'));
+    if(sources.length){
+      const reviewHeader=document.createElement('div');
+      reviewHeader.style.cssText='font-size:12px;color:var(--muted);font-weight:600;margin:4px 0 6px;';
+      reviewHeader.textContent='🔁 复习库来源';
+      list.appendChild(reviewHeader);
       sources.forEach(src=>{
         const cnt=sourceMap[src];
         const key=this._reviewSourceKey(src);
@@ -3469,36 +3505,8 @@ const App={
         item.onclick=()=>{this.toggleLessonKey(key);};
         list.appendChild(item);
       });
-    }else{
-      // 显示普通词库的课文
-      if(label)label.textContent='选择课文（可多选）';
-      const bank=this.findManagedBank(mode,currentBankId);
-      if(!bank){row.style.display='none';return;}
-      const lessons=bank.lessons||[];
-      const hasOther=(bank.other||[]).length>0;
-      if(!lessons.length&&!hasOther){
-        list.innerHTML='<div style="font-size:13px;color:var(--muted);padding:16px;text-align:center;">该词库暂无课文</div>';
-      }
-      lessons.forEach(lesson=>{
-        const cnt=(lesson.words||[]).length;
-        const key=this._lessonKey(bank.id,lesson.id);
-        const checked=settings.selectedLessonKeys.includes(key);
-        const item=document.createElement('div');
-        item.className='lesson-multi-item'+(checked?' selected':'');
-        item.innerHTML='<input type="checkbox" '+(checked?'checked':'')+'><span>'+this._escHtml(lesson.name)+'</span><span class="lm-count">('+cnt+'词)</span>';
-        item.onclick=()=>{this.toggleLessonKey(key);};
-        list.appendChild(item);
-      });
-      if(hasOther){
-        const cnt=bank.other.length;
-        const key=this._lessonKey(bank.id,'other');
-        const checked=settings.selectedLessonKeys.includes(key);
-        const item=document.createElement('div');
-        item.className='lesson-multi-item'+(checked?' selected':'');
-        item.innerHTML='<input type="checkbox" '+(checked?'checked':'')+'><span>其他</span><span class="lm-count">('+cnt+'词)</span>';
-        item.onclick=()=>{this.toggleLessonKey(key);};
-        list.appendChild(item);
-      }
+    }else if(isReviewOnly){
+      list.innerHTML='<div style="font-size:13px;color:var(--muted);padding:16px;text-align:center;">复习库中暂无待复习的词语</div>';
     }
     this.updateLangLessonNote();
   },
@@ -3519,17 +3527,19 @@ const App={
     const currentBankId=settings.currentBankId||'';
     if(!currentBankId)return;
     const currentKeys=[];
-    if(currentBankId==='__review__'){
-      const reviewBank=this.getReviewBank();
-      const reviewWords=(reviewBank[mode]||[]).filter(w=>(w.streak||0)<3);
-      const sources=new Set(reviewWords.map(w=>w.source||'未知来源'));
-      sources.forEach(s=>currentKeys.push(this._reviewSourceKey(s)));
-    }else{
+    // 当前教材的课文
+    if(currentBankId!=='__review__'){
       const bank=this.findManagedBank(mode,currentBankId);
-      if(!bank)return;
-      (bank.lessons||[]).forEach(l=>currentKeys.push(this._lessonKey(bank.id,l.id)));
-      if((bank.other||[]).length)currentKeys.push(this._lessonKey(bank.id,'other'));
+      if(bank){
+        (bank.lessons||[]).forEach(l=>currentKeys.push(this._lessonKey(bank.id,l.id)));
+        if((bank.other||[]).length)currentKeys.push(this._lessonKey(bank.id,'other'));
+      }
     }
+    // 复习库来源（始终包含）
+    const reviewBank=this.getReviewBank();
+    const reviewWords=(reviewBank[mode]||[]).filter(w=>(w.streak||0)<3);
+    const sources=new Set(reviewWords.map(w=>w.source||'未知来源'));
+    sources.forEach(s=>currentKeys.push(this._reviewSourceKey(s)));
     if(selectAll){
       currentKeys.forEach(k=>{if(!settings.selectedLessonKeys.includes(k))settings.selectedLessonKeys.push(k);});
     }else{
@@ -3539,164 +3549,40 @@ const App={
     this.renderLangLessonSelector();
   },
 
-  updateLangLessonNote(){
-    const note=document.getElementById('lang-lesson-note');if(!note)return;
-    const settings=this.curSettings();
-    const keys=settings.selectedLessonKeys||[];
-    if(!keys.length){note.textContent='请至少选择一项内容';return;}
-    let bankCount=0,reviewCount=0,bankLessons=0,reviewSources=0;
-    keys.forEach(key=>{
-      const parsed=this._parseLessonKey(key);
-      if(parsed.type==='bank'){
-        const bank=this.findManagedBank(this.langPageMode,parsed.bankId);
-        if(bank){bankCount+=this.getBankScopeWords(bank,parsed.lessonId).length;bankLessons++;}
-      }else{
-        const reviewBank=this.getReviewBank();
-        const words=(reviewBank[this.langPageMode]||[]).filter(w=>(w.streak||0)<3);
-        reviewCount+=words.filter(w=>(w.source||'未知来源')===parsed.source).length;
-        reviewSources++;
-      }
+  // 解析手动输入的词语（支持 |、空格、换行分隔，支持 词语:提示 格式）
+  parseManualWords(raw){
+    if(!raw)return [];
+    const result=[];
+    // 先按 | 分割
+    const segments=raw.split(/[|｜]/);
+    segments.forEach(seg=>{
+      seg=seg.trim();
+      if(!seg)return;
+      // 按空格分割成 tokens，然后处理冒号
+      const tokens=seg.split(/\s+/).filter(s=>s.length>0);
+      let current=null;
+      tokens.forEach(token=>{
+        const colonIdx=token.search(/[:：]/);
+        if(colonIdx>0){
+          // token 包含冒号：先保存上一个词，再开始新词
+          if(current)result.push(current);
+          current={text:token.substring(0,colonIdx).trim(),hint:token.substring(colonIdx+1).trim()};
+        }else if(current&&current.hint!==''){
+          // 当前词有 hint，后续 token 追加到 hint
+          current.hint+=' '+token;
+        }else{
+          // 没有冒号且当前词没有 hint：先保存上一个词，再开始新词
+          if(current)result.push(current);
+          current={text:token,hint:''};
+        }
+      });
+      if(current)result.push(current);
     });
-    const total=bankCount+reviewCount;
-    const mixedReview=this.calculateAllReviewCount(bankCount);
-    let msg='已选 '+keys.length+' 项，共 '+total+' 个词';
-    if(bankLessons)msg+='（'+bankLessons+' 篇课文 '+bankCount+' 词）';
-    if(reviewSources)msg+='（'+reviewSources+' 个复习来源 '+reviewCount+' 词）';
-    if(bankCount>0)msg+='；普通课文最多混入 '+mixedReview+' 个复习词';
-    note.textContent=msg;
+    return result.filter(w=>w.text.length>0);
   },
-  showLessonCoveragePrompt(lessonName,newWordCount){
-    const partialTotal=Math.min(this.dailyCount,newWordCount);
-    const partialReview=this.calculateReviewCountForTotal(partialTotal);
-    const partialNew=Math.max(0,partialTotal-partialReview);
-    const allReview=this.calculateAllReviewCount(newWordCount);
-    document.getElementById('lesson-coverage-sub').textContent='“'+lessonName+'”共有 '+newWordCount+' 个生词。复习词按 10:3 目标比例混入。';
-    document.getElementById('lesson-coverage-all-detail').textContent='本课 '+newWordCount+' 个生词 + 最多 '+allReview+' 个复习词';
-    document.getElementById('lesson-coverage-partial-detail').textContent='按当前设置共 '+partialTotal+' 词：约 '+partialNew+' 个生词 + '+partialReview+' 个复习词';
-    document.getElementById('lesson-coverage-mask').classList.add('show');
-  },
-  closeLessonCoveragePrompt(){
-    document.getElementById('lesson-coverage-mask').classList.remove('show');
-  },
-  chooseLessonCoverage(choice){
-    if(choice!=='all'&&choice!=='partial')return;
-    this.closeLessonCoveragePrompt();
-    this.beginDictation(choice);
-  },
-
-  toggleCustomInput(){
-    const ta=document.getElementById('lang-custom-list');
-    const hint=document.getElementById('lang-custom-hint');
-    const toggle=document.getElementById('lang-custom-toggle');
-    if(!ta)return;
-    const show=ta.style.display==='none';
-    ta.style.display=show?'block':'none';
-    if(hint)hint.style.display=show?'block':'none';
-    if(toggle)toggle.textContent=show?'− 隐藏自定义听写内容':'+ 自定义听写内容';
-    if(show)ta.focus();
-  },
-
-  hideCustomInput(){
-    const ta=document.getElementById('lang-custom-list');
-    const hint=document.getElementById('lang-custom-hint');
-    const toggle=document.getElementById('lang-custom-toggle');
-    if(ta)ta.style.display='none';
-    if(hint)hint.style.display='none';
-    if(toggle)toggle.textContent='+ 自定义听写内容';
-  },
-
-  toggleReadingSettings(){
-    const card=document.getElementById('reading-settings-card');
-    const body=document.getElementById('reading-settings-body');
-    const arrow=document.getElementById('rs-arrow');
-    if(!card||!body||!arrow)return;
-    const isOpen=body.style.display==='block';
-    body.style.display=isOpen?'none':'block';
-    arrow.textContent=isOpen?'▸':'▾';
-    card.classList.toggle('card-collapsed',!isOpen);
-  },
-
-  collapseReadingSettings(){
-    const body=document.getElementById('reading-settings-body');
-    const arrow=document.getElementById('rs-arrow');
-    const card=document.getElementById('reading-settings-card');
-    if(body)body.style.display='none';
-    if(arrow)arrow.textContent='▸';
-    if(card)card.classList.add('card-collapsed');
-  },
-
-  // 导航历史栈，用于「返回上一页」
-  navHistory:[],
-
-  go(name){
-    // 记录当前页面到历史栈（如果当前有 active 页面且目标不是当前页）
-    const cur=document.querySelector('.screen.active');
-    if(cur){
-      const curName=cur.id.replace('screen-','');
-      if(curName!==name)this.navHistory.push(curName);
-      // 离开复习库页面时隐藏编辑工具栏
-      if(curName==='review'){
-        document.getElementById('review-edit-toolbar').style.display='none';
-        this._editMode=false;
-        const tb=document.getElementById('et-toggle-btn');
-        if(tb){tb.classList.remove('active');tb.textContent='✏️ 编辑';}
-        const ab=document.getElementById('et-add-btn');
-        if(ab)ab.style.display='none';
-      }
-    }
-    document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
-    document.getElementById('screen-'+name).classList.add('active');
-    window.scrollTo(0,0);
-  },
-  goBack(){
-    if(this.navHistory.length){
-      const prev=this.navHistory.pop();
-      document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
-      document.getElementById('screen-'+prev).classList.add('active');
-      window.scrollTo(0,0);
-      // 回到复习库页面时显示编辑工具栏，离开时隐藏
-      if(prev==='review'){
-        document.getElementById('review-edit-toolbar').style.display='';
-      } else {
-        document.getElementById('review-edit-toolbar').style.display='none';
-        this._editMode=false;
-        const tb=document.getElementById('et-toggle-btn');
-        if(tb){tb.classList.remove('active');tb.textContent='✏️ 编辑';}
-        const ab=document.getElementById('et-add-btn');
-        if(ab)ab.style.display='none';
-      }
-    }else{
-      // 没有历史记录时回首页
-      this.go('home');
-    }
-  },
-
-  parseCustom(text,mode){
-    return this.parseManualWords(text);
-  },
-  parseManualWords(text){
-    const words=[];
-    String(text||'').split(/[|\r\n]+/).map(part=>part.trim()).filter(Boolean).forEach(part=>{
-      const colonIndex=part.search(/[：:]/);
-      if(colonIndex<0){
-        part.split(/\s+/).filter(Boolean).forEach(text=>words.push({text,hint:''}));
-        return;
-      }
-      const before=part.slice(0,colonIndex).trim(),hint=part.slice(colonIndex+1).trim();
-      const texts=before.split(/\s+/).filter(Boolean);
-      texts.slice(0,-1).forEach(text=>words.push({text,hint:''}));
-      if(texts.length)words.push({text:texts[texts.length-1],hint});
-    });
-    return words;
-  },
-  // Fisher-Yates 洗牌算法
-  shuffleArray(arr){
-    const a=[...arr];
-    for(let i=a.length-1;i>0;i--){
-      const j=Math.floor(Math.random()*(i+1));
-      [a[i],a[j]]=[a[j],a[i]];
-    }
-    return a;
+  // 解析自定义输入（英语，逻辑同 parseManualWords）
+  parseCustom(raw){
+    return this.parseManualWords(raw);
   },
   // 复习词混入比例常量
   NEW_WORD_RATIO: 10,
