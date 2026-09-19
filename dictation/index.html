@@ -344,8 +344,8 @@
   .rw-table .rw-cell-due .rw-due.due-now{background:#fff0ed;color:var(--red);}
   .rw-table .rw-cell-due .rw-due.due-future{background:#f0f4ff;color:var(--blue);}
   .rw-table .rw-cell-due .rw-replay{color:var(--primary);font-size:16px;cursor:pointer;}
-  .rw-table .rw-cell-due .rw-edit-btns{display:inline-flex;gap:4px;margin-left:4px;}
-  .rw-table .rw-cell-due .rw-edit-btn{width:26px;height:26px;font-size:13px;flex-shrink:0;}
+  .rw-table .rw-cell-due .rw-edit-btns{display:inline-flex;flex-direction:row;flex-wrap:nowrap;gap:4px;margin-left:4px;white-space:nowrap;}
+  .rw-table .rw-cell-due .rw-edit-btn{width:26px;height:26px;font-size:13px;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;}
 
   /* 复习库编辑模式 */
   .rw-edit-btn{
