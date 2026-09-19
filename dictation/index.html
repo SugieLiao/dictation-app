@@ -1455,7 +1455,9 @@
           </div>
           <div id="word-edit-source-field" style="display:none;">
             <label style="font-size:13px;color:var(--muted);display:block;margin-bottom:5px;">来源（可选）</label>
-            <input type="text" id="word-edit-source" placeholder="如：四年级上册-第2课" autocomplete="off" style="width:100%;padding:10px 12px;font-size:14px;border:1px solid var(--border);border-radius:8px;box-sizing:border-box;background:var(--card);color:var(--text);" onkeydown="if(event.key==='Enter')App.submitWordEdit()">
+            <select id="word-edit-source" style="width:100%;padding:10px 12px;font-size:14px;border:1px solid var(--border);border-radius:8px;box-sizing:border-box;background:var(--card);color:var(--text);">
+              <option value="">— 未知来源 —</option>
+            </select>
           </div>
           <div id="word-edit-msg" style="font-size:13px;min-height:18px;"></div>
           <div class="btn-row">
@@ -4143,6 +4145,20 @@ const App={
     panel.innerHTML=html;
   },
 
+  getAllSourceOptions(mode){
+    // 获取所有词库的所有课文作为来源选项，格式：教材名-课文名
+    const banks=this.getManagedBanks(mode);
+    const options=[];
+    banks.forEach(bank=>{
+      (bank.lessons||[]).forEach(lesson=>{
+        options.push(bank.name+'-'+lesson.name);
+      });
+      if((bank.other||[]).length){
+        options.push(bank.name+'-其他');
+      }
+    });
+    return [...new Set(options)].sort((a,b)=>a.localeCompare(b,'zh'));
+  },
   editReviewSource(key){
     const textEl=document.getElementById('src-text-'+key);
     if(!textEl)return;
@@ -4152,21 +4168,40 @@ const App={
     textEl.style.display='none';
     const editBtn=cell.querySelector('.rw-source-edit');
     if(editBtn)editBtn.style.display='none';
-    // 创建输入框
-    const input=document.createElement('input');
-    input.type='text';
-    input.className='rw-source-input';
-    input.value=current==='未知来源'?'':current;
-    input.placeholder='输入来源，如：四年级上册-第2课';
-    input.dataset.key=key;
-    input.onkeydown=(e)=>{
-      if(e.key==='Enter'){this.saveReviewSource(key,input.value);}
-      else if(e.key==='Escape'){this.renderReviewPending();}
-    };
-    input.onblur=()=>{this.saveReviewSource(key,input.value);};
-    cell.appendChild(input);
-    input.focus();
-    input.select();
+    // 从 key 中解析 mode
+    const idx=key.lastIndexOf('-');
+    const mode=key.slice(0,idx);
+    // 创建下拉列表
+    const select=document.createElement('select');
+    select.className='rw-source-input';
+    select.style.width='100%';
+    select.style.maxWidth='180px';
+    select.dataset.key=key;
+    // 选项：未知来源 + 所有课文
+    const options=this.getAllSourceOptions(mode);
+    const emptyOpt=document.createElement('option');
+    emptyOpt.value='';
+    emptyOpt.textContent='— 未知来源 —';
+    select.appendChild(emptyOpt);
+    options.forEach(src=>{
+      const opt=document.createElement('option');
+      opt.value=src;
+      opt.textContent=src;
+      if(src===current)opt.selected=true;
+      select.appendChild(opt);
+    });
+    // 如果当前来源不在选项中，添加一个自定义选项
+    if(current!=='未知来源'&&!options.includes(current)){
+      const opt=document.createElement('option');
+      opt.value=current;
+      opt.textContent=current+' (自定义)';
+      opt.selected=true;
+      select.appendChild(opt);
+    }
+    select.onchange=()=>{this.saveReviewSource(key,select.value);};
+    select.onblur=()=>{this.saveReviewSource(key,select.value);};
+    cell.appendChild(select);
+    select.focus();
   },
   saveReviewSource(key,newSource){
     newSource=(newSource||'').trim();
@@ -4388,7 +4423,16 @@ const App={
     document.getElementById('word-edit-sub').textContent = '直接添加，无需密码';
     document.getElementById('word-edit-text').value = '';
     document.getElementById('word-edit-hint').value = '';
-    document.getElementById('word-edit-source').value = '';
+    // 动态填充来源下拉选项
+    const sourceSelect=document.getElementById('word-edit-source');
+    sourceSelect.innerHTML='<option value="">— 未知来源 —</option>';
+    const options=this.getAllSourceOptions(this.reviewLang);
+    options.forEach(src=>{
+      const opt=document.createElement('option');
+      opt.value=src;
+      opt.textContent=src;
+      sourceSelect.appendChild(opt);
+    });
     document.getElementById('word-edit-hint-field').style.display = 'none';
     document.getElementById('word-edit-source-field').style.display = '';
     document.getElementById('word-edit-text').placeholder = '输入词语';
