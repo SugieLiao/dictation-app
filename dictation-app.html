@@ -757,8 +757,14 @@
   .bm-word-chip .hint{font-size:11px;color:var(--muted);}
   .bm-word-chip .edit{font-size:11px;color:var(--primary);}
   .bm-word-chip.passed{border-color:#34c759;background:#f0fff4;}
+  .bm-word-chip.in-review{border-color:var(--primary);background:#fff4ec;}
   .bm-word-chip .passed-mark{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:#34c759;color:#fff;font-size:10px;font-weight:800;cursor:pointer;flex-shrink:0;line-height:1;}
   .bm-word-chip .passed-mark:hover{background:#28a745;}
+  .bm-word-chip .review-mark{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:var(--primary);color:#fff;font-size:9px;font-weight:800;cursor:pointer;flex-shrink:0;line-height:1;}
+  .bm-word-chip .review-mark:hover{background:var(--primary-dark);}
+  .bm-word-status-legend{display:flex;gap:16px;flex-wrap:wrap;margin:8px 0 4px;font-size:12px;color:var(--muted);}
+  .bm-word-status-legend .legend-item{display:inline-flex;align-items:center;gap:5px;}
+  .bm-word-status-legend .legend-dot{width:12px;height:12px;border-radius:3px;border:1.5px solid;}
   .bm-bulk-guide{margin:12px 0 14px;padding:10px 12px;border:1px solid #ffe0c5;border-radius:11px;background:#fff8f1;color:var(--primary-dark);font-size:13px;line-height:1.6;}
   .bm-select-btn{display:flex;align-items:center;justify-content:center;width:100%;margin:10px 0 12px;padding:11px 14px;border:1.5px solid var(--primary);border-radius:11px;background:#fff8f1;color:var(--primary-dark);font-size:14px;font-weight:700;cursor:pointer;}
   .bm-select-btn.active{background:var(--primary);color:#fff;}
@@ -3255,6 +3261,13 @@ const App={
   renderBankManagerContent(bank){
     const wrap=document.getElementById('bm-content');if(!wrap)return;wrap.innerHTML='';
     wrap.classList.toggle('bm-bulk-mode',this.bankManagerBulkMode);
+    // 状态图例
+    if(!this.bankManagerBulkMode){
+      const legend=document.createElement('div');
+      legend.className='bm-word-status-legend';
+      legend.innerHTML=`<span class="legend-item"><span class="legend-dot" style="border-color:#34c759;background:#f0fff4;"></span>已过关</span><span class="legend-item"><span class="legend-dot" style="border-color:var(--primary);background:#fff4ec;"></span>在复习库</span><span class="legend-item"><span class="legend-dot" style="border-color:var(--border);background:#fff;"></span>未听写</span>`;
+      wrap.appendChild(legend);
+    }
     const renderSection=(name,lessonId,words,isOther)=>{
       const sec=document.createElement('div');sec.className='bm-lesson-section';
       sec.innerHTML=`<div class="bm-lesson-head"><div class="bm-lesson-name">${isOther?'📦 ': '📖 '}${this._escHtml(name)}</div><span class="bm-bank-count">${words.length} 词</span><button class="bm-small-btn bm-lesson-rename" style="display:${isOther?'none':'inline-block'};">改名</button><button class="bm-small-btn danger bm-lesson-delete" style="display:${isOther?'none':'inline-block'};">删除</button></div><div class="bm-word-list"></div>`;
@@ -3267,10 +3280,14 @@ const App={
         const key=this.bankManagerWordSelectionKey(lessonId,idx),selected=this.bankManagerSelectedWords.has(key);
         if(selected)chip.classList.add('selected');
         const isPassed=this.isWordPassed(this.bankManagerLang,word.text);
+        const reviewBank=this.getReviewBank();
+        const isInReview=(reviewBank[this.bankManagerLang]||[]).some(w=>w.text.toLocaleLowerCase()===word.text.toLocaleLowerCase());
         if(isPassed)chip.classList.add('passed');
+        else if(isInReview)chip.classList.add('in-review');
         chip.setAttribute('aria-pressed',selected?'true':'false');
         const passedMark=isPassed&&!this.bankManagerBulkMode?`<span class="passed-mark" title="已过关，点击取消过关">✓</span>`:'';
-        chip.innerHTML=`${this.bankManagerBulkMode?'<span class="select-mark" aria-hidden="true">✓</span>':''}<span>${this._escHtml(word.text)}</span>${word.hint?`<span class="hint">${this._escHtml(word.hint)}</span>`:''}${passedMark}<span class="edit">编辑</span>`;
+        const reviewMark=isInReview&&!isPassed&&!this.bankManagerBulkMode?`<span class="review-mark" title="在复习库中">🔁</span>`:'';
+        chip.innerHTML=`${this.bankManagerBulkMode?'<span class="select-mark" aria-hidden="true">✓</span>':''}<span>${this._escHtml(word.text)}</span>${word.hint?`<span class="hint">${this._escHtml(word.hint)}</span>`:''}${passedMark}${reviewMark}<span class="edit">编辑</span>`;
         chip.onclick=e=>{
           if(e.target.classList.contains('passed-mark')){
             e.stopPropagation();
