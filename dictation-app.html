@@ -4454,7 +4454,28 @@ const App={
     document.getElementById('word-edit-sub').textContent = '修改后保存即可';
     document.getElementById('word-edit-text').value = word.text || '';
     document.getElementById('word-edit-hint').value = word.hint || '';
+    // 动态填充来源下拉选项并设置当前值
+    const sourceSelect=document.getElementById('word-edit-source');
+    sourceSelect.innerHTML='<option value="">— 未知来源 —</option>';
+    const options=this.getAllSourceOptions(mode);
+    let hasCurrent=false;
+    options.forEach(src=>{
+      const opt=document.createElement('option');
+      opt.value=src;
+      opt.textContent=src;
+      if(src===word.source){opt.selected=true;hasCurrent=true;}
+      sourceSelect.appendChild(opt);
+    });
+    // 如果当前来源不在选项中，添加自定义选项
+    if(word.source&&!hasCurrent){
+      const opt=document.createElement('option');
+      opt.value=word.source;
+      opt.textContent=word.source+' (自定义)';
+      opt.selected=true;
+      sourceSelect.appendChild(opt);
+    }
     document.getElementById('word-edit-hint-field').style.display = '';
+    document.getElementById('word-edit-source-field').style.display = '';
     document.getElementById('word-edit-text').placeholder = '输入词语';
     document.getElementById('word-edit-msg').innerHTML = '';
     document.getElementById('word-edit-msg').style.color = '';
@@ -4564,6 +4585,8 @@ const App={
         }
         list[t.index].text = text;
         list[t.index].hint = hint;
+        if(source)list[t.index].source=source;
+        else if(source==='')delete list[t.index].source;
       }
       this.saveReviewBank(bank);
       this._refreshReviewUI();
