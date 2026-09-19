@@ -5097,6 +5097,50 @@ const App={
     const sec=document.getElementById(id);
     if(sec)sec.classList.toggle('open');
   },
+  // 导航历史栈，用于「返回上一页」
+  navHistory:[],
+  go(name){
+    const cur=document.querySelector('.screen.active');
+    if(cur){
+      const curName=cur.id.replace('screen-','');
+      if(curName!==name)this.navHistory.push(curName);
+      if(curName==='review'){
+        const tb=document.getElementById('review-edit-toolbar');
+        if(tb)tb.style.display='none';
+        this._editMode=false;
+        const etb=document.getElementById('et-toggle-btn');
+        if(etb){etb.classList.remove('active');etb.textContent='✏️ 编辑';}
+        const ab=document.getElementById('et-add-btn');
+        if(ab)ab.style.display='none';
+      }
+    }
+    document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+    document.getElementById('screen-'+name).classList.add('active');
+    window.scrollTo(0,0);
+  },
+  goBack(){
+    if(this.navHistory.length){
+      const prev=this.navHistory.pop();
+      document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+      document.getElementById('screen-'+prev).classList.add('active');
+      window.scrollTo(0,0);
+      if(prev==='review'){
+        const tb=document.getElementById('review-edit-toolbar');
+        if(tb)tb.style.display='';
+      }else{
+        const tb=document.getElementById('review-edit-toolbar');
+        if(tb)tb.style.display='none';
+        this._editMode=false;
+        const etb=document.getElementById('et-toggle-btn');
+        if(etb){etb.classList.remove('active');etb.textContent='✏️ 编辑';}
+        const ab=document.getElementById('et-add-btn');
+        if(ab)ab.style.display='none';
+      }
+    }else{
+      this.go('home');
+    }
+  },
+
   toggleHelpSection(){
     const c=document.getElementById('help-content');
     if(c){
