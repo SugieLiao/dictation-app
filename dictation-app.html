@@ -999,11 +999,13 @@
       <div class="lang-title" id="lang-page-title">语文听写</div>
     </div>
 
-    <!-- 课文选择（统一分组：普通词库 + 复习库来源） -->
+    <!-- 词库选择 -->
     <div class="card">
-      <div class="section-title">📚 选择要听写的内容（可多选，普通课文与复习库可混合）</div>
-      <div class="bm-scope-row" id="lang-lesson-row" style="display:block;">
+      <div class="section-title">📚 选择词库</div>
+      <div class="chips" id="lang-chips-grade"></div>
+      <div class="bm-scope-row" id="lang-lesson-row" style="display:none;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <label id="lang-lesson-label" style="font-size:13px;font-weight:600;">选择课文（可多选）</label>
           <div style="display:flex;gap:6px;">
             <button class="btn btn-ghost" style="padding:3px 10px;font-size:12px;" onclick="App.toggleAllLessons(true)">全选</button>
             <button class="btn btn-ghost" style="padding:3px 10px;font-size:12px;" onclick="App.toggleAllLessons(false)">全不选</button>
@@ -3388,18 +3390,17 @@ const App={
     const presetOrder=Object.keys(PRESET[mode]||{});
     const presetBanks=allBanks.filter(b=>b.source==='preset').sort((a,b)=>presetOrder.indexOf(a.presetKey)-presetOrder.indexOf(b.presetKey));
     const customBanks=allBanks.filter(b=>b.source!=='preset').sort((a,b)=>a.name.localeCompare(b.name,'zh-CN'));
-    const settings=this.curSettings(),savedGrade=settings.grade||'';
-    let selected=allBanks.find(b=>b.id===settings.bankId)||allBanks.find(b=>b.name===savedGrade&&((settings.gradeType==='preset')===(b.source==='preset')))||presetBanks[0]||customBanks[0]||null;
-    if(selected){this.grade=selected.name;settings.bankId=selected.id;settings.grade=selected.name;settings.gradeType=selected.source==='preset'?'preset':'custom';}
+    const settings=this.curSettings();
+    if(!settings.currentBankId)settings.currentBankId='';
     const renderBankChip=bank=>{
       const c=document.createElement('div'),cnt=this.getBankWordCount(bank);
-      c.className='chip'+(selected&&selected.id===bank.id?' active':'');
+      c.className='chip'+(settings.currentBankId===bank.id?' active':'');
       c.textContent=(bank.source==='preset'?'': '📚 ')+bank.name+(bank.source==='preset'?'':' ('+cnt+')');
       c.onclick=()=>{
-        wrap.querySelectorAll('.chip').forEach(x=>x.classList.remove('active'));c.classList.add('active');selected=bank;
-        this.grade=bank.name;settings.grade=bank.name;settings.gradeType=bank.source==='preset'?'preset':'custom';settings.bankId=bank.id;
-        settings.lessonIds=[];
-        this.saveSettings();this.renderLangLessonSelector(bank);
+        settings.currentBankId=bank.id;
+        this.saveSettings();
+        this.renderLangGradeChips();
+        this.renderLangLessonSelector();
       };
       wrap.appendChild(c);
     };
@@ -3410,29 +3411,20 @@ const App={
       wrap.appendChild(sep);
     }
     customBanks.forEach(renderBankChip);
-    // 分隔线
-    if(allBanks.length){
-      const sep=document.createElement('div');
-      sep.style.cssText='width:100%;height:1px;background:var(--border);margin:4px 0;';
-      wrap.appendChild(sep);
-    }
     // 复习库 chip
     const reviewBank=this.getReviewBank();
     const reviewCount=(reviewBank[mode]||[]).filter(w=>(w.streak||0)<3).length;
-    const isReviewSelected=settings.bankId==='__review__';
     const reviewChip=document.createElement('div');
-    reviewChip.className='chip'+(isReviewSelected?' active':'');
+    reviewChip.className='chip'+(settings.currentBankId==='__review__'?' active':'');
     reviewChip.textContent='🔁 复习库 ('+reviewCount+')';
     reviewChip.onclick=()=>{
-      wrap.querySelectorAll('.chip').forEach(x=>x.classList.remove('active'));
-      reviewChip.classList.add('active');
-      settings.bankId='__review__';settings.grade='复习库';settings.gradeType='review';
-      if(!settings.reviewSources)settings.reviewSources=[];
+      settings.currentBankId='__review__';
       this.saveSettings();
-      this.renderLangLessonSelector(null);
+      this.renderLangGradeChips();
+      this.renderLangLessonSelector();
     };
     wrap.appendChild(reviewChip);
-    this.renderLangLessonSelector(isReviewSelected?null:selected);
+    if(settings.currentBankId)this.renderLangLessonSelector();
   },
 
   // 生成普通课文的唯一key
@@ -3447,32 +3439,46 @@ const App={
   },
   renderLangLessonSelector(){
     if(typeof document==="undefined"||!document.getElementById)return;
-    const row=document.getElementById('lang-lesson-row'),list=document.getElementById('lang-lesson-multi');if(!row||!list)return;
+    const row=document.getElementById('lang-lesson-row'),list=document.getElementById('lang-lesson-multi'),label=document.getElementById('lang-lesson-label');
+    if(!row||!list)return;
     const settings=this.curSettings();
     if(!settings.selectedLessonKeys||!Array.isArray(settings.selectedLessonKeys))settings.selectedLessonKeys=[];
+    const mode=this.langPageMode;
+    const currentBankId=settings.currentBankId||'';
+    if(!currentBankId){row.style.display='none';return;}
     row.style.display='block';
     list.innerHTML='';
-    const mode=this.langPageMode;
-    // 渲染所有普通词库的课文（按词库分组）
-    const allBanks=this.getManagedBanks(mode);
-    const presetOrder=Object.keys(PRESET[mode]||{});
-    const presetBanks=allBanks.filter(b=>b.source==='preset').sort((a,b)=>presetOrder.indexOf(a.presetKey)-presetOrder.indexOf(b.presetKey));
-    const customBanks=allBanks.filter(b=>b.source!=='preset').sort((a,b)=>a.name.localeCompare(b.name,'zh-CN'));
-    const banks=[...presetBanks,...customBanks];
-    banks.forEach(bank=>{
+    if(currentBankId==='__review__'){
+      // 显示复习库来源
+      if(label)label.textContent='选择复习来源（可多选）';
+      const reviewBank=this.getReviewBank();
+      const reviewWords=(reviewBank[mode]||[]).filter(w=>(w.streak||0)<3);
+      const sourceMap={};
+      reviewWords.forEach(w=>{const s=w.source||'未知来源';if(!sourceMap[s])sourceMap[s]=0;sourceMap[s]++;});
+      const sources=Object.keys(sourceMap).sort((a,b)=>a.localeCompare(b,'zh'));
+      if(!sources.length){
+        list.innerHTML='<div style="font-size:13px;color:var(--muted);padding:16px;text-align:center;">复习库中暂无待复习的词语</div>';
+      }
+      sources.forEach(src=>{
+        const cnt=sourceMap[src];
+        const key=this._reviewSourceKey(src);
+        const checked=settings.selectedLessonKeys.includes(key);
+        const item=document.createElement('div');
+        item.className='lesson-multi-item'+(checked?' selected':'');
+        item.innerHTML='<input type="checkbox" '+(checked?'checked':'')+'><span>'+this._escHtml(src)+'</span><span class="lm-count">('+cnt+'词)</span>';
+        item.onclick=()=>{this.toggleLessonKey(key);};
+        list.appendChild(item);
+      });
+    }else{
+      // 显示普通词库的课文
+      if(label)label.textContent='选择课文（可多选）';
+      const bank=this.findManagedBank(mode,currentBankId);
+      if(!bank){row.style.display='none';return;}
       const lessons=bank.lessons||[];
       const hasOther=(bank.other||[]).length>0;
-      if(!lessons.length&&!hasOther)return;
-      let totalCnt=lessons.reduce((s,l)=>s+(l.words||[]).length,0)+(bank.other||[]).length;
-      const group=document.createElement('div');
-      group.className='lesson-group';
-      const header=document.createElement('div');
-      header.className='lesson-group-header';
-      header.innerHTML='<span>'+(bank.source==='preset'?'📖 ':'📚 ')+this._escHtml(bank.name)+'</span><span class="lg-count">'+totalCnt+'词</span>';
-      header.onclick=()=>{group.classList.toggle('collapsed');};
-      group.appendChild(header);
-      const body=document.createElement('div');
-      body.className='lesson-group-body';
+      if(!lessons.length&&!hasOther){
+        list.innerHTML='<div style="font-size:13px;color:var(--muted);padding:16px;text-align:center;">该词库暂无课文</div>';
+      }
       lessons.forEach(lesson=>{
         const cnt=(lesson.words||[]).length;
         const key=this._lessonKey(bank.id,lesson.id);
@@ -3481,7 +3487,7 @@ const App={
         item.className='lesson-multi-item'+(checked?' selected':'');
         item.innerHTML='<input type="checkbox" '+(checked?'checked':'')+'><span>'+this._escHtml(lesson.name)+'</span><span class="lm-count">('+cnt+'词)</span>';
         item.onclick=()=>{this.toggleLessonKey(key);};
-        body.appendChild(item);
+        list.appendChild(item);
       });
       if(hasOther){
         const cnt=bank.other.length;
@@ -3491,46 +3497,12 @@ const App={
         item.className='lesson-multi-item'+(checked?' selected':'');
         item.innerHTML='<input type="checkbox" '+(checked?'checked':'')+'><span>其他</span><span class="lm-count">('+cnt+'词)</span>';
         item.onclick=()=>{this.toggleLessonKey(key);};
-        body.appendChild(item);
+        list.appendChild(item);
       }
-      group.appendChild(body);
-      list.appendChild(group);
-    });
-    // 渲染复习库来源分组
-    const reviewBank=this.getReviewBank();
-    const reviewWords=(reviewBank[mode]||[]).filter(w=>(w.streak||0)<3);
-    const sourceMap={};
-    reviewWords.forEach(w=>{const s=w.source||'未知来源';if(!sourceMap[s])sourceMap[s]=0;sourceMap[s]++;});
-    const sources=Object.keys(sourceMap).sort((a,b)=>a.localeCompare(b,'zh'));
-    if(sources.length){
-      const totalCnt=reviewWords.length;
-      const group=document.createElement('div');
-      group.className='lesson-group review-group';
-      const header=document.createElement('div');
-      header.className='lesson-group-header';
-      header.innerHTML='<span>🔁 复习库</span><span class="lg-count">'+totalCnt+'词待复习</span>';
-      header.onclick=()=>{group.classList.toggle('collapsed');};
-      group.appendChild(header);
-      const body=document.createElement('div');
-      body.className='lesson-group-body';
-      sources.forEach(src=>{
-        const cnt=sourceMap[src];
-        const key=this._reviewSourceKey(src);
-        const checked=settings.selectedLessonKeys.includes(key);
-        const item=document.createElement('div');
-        item.className='lesson-multi-item'+(checked?' selected':'');
-        item.innerHTML='<input type="checkbox" '+(checked?'checked':'')+'><span>'+this._escHtml(src)+'</span><span class="lm-count">('+cnt+'词)</span>';
-        item.onclick=()=>{this.toggleLessonKey(key);};
-        body.appendChild(item);
-      });
-      group.appendChild(body);
-      list.appendChild(group);
-    }
-    if(!banks.length&&!sources.length){
-      list.innerHTML='<div style="font-size:13px;color:var(--muted);padding:16px;text-align:center;">暂无可用的词库和复习内容</div>';
     }
     this.updateLangLessonNote();
   },
+
   toggleLessonKey(key){
     const settings=this.curSettings();
     if(!settings.selectedLessonKeys)settings.selectedLessonKeys=[];
@@ -3543,42 +3515,30 @@ const App={
   toggleAllLessons(selectAll){
     const settings=this.curSettings();
     if(!settings.selectedLessonKeys)settings.selectedLessonKeys=[];
-    if(selectAll){
-      // 收集所有可用的key
-      const mode=this.langPageMode;
-      const keys=[];
-      const allBanks=this.getManagedBanks(mode);
-      allBanks.forEach(bank=>{
-        (bank.lessons||[]).forEach(l=>keys.push(this._lessonKey(bank.id,l.id)));
-        if((bank.other||[]).length)keys.push(this._lessonKey(bank.id,'other'));
-      });
+    const mode=this.langPageMode;
+    const currentBankId=settings.currentBankId||'';
+    if(!currentBankId)return;
+    const currentKeys=[];
+    if(currentBankId==='__review__'){
       const reviewBank=this.getReviewBank();
       const reviewWords=(reviewBank[mode]||[]).filter(w=>(w.streak||0)<3);
-      const sources=[...new Set(reviewWords.map(w=>w.source||'未知来源'))];
-      sources.forEach(s=>keys.push(this._reviewSourceKey(s)));
-      settings.selectedLessonKeys=keys;
+      const sources=new Set(reviewWords.map(w=>w.source||'未知来源'));
+      sources.forEach(s=>currentKeys.push(this._reviewSourceKey(s)));
     }else{
-      settings.selectedLessonKeys=[];
+      const bank=this.findManagedBank(mode,currentBankId);
+      if(!bank)return;
+      (bank.lessons||[]).forEach(l=>currentKeys.push(this._lessonKey(bank.id,l.id)));
+      if((bank.other||[]).length)currentKeys.push(this._lessonKey(bank.id,'other'));
+    }
+    if(selectAll){
+      currentKeys.forEach(k=>{if(!settings.selectedLessonKeys.includes(k))settings.selectedLessonKeys.push(k);});
+    }else{
+      settings.selectedLessonKeys=settings.selectedLessonKeys.filter(k=>!currentKeys.includes(k));
     }
     this.saveSettings();
     this.renderLangLessonSelector();
   },
-  NEW_WORD_RATIO:10,
-  REVIEW_WORD_RATIO:3,
-  get REVIEW_TARGET_RATIO(){return this.REVIEW_WORD_RATIO/(this.NEW_WORD_RATIO+this.REVIEW_WORD_RATIO);},
-  calculateReviewCountForTotal(totalCount){
-    return totalCount>0?Math.max(1,Math.round(totalCount*this.REVIEW_TARGET_RATIO)):0;
-  },
-  calculateAllReviewCount(newWordCount){
-    return newWordCount>0?Math.max(1,Math.round(newWordCount*this.REVIEW_WORD_RATIO/this.NEW_WORD_RATIO)):0;
-  },
-  calculatePartialMixCounts(totalCount,newWordAvailable){
-    const reviewCount=this.calculateReviewCountForTotal(totalCount);
-    const newCount=Math.max(0,totalCount-reviewCount);
-    if(newWordAvailable>=newCount)return {newCount,reviewCount};
-    const limitedNewCount=Math.max(0,newWordAvailable);
-    return {newCount:limitedNewCount,reviewCount:this.calculateAllReviewCount(limitedNewCount)};
-  },
+
   updateLangLessonNote(){
     const note=document.getElementById('lang-lesson-note');if(!note)return;
     const settings=this.curSettings();
@@ -3737,6 +3697,26 @@ const App={
       [a[i],a[j]]=[a[j],a[i]];
     }
     return a;
+  },
+  // 复习词混入比例常量
+  NEW_WORD_RATIO: 10,
+  REVIEW_WORD_RATIO: 3,
+  // 按总量计算复习词数量（10:3比例）
+  calculateReviewCountForTotal(total){
+    if(total<=0)return 0;
+    return Math.round(total*this.REVIEW_WORD_RATIO/(this.NEW_WORD_RATIO+this.REVIEW_WORD_RATIO));
+  },
+  // 全部模式下，根据生词数量反推复习词数量
+  calculateAllReviewCount(newWordCount){
+    if(newWordCount<=0)return 0;
+    return Math.round(newWordCount*this.REVIEW_WORD_RATIO/this.NEW_WORD_RATIO);
+  },
+  // 部分模式下，计算生词和复习词的分配
+  calculatePartialMixCounts(dailyCount, bankCount){
+    if(dailyCount<=0)return {newCount:bankCount,reviewCount:this.calculateAllReviewCount(bankCount)};
+    const total=Math.min(dailyCount,bankCount+this.calculateAllReviewCount(bankCount));
+    const reviewCount=this.calculateReviewCountForTotal(total);
+    return {newCount:total-reviewCount,reviewCount};
   },
 
   beginDictation(lessonCoverage=''){
