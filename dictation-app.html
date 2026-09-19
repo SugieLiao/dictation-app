@@ -3975,6 +3975,13 @@ const App={
     const bank=this.getReviewBank();
     if(!bank[this.mode])bank[this.mode]=[];
     const today=new Date().toISOString().slice(0,10);
+    let reviewSource='';
+    if(this.sessionSource&&this.sessionSource.bankName){
+      reviewSource=this.sessionSource.bankName;
+      if(this.sessionSource.lessonName&&this.sessionSource.lessonName!=='其他（不指定课文）'){
+        reviewSource+='-'+this.sessionSource.lessonName;
+      }
+    }
     let mastered=0;
     let newAdded=0;
     if(bank[this.mode]){
@@ -4039,34 +4046,31 @@ const App={
     let mastered=0;    // 本次新达到3次正确(掌握)的复习词
     this.words.forEach((w,i)=>{
       const isWrong=checkedIdx.has(i);
-      if(w.fromReview){
-        // 复习库词：更新掌握进度 + 艾宾浩斯下次复习时间
-        const item=existMap.get(w.text);
-        if(item){
-          if(isWrong){
-            // 写错：streak 不归零，继续当前循环——按当前 streak 对应的间隔再次复习
-            item.nextReview=this.getNextReviewTs(item.streak||0);
-          }else{
-            const prev=item.streak||0;
-            item.streak=prev+1;
-            item.nextReview=this.getNextReviewTs(item.streak);
-            if(item.streak>=3 && prev<3)mastered++;
-          }
-          item.last=today;
+      const existing=existMap.get(w.text);
+      if(existing){
+        // 已在复习库中的词：更新掌握进度 + 艾宾浩斯下次复习时间，不会重复加入
+        if(isWrong){
+          // 写错：streak 不归零，继续当前循环——按当前 streak 对应的间隔再次复习
+          existing.nextReview=this.getNextReviewTs(existing.streak||0);
+        }else{
+          const prev=existing.streak||0;
+          existing.streak=prev+1;
+          existing.nextReview=this.getNextReviewTs(existing.streak);
+          if(existing.streak>=3 && prev<3)mastered++;
         }
-      }else{
-        // 新词：写错→加入复习库（艾宾浩斯：1天后复习）；写对→标记为已掌握（不再出现）
-        if(!existMap.has(w.text)){
-          if(isWrong){
-            bank[this.mode].push({text:w.text,hint:w.hint||'',streak:0,last:today,nextReview:this.getNextReviewTs(0),source:reviewSource});
-            added++;
-          }else{
-            bank[this.mode].push({text:w.text,hint:w.hint||'',streak:3,last:today,nextReview:0});
-            mastered++;
-          }
-          existMap.set(w.text,bank[this.mode][bank[this.mode].length-1]);
+        existing.last=today;
+      }else if(!w.fromReview){
+        // 真正的新词（不在复习库中且不是复习库听写）：写错→加入复习库；写对→标记为已掌握
+        if(isWrong){
+          bank[this.mode].push({text:w.text,hint:w.hint||'',streak:0,last:today,nextReview:this.getNextReviewTs(0),source:reviewSource});
+          added++;
+        }else{
+          bank[this.mode].push({text:w.text,hint:w.hint||'',streak:3,last:today,nextReview:0});
+          mastered++;
         }
+        existMap.set(w.text,bank[this.mode][bank[this.mode].length-1]);
       }
+      // w.fromReview 但不在复习库中（已被删除）：什么都不做
     });
     this.saveReviewBank(bank);
     const wrongCount=checkedIdx.size;
