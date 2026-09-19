@@ -324,6 +324,19 @@
   .rw-table .rw-cell-source{max-width:160px;}
   .rw-table .rw-cell-source .rw-source{font-size:11px;color:var(--muted);}
   .rw-table .rw-cell-source .rw-source-unknown{color:#ccc;}
+  .rw-table .rw-cell-source{position:relative;cursor:default;}
+  .rw-table .rw-cell-source .rw-source-edit{
+    display:none;position:absolute;right:4px;top:50%;transform:translateY(-50%);
+    width:22px;height:22px;border:none;background:transparent;color:var(--muted);
+    font-size:13px;cursor:pointer;border-radius:4px;align-items:center;justify-content:center;
+  }
+  .rw-table .rw-cell-source:hover .rw-source-edit{display:inline-flex;}
+  .rw-table .rw-cell-source .rw-source-edit:hover{background:var(--card-hover);color:var(--primary);}
+  .rw-table .rw-cell-source .rw-source-input{
+    width:100%;padding:4px 8px;font-size:12px;border:1px solid var(--primary);
+    border-radius:6px;background:var(--card);color:var(--text);outline:none;
+  }
+
   .rw-table .rw-cell-due{white-space:nowrap;text-align:right;}
   .rw-table .rw-cell-due .rw-due{
     font-size:10px;padding:2px 7px;border-radius:8px;font-weight:600;margin-right:6px;
@@ -4159,7 +4172,7 @@ const App={
         const dueHtml=dueLabel
           ?`<span class="rw-due due-future">${dueLabel}</span>`
           :`<span class="rw-due due-now">到期</span>`;
-        const sourceHtml=w.source?`<span class="rw-source" title="来源：${w.source}">${w.source}</span>`:`<span class="rw-source rw-source-unknown">未知来源</span>`;
+        const sourceText=w.source||'未知来源';const sourceCls=w.source?'rw-source':'rw-source rw-source-unknown';const sourceHtml=`<span class="${sourceCls}" id="src-text-${w.key}">${this._escHtml(sourceText)}</span><button class="rw-source-edit" onclick="App.editReviewSource('${w.key}')" title="修改来源">✏️</button>`;
         const addedDate=w.addedAt?new Date(w.addedAt).toISOString().slice(0,10):'-';
         const editBtns = this._editButtons(w.key, w.text);
         html+=`<tr class="rw-row">
@@ -4174,6 +4187,47 @@ const App={
     panel.innerHTML=html;
   },
 
+  editReviewSource(key){
+    const textEl=document.getElementById('src-text-'+key);
+    if(!textEl)return;
+    const current=textEl.textContent;
+    const cell=textEl.parentElement;
+    // 隐藏文本和编辑按钮
+    textEl.style.display='none';
+    const editBtn=cell.querySelector('.rw-source-edit');
+    if(editBtn)editBtn.style.display='none';
+    // 创建输入框
+    const input=document.createElement('input');
+    input.type='text';
+    input.className='rw-source-input';
+    input.value=current==='未知来源'?'':current;
+    input.placeholder='输入来源，如：四年级上册-第2课';
+    input.dataset.key=key;
+    input.onkeydown=(e)=>{
+      if(e.key==='Enter'){this.saveReviewSource(key,input.value);}
+      else if(e.key==='Escape'){this.renderReviewPending();}
+    };
+    input.onblur=()=>{this.saveReviewSource(key,input.value);};
+    cell.appendChild(input);
+    input.focus();
+    input.select();
+  },
+  saveReviewSource(key,newSource){
+    newSource=(newSource||'').trim();
+    const idx=key.lastIndexOf('-');
+    const mode=key.slice(0,idx);
+    const i=parseInt(key.slice(idx+1));
+    const bank=this.getReviewBank();
+    const w=(bank[mode]||[])[i];
+    if(!w)return;
+    if(newSource===''){
+      delete w.source;
+    }else{
+      w.source=newSource;
+    }
+    this.saveReviewBank(bank);
+    this.renderReviewPending();
+  },
   renderReviewMastered(){
     const bank=this.getReviewBank();
     const panel=document.getElementById('review-panel-mastered');
