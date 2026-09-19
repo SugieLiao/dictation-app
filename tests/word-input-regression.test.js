@@ -246,14 +246,15 @@ sandbox.document = {
 };
 App.ocrWords = ['人山', '人海', '齐头', '并进', '山崩'].map(text => ({text, selected: true}));
 App._ocrMergePending = null;
-App._ocrMergeIndices = [0, 1];
+App._ocrMergeBase = [0, 1];
 assert.strictEqual(App.ocrPersistCurrentMergeSelection(), true);
 assert.deepStrictEqual(mergeChips.map(chip => chip.classes.has('merge-pending')), [true, true, false, false, false]);
 // 模拟手机浏览器没有派发 pointerup / pointercancel：直接清理临时状态，累计选择仍须存在。
 App.ocrClearMergeState();
 assert.deepStrictEqual(Array.from(App._ocrMergePending.indices), [0, 1]);
 assert.deepStrictEqual(mergeChips.map(chip => chip.classes.has('merge-pending')), [true, true, false, false, false]);
-App._ocrMergeIndices = [2, 3];
+App._ocrMergeBase = [0, 1];
+App._ocrMergeToggled = new Map([[2, true], [3, true]]);
 App.ocrShowMergeToast();
 assert.deepStrictEqual(Array.from(App._ocrMergePending.indices), [0, 1, 2, 3]);
 assert.strictEqual(App._ocrMergePending.merged, '人山人海齐头并进');
@@ -309,7 +310,7 @@ App.ocrBindGridTwoFingerScroll(fakeGrid);
 const touchEvent = (pointerId, clientY) => ({pointerType: 'touch', pointerId, clientX: 10, clientY, preventDefault(){}, stopPropagation(){}});
 gestureHandlers.pointerdown(touchEvent(9, 300));
 App._ocrMergeStartIdx = 0;
-App._ocrMergeIndices = [0, 1, 2];
+App._ocrMergeBase = [0, 1, 2];
 App._ocrMergeDragged = true;
 gestureHandlers.pointercancel(touchEvent(9, 300));
 assert.deepStrictEqual(Array.from(App._ocrMergePending.indices), [0, 1, 2], '单指 pointercancel 必须保留已划过的词');
