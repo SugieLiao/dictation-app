@@ -3281,12 +3281,16 @@ const App={
         if(selected)chip.classList.add('selected');
         const isPassed=this.isWordPassed(this.bankManagerLang,word.text);
         const reviewBank=this.getReviewBank();
-        const isInReview=(reviewBank[this.bankManagerLang]||[]).some(w=>w.text.toLocaleLowerCase()===word.text.toLocaleLowerCase());
-        if(isPassed)chip.classList.add('passed');
+        const reviewWord=(reviewBank[this.bankManagerLang]||[]).find(w=>w.text.toLocaleLowerCase()===word.text.toLocaleLowerCase());
+        const isInReview=!!reviewWord;
+        const isReviewMastered=isInReview&&(reviewWord.streak||0)>=3;
+        // 已过关：显式标记过关 或 复习库中已掌握(streak>=3)
+        const effectivelyPassed=isPassed||isReviewMastered;
+        if(effectivelyPassed)chip.classList.add('passed');
         else if(isInReview)chip.classList.add('in-review');
         chip.setAttribute('aria-pressed',selected?'true':'false');
-        const passedMark=isPassed&&!this.bankManagerBulkMode?`<span class="passed-mark" title="已过关，点击取消过关">✓</span>`:'';
-        const reviewMark=isInReview&&!isPassed&&!this.bankManagerBulkMode?`<span class="review-mark" title="在复习库中">🔁</span>`:'';
+        const passedMark=effectivelyPassed&&!this.bankManagerBulkMode?`<span class="passed-mark" title="已过关，点击取消过关">✓</span>`:'';
+        const reviewMark=isInReview&&!effectivelyPassed&&!this.bankManagerBulkMode?`<span class="review-mark" title="在复习库中">🔁</span>`:'';
         chip.innerHTML=`${this.bankManagerBulkMode?'<span class="select-mark" aria-hidden="true">✓</span>':''}<span>${this._escHtml(word.text)}</span>${word.hint?`<span class="hint">${this._escHtml(word.hint)}</span>`:''}${passedMark}${reviewMark}<span class="edit">编辑</span>`;
         chip.onclick=e=>{
           if(e.target.classList.contains('passed-mark')){
@@ -4229,7 +4233,7 @@ const App={
   },
   // 从听写历史迁移过关标记：所有听写过且不在复习库中的词标记为过关
   migratePassedFromHistory(){
-    const migrateFlag=localStorage.getItem(this.userKey('dict_passed_migrated'));
+    const migrateFlag=localStorage.getItem(this.userKey('dict_passed_migrated_v2'));
     if(migrateFlag==='1')return {alreadyMigrated:true};
     let logs=[];
     try{logs=JSON.parse(localStorage.getItem(this.userKey('dict_log'))||'[]');}catch(e){logs=[];}
@@ -4239,12 +4243,16 @@ const App={
     logs.forEach(log=>{
       const mode=log.mode;
       if(mode!=='zh'&&mode!=='en')return;
-      const reviewTexts=new Set((reviewBank[mode]||[]).map(w=>w.text.toLocaleLowerCase()));
+      const reviewWords=(reviewBank[mode]||[]);
+      const reviewMasteredTexts=new Set(reviewWords.filter(w=>(w.streak||0)>=3).map(w=>w.text.toLocaleLowerCase()));
+      const reviewActiveTexts=new Set(reviewWords.filter(w=>(w.streak||0)<3).map(w=>w.text.toLocaleLowerCase()));
       (log.words||[]).forEach(w=>{
         const text=(w.text||'').trim();
         if(!text)return;
-        // 跳过复习库中的词（它们有自己的复习进度）
-        if(reviewTexts.has(text.toLocaleLowerCase())){stats.skipped++;return;}
+        const lower=text.toLocaleLowerCase();
+        // 复习库中正在复习的词(streak<3)跳过，不标记为过关
+        if(reviewActiveTexts.has(lower)){stats.skipped++;return;}
+        // 复习库中已掌握的词(streak>=3)和不在复习库中的词，都标记为过关
         const key=this._passedKey(mode,text);
         if(!passed[key]){
           passed[key]=log.ts||Date.now();
@@ -4253,7 +4261,7 @@ const App={
       });
     });
     this.savePassedWords(passed);
-    localStorage.setItem(this.userKey('dict_passed_migrated'),'1');
+    localStorage.setItem(this.userKey('dict_passed_migrated_v2'),'1');
     return stats;
   },
   getAllSourceOptions(mode){
