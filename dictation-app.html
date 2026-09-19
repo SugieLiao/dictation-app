@@ -337,13 +337,15 @@
     border-radius:6px;background:var(--card);color:var(--text);outline:none;
   }
 
-  .rw-table .rw-cell-due{white-space:nowrap;text-align:right;}
+  .rw-table .rw-cell-due{white-space:nowrap;text-align:right;display:flex;align-items:center;justify-content:flex-end;gap:6px;}
   .rw-table .rw-cell-due .rw-due{
-    font-size:10px;padding:2px 7px;border-radius:8px;font-weight:600;margin-right:6px;
+    font-size:10px;padding:2px 7px;border-radius:8px;font-weight:600;
   }
   .rw-table .rw-cell-due .rw-due.due-now{background:#fff0ed;color:var(--red);}
   .rw-table .rw-cell-due .rw-due.due-future{background:#f0f4ff;color:var(--blue);}
-  .rw-table .rw-cell-due .rw-replay{color:var(--primary);font-size:16px;cursor:pointer;margin-right:4px;}
+  .rw-table .rw-cell-due .rw-replay{color:var(--primary);font-size:16px;cursor:pointer;}
+  .rw-table .rw-cell-due .rw-edit-btns{display:inline-flex;gap:4px;margin-left:4px;}
+  .rw-table .rw-cell-due .rw-edit-btn{width:26px;height:26px;font-size:13px;flex-shrink:0;}
 
   /* 复习库编辑模式 */
   .rw-edit-btn{
@@ -4183,7 +4185,7 @@ const App={
           <td class="rw-cell rw-cell-word"><span class="rw-text">${w.text}</span>${hintHtml}<span class="rw-streak" title="掌握进度 ${streak}/3">${dots}</span></td>
           <td class="rw-cell rw-cell-date">${addedDate}</td>
           <td class="rw-cell rw-cell-source">${sourceHtml}</td>
-          <td class="rw-cell rw-cell-due">${dueHtml}<span class="rw-replay" onclick="App.replayReviewWord('${w.key}')">🔊</span>${editBtns}</td>
+          <td class="rw-cell rw-cell-due">${dueHtml}<span class="rw-replay" onclick="App.replayReviewWord('${w.key}')">🔊</span>${editBtns?'<span class="rw-edit-btns">'+editBtns+'</span>':''}</td>
         </tr>`;
       });
       html+='</tbody></table>';
