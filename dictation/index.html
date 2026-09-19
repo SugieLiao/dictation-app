@@ -1451,6 +1451,10 @@
             <label style="font-size:13px;color:var(--muted);display:block;margin-bottom:5px;">提示（可选）</label>
             <input type="text" id="word-edit-hint" placeholder="如：拼音或释义" autocomplete="off" style="width:100%;padding:10px 12px;font-size:14px;border:1px solid var(--border);border-radius:8px;box-sizing:border-box;background:var(--card);color:var(--text);" onkeydown="if(event.key==='Enter')App.submitWordEdit()">
           </div>
+          <div id="word-edit-source-field" style="display:none;">
+            <label style="font-size:13px;color:var(--muted);display:block;margin-bottom:5px;">来源（可选）</label>
+            <input type="text" id="word-edit-source" placeholder="如：四年级上册-第2课" autocomplete="off" style="width:100%;padding:10px 12px;font-size:14px;border:1px solid var(--border);border-radius:8px;box-sizing:border-box;background:var(--card);color:var(--text);" onkeydown="if(event.key==='Enter')App.submitWordEdit()">
+          </div>
           <div id="word-edit-msg" style="font-size:13px;min-height:18px;"></div>
           <div class="btn-row">
             <button class="btn btn-ghost" style="flex:1;" onclick="App.closeWordEditModal()">取消</button>
@@ -4172,7 +4176,7 @@ const App={
         const dueHtml=dueLabel
           ?`<span class="rw-due due-future">${dueLabel}</span>`
           :`<span class="rw-due due-now">到期</span>`;
-        const sourceText=w.source||'未知来源';const sourceCls=w.source?'rw-source':'rw-source rw-source-unknown';const sourceHtml=`<span class="${sourceCls}" id="src-text-${w.key}">${this._escHtml(sourceText)}</span><button class="rw-source-edit" onclick="App.editReviewSource('${w.key}')" title="修改来源">✏️</button>`;
+        const sourceText=w.source||'未知来源';const sourceCls=w.source?'rw-source':'rw-source rw-source-unknown';const sourceEditBtn=this._editMode?'':`<button class="rw-source-edit" onclick="App.editReviewSource('${w.key}')" title="修改来源">✏️</button>`;const sourceHtml=`<span class="${sourceCls}" id="src-text-${w.key}">${this._escHtml(sourceText)}</span>${sourceEditBtn}`;
         const addedDate=w.addedAt?new Date(w.addedAt).toISOString().slice(0,10):'-';
         const editBtns = this._editButtons(w.key, w.text);
         html+=`<tr class="rw-row">
@@ -4432,7 +4436,9 @@ const App={
     document.getElementById('word-edit-sub').textContent = '直接添加，无需密码';
     document.getElementById('word-edit-text').value = '';
     document.getElementById('word-edit-hint').value = '';
-    document.getElementById('word-edit-hint-field').style.display = '';
+    document.getElementById('word-edit-source').value = '';
+    document.getElementById('word-edit-hint-field').style.display = 'none';
+    document.getElementById('word-edit-source-field').style.display = '';
     document.getElementById('word-edit-text').placeholder = '输入词语';
     document.getElementById('word-edit-msg').innerHTML = '';
     document.getElementById('word-edit-msg').style.color = '';
@@ -4494,6 +4500,7 @@ const App={
     }
     const text = document.getElementById('word-edit-text').value.trim();
     const hint = document.getElementById('word-edit-hint').value.trim();
+    const source = document.getElementById('word-edit-source') ? document.getElementById('word-edit-source').value.trim() : '';
     const msg = document.getElementById('word-edit-msg');
     if (!text) {
       msg.style.color = 'var(--red)'; msg.textContent = '请输入词语';
@@ -4534,13 +4541,14 @@ const App={
         list[dupIdx].last = now;
         list[dupIdx].nextReview = this.getNextReviewTs(0);
         list[dupIdx].hint = hint || list[dupIdx].hint;
+        if(source)list[dupIdx].source = source;
         list[dupIdx].archived = false;
         this.saveReviewBank(bank);
         this._refreshReviewUI();
         this.closeWordEditModal();
         this.showToast('🔄 「' + text + '」已重置为待复习状态');
       } else {
-        list.push({ text, hint, streak: 0, last: now, nextReview: this.getNextReviewTs(0) });
+        list.push({ text, hint, source: source||undefined, streak: 0, last: now, nextReview: this.getNextReviewTs(0), addedAt: now });
         this.saveReviewBank(bank);
         this._refreshReviewUI();
         this.closeWordEditModal();
