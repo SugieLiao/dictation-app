@@ -3479,6 +3479,8 @@ const App={
       startBtn.classList.add('mode-'+lang);
     }
     this.go('lang');
+    // 刷新设置界面（确保听写数量等按钮按当前语言的最低值显示）
+    this.syncSettingsUI();
     // 渲染词库选择
     this.renderLangGradeChips();
     if(catalogResult.updatedBanks>0)this.refreshWordBankViewsAfterSync();
