@@ -3186,23 +3186,8 @@ const App={
     const reviewCard=document.createElement('div');
     reviewCard.className='bm-bank-card';
     reviewCard.style.border='2px solid var(--primary)';
-    reviewCard.innerHTML=`<div class="bm-bank-top"><span style="font-size:22px;">🔁</span><div class="bm-bank-name">复习库</div><button class="bm-small-btn" id="review-card-edit-btn" style="margin-left:auto;">✏️ 编辑</button><div class="bm-bank-count">${reviewWords.length} 词 ›</div></div><div class="bm-bank-meta">待复习 ${reviewPending} 词 · 已掌握 ${reviewMastered} 词 · 按艾宾浩斯遗忘曲线复习</div>`;
+    reviewCard.innerHTML=`<div class="bm-bank-top"><span style="font-size:22px;">🔁</span><div class="bm-bank-name">复习库</div><div class="bm-bank-count">${reviewWords.length} 词 ›</div></div><div class="bm-bank-meta">待复习 ${reviewPending} 词 · 已掌握 ${reviewMastered} 词 · 按艾宾浩斯遗忘曲线复习</div>`;
     reviewCard.onclick=()=>{this.reviewLang=lang;this.go('review');this.renderReviewPending();this.renderReviewMastered();this.renderReviewCounts();};
-    // 编辑按钮：进入复习库并开启编辑模式
-    const reviewEditBtn=reviewCard.querySelector('#review-card-edit-btn');
-    if(reviewEditBtn){
-      reviewEditBtn.onclick=(e)=>{
-        e.stopPropagation();
-        this.reviewLang=lang;
-        this._editMode=false;
-        this.go('review');
-        this.renderReviewPending();
-        this.renderReviewMastered();
-        this.renderReviewCounts();
-        // 延迟开启编辑模式，确保页面渲染完成
-        setTimeout(()=>{this.toggleReviewEdit();},100);
-      };
-    }
     list.appendChild(reviewCard);
     if(!banks.length){return;}
     banks.slice().sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0)).forEach(bank=>{
