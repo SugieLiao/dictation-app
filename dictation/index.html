@@ -3719,9 +3719,12 @@ const App={
       // 普通课文词去重
       const seenNew=new Set();
       newWordPool=newWordPool.filter(w=>{const t=w.text.toLocaleLowerCase();if(seenNew.has(t))return false;seenNew.add(t);return true;});
-      // 过滤掉已经过关的词
-      const passedCount=newWordPool.filter(w=>this.isWordPassed(this.mode,w.text)).length;
-      newWordPool=newWordPool.filter(w=>!this.isWordPassed(this.mode,w.text));
+      // 过滤掉已经过关的词（显式标记过关 或 复习库中已掌握 streak>=3）
+      const reviewBankForFilter=this.getReviewBank();
+      const reviewMasteredTexts=new Set((reviewBankForFilter[this.mode]||[]).filter(w=>(w.streak||0)>=3).map(w=>w.text.toLocaleLowerCase()));
+      const isWordEffectivelyPassed=(w)=>this.isWordPassed(this.mode,w.text)||reviewMasteredTexts.has(w.text.toLocaleLowerCase());
+      const passedCount=newWordPool.filter(isWordEffectivelyPassed).length;
+      newWordPool=newWordPool.filter(w=>!isWordEffectivelyPassed(w));
       const totalAvailable=newWordPool.length;
       if(!totalAvailable){App.showToast('所选内容中没有词语');return;}
       const scopeName=scopeNames.length>3?scopeNames.slice(0,3).join('、')+'等':scopeNames.join('、');
