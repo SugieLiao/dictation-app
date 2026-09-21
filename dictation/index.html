@@ -5358,19 +5358,20 @@ const App={
     if(cur){
       const curName=cur.id.replace('screen-','');
       if(curName!==name)this.navHistory.push(curName);
-      if(curName==='review'){
-        const tb=document.getElementById('review-edit-toolbar');
-        if(tb)tb.style.display='none';
-        this._editMode=false;
-        const etb=document.getElementById('et-toggle-btn');
-        if(etb){etb.classList.remove('active');etb.textContent='✏️ 编辑';}
-        const ab=document.getElementById('et-add-btn');
-        if(ab)ab.style.display='none';
-      }
     }
     document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
     document.getElementById('screen-'+name).classList.add('active');
     window.scrollTo(0,0);
+    // 进入复习库时：显示编辑工具栏，重置编辑模式
+    if(name==='review'){
+      const tb=document.getElementById('review-edit-toolbar');
+      if(tb)tb.style.display='';
+      this._editMode=false;
+      const etb=document.getElementById('et-toggle-btn');
+      if(etb){etb.classList.remove('active');etb.textContent='✏️ 编辑';}
+      const ab=document.getElementById('et-add-btn');
+      if(ab)ab.style.display='none';
+    }
   },
   goBack(){
     if(this.navHistory.length){
@@ -5378,18 +5379,7 @@ const App={
       document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
       document.getElementById('screen-'+prev).classList.add('active');
       window.scrollTo(0,0);
-      if(prev==='review'){
-        const tb=document.getElementById('review-edit-toolbar');
-        if(tb)tb.style.display='';
-      }else{
-        const tb=document.getElementById('review-edit-toolbar');
-        if(tb)tb.style.display='none';
-        this._editMode=false;
-        const etb=document.getElementById('et-toggle-btn');
-        if(etb){etb.classList.remove('active');etb.textContent='✏️ 编辑';}
-        const ab=document.getElementById('et-add-btn');
-        if(ab)ab.style.display='none';
-      }
+      // go函数已统一处理进入review时的工具栏显示，这里不需要额外处理
     }else{
       this.go('home');
     }
