@@ -3574,6 +3574,13 @@ const App={
       const sep=document.createElement('div');
       sep.style.cssText='width:100%;height:1px;background:var(--border);margin:8px 0;';
       list.appendChild(sep);
+      // 新建课文按钮
+      const newLessonBtn=document.createElement('div');
+      newLessonBtn.className='lesson-multi-item';
+      newLessonBtn.style.cssText='justify-content:center;color:var(--primary);font-weight:600;cursor:pointer;';
+      newLessonBtn.textContent='➕ 新建课文';
+      newLessonBtn.onclick=()=>this.showCreateLessonModal();
+      list.appendChild(newLessonBtn);
     }
     this.updateLangLessonNote();
   },
@@ -3586,6 +3593,33 @@ const App={
     else settings.selectedLessonKeys.push(key);
     this.saveSettings();
     this.renderLangLessonSelector();
+  },
+  showCreateLessonModal(){
+    const name=prompt('请输入新课文名称：');
+    if(!name||!name.trim())return;
+    const lessonName=name.trim();
+    const mode=this.langPageMode;
+    const settings=this.curSettings();
+    const bankId=settings.currentBankId;
+    if(!bankId){this.showToast('请先选择教材');return;}
+    const store=this.getWordBankStore();
+    const bank=(store[mode]||[]).find(b=>b.id===bankId);
+    if(!bank){this.showToast('未找到教材');return;}
+    // 检查重名
+    if((bank.lessons||[]).some(l=>l.name===lessonName)){this.showToast('课文名称已存在');return;}
+    // 创建空课文
+    const newLesson={id:this._newId('lesson'),name:lessonName,words:[]};
+    if(!bank.lessons)bank.lessons=[];
+    bank.lessons.push(newLesson);
+    bank.updatedAt=Date.now();
+    this.saveWordBankStore(store);
+    // 自动选中新课文
+    const key=this._lessonKey(bankId,newLesson.id);
+    if(!settings.selectedLessonKeys)settings.selectedLessonKeys=[];
+    if(!settings.selectedLessonKeys.includes(key))settings.selectedLessonKeys.push(key);
+    this.saveSettings();
+    this.renderLangLessonSelector();
+    this.showToast('✅ 已创建空课文「'+lessonName+'」');
   },
   toggleAllLessons(selectAll){
     const settings=this.curSettings();
