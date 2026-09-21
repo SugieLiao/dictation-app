@@ -3594,6 +3594,16 @@ const App={
     this.saveSettings();
     this.renderLangLessonSelector();
   },
+  toggleCustomInput(){
+    const toggle=document.getElementById('lang-custom-toggle');
+    const list=document.getElementById('lang-custom-list');
+    const hint=document.getElementById('lang-custom-hint');
+    if(!list)return;
+    const showing=list.style.display!=='none';
+    list.style.display=showing?'none':'block';
+    if(hint)hint.style.display=showing?'none':'block';
+    if(toggle)toggle.textContent=showing?'+ 自定义听写内容':'- 收起自定义';
+  },
   showCreateLessonModal(){
     const name=prompt('请输入新课文名称：');
     if(!name||!name.trim())return;
