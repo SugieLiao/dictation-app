@@ -4300,17 +4300,29 @@ const App={
   },
   getAllSourceOptions(mode){
     // 获取所有词库的所有课文作为来源选项，格式：教材名-课文名
+    // 按教材分组，教材内按课文序号排序（第1课、第2课...）
     const banks=this.getManagedBanks(mode);
     const options=[];
+    // 从课文名称中提取数字用于排序
+    const extractLessonNum=(name)=>{
+      const m=name.match(/第?\s*(\d+)\s*课/);
+      if(m)return parseInt(m[1]);
+      const m2=name.match(/(\d+)/);
+      if(m2)return parseInt(m2[1]);
+      return 9999; // 没有数字的排最后
+    };
     banks.forEach(bank=>{
-      (bank.lessons||[]).forEach(lesson=>{
+      const lessons=(bank.lessons||[]).slice();
+      // 教材内按课文序号排序
+      lessons.sort((a,b)=>extractLessonNum(a.name)-extractLessonNum(b.name));
+      lessons.forEach(lesson=>{
         options.push(bank.name+'-'+lesson.name);
       });
       if((bank.other||[]).length){
         options.push(bank.name+'-其他');
       }
     });
-    return [...new Set(options)].sort((a,b)=>a.localeCompare(b,'zh'));
+    return [...new Set(options)];
   },
   editReviewSource(key){
     const textEl=document.getElementById('src-text-'+key);
