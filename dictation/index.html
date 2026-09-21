@@ -3545,7 +3545,15 @@ const App={
     {
       const bank=this.findManagedBank(mode,currentBankId);
       if(bank){
-        const lessons=bank.lessons||[];
+        // 按课文序号排序（第1课、第2课...）
+        const extractLessonNum=(name)=>{
+          const m=name.match(/第?\s*(\d+)\s*课/);
+          if(m)return parseInt(m[1]);
+          const m2=name.match(/(\d+)/);
+          if(m2)return parseInt(m2[1]);
+          return 9999;
+        };
+        const lessons=(bank.lessons||[]).slice().sort((a,b)=>extractLessonNum(a.name)-extractLessonNum(b.name));
         const hasOther=(bank.other||[]).length>0;
         if(lessons.length||hasOther){
           lessons.forEach(lesson=>{
