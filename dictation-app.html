@@ -4735,6 +4735,8 @@ const App={
         list[dupIdx].hint = hint || list[dupIdx].hint;
         if(source)list[dupIdx].source = source;
         list[dupIdx].archived = false;
+        // 保留原来的加入时间
+        if(!list[dupIdx].addedAt)list[dupIdx].addedAt = now;
         this.saveReviewBank(bank);
         this._refreshReviewUI();
         this.closeWordEditModal();
@@ -5362,7 +5364,7 @@ const App={
     document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
     document.getElementById('screen-'+name).classList.add('active');
     window.scrollTo(0,0);
-    // 进入复习库时：显示编辑工具栏，重置编辑模式
+    // 进入复习库时：显示编辑工具栏，重置编辑模式，初始化事件委托
     if(name==='review'){
       const tb=document.getElementById('review-edit-toolbar');
       if(tb)tb.style.display='';
@@ -5371,6 +5373,8 @@ const App={
       if(etb){etb.classList.remove('active');etb.textContent='✏️ 编辑';}
       const ab=document.getElementById('et-add-btn');
       if(ab)ab.style.display='none';
+      // 初始化行内编辑/删除按钮的事件委托
+      if(typeof this._initReviewEditDelegation==='function')this._initReviewEditDelegation();
     }
   },
   goBack(){
