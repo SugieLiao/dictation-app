@@ -3733,16 +3733,9 @@ const App={
   },
 
   beginDictation(lessonCoverage=''){
-    // 等待云端同步完成，避免用本地过期数据开始听写（导致已掌握词重复出现）
+    // 同步状态不阻塞开始听写；未同步完成时用本地数据即可，后续同步会自动修正
     if(!this.cloudSyncReady){
-      App.showToast('正在同步云端数据，请稍候...');
-      const checkTimer=setInterval(()=>{
-        if(this.cloudSyncReady){
-          clearInterval(checkTimer);
-          this.beginDictation(lessonCoverage);
-        }
-      },500);
-      return;
+      App.showToast('同步未完成，使用本地数据开始听写');
     }
     const custom=document.getElementById('lang-custom-list').value.trim();
     let words,source;
