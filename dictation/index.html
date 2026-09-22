@@ -2399,6 +2399,13 @@ const App={
   // 初始化云端同步：先检测后端，再拉取数据
   async initCloudSync(){
     this.cloudSyncReady=false;
+    // 超时兜底：5秒后强制解锁开始听写，防止网络请求hang住
+    const safetyTimer=setTimeout(()=>{
+      if(!this.cloudSyncReady){
+        console.warn('Cloud sync timeout, unlocking start button');
+        this.cloudSyncReady=true;
+      }
+    },5000);
     try{
       const ok=await CloudSync.init();
       if(ok){
@@ -2434,6 +2441,7 @@ const App={
       const catalogResult=this.applyCatalogWordLists(true);
       if(catalogResult.updatedBanks>0){this.renderHomeEntries();this.refreshWordBankViewsAfterSync();}
     }finally{
+      clearTimeout(safetyTimer);
       // 不管成功失败，都要允许用户开始听写
       this.cloudSyncReady=true;
     }
