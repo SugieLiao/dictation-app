@@ -3483,8 +3483,12 @@ const App={
     this.renderLangGradeChips();
     if(catalogResult.updatedBanks>0)this.refreshWordBankViewsAfterSync();
     // 隐藏自定义输入
-    this.hideCustomInput();
     const customTa=document.getElementById('lang-custom-list');
+    if(customTa)customTa.style.display='none';
+    const customHint=document.getElementById('lang-custom-hint');
+    if(customHint)customHint.style.display='none';
+    const customToggle=document.getElementById('lang-custom-toggle');
+    if(customToggle)customToggle.textContent='+ 自定义听写内容';
     if(customTa){
       customTa.placeholder=lang==='zh'
         ?'词语用空格、换行或 | 分隔；说明写在冒号后\n示例：学校 老师：lǎo shī'
