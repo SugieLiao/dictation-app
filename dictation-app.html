@@ -3732,8 +3732,17 @@ const App={
     return {newCount:total-reviewCount,reviewCount};
   },
 
+  // Fisher-Yates 洗牌算法
+  shuffleArray(arr){
+    const a=arr.slice();
+    for(let i=a.length-1;i>0;i--){
+      const j=Math.floor(Math.random()*(i+1));
+      [a[i],a[j]]=[a[j],a[i]];
+    }
+    return a;
+  },
+
   beginDictation(lessonCoverage=''){
-    console.log('[beginDictation] called, mode=',this.mode,'cloudSyncReady=',this.cloudSyncReady);
     // 同步状态不阻塞开始听写；未同步完成时用本地数据即可，后续同步会自动修正
     if(!this.cloudSyncReady){
       App.showToast('同步未完成，使用本地数据开始听写');
@@ -3747,28 +3756,23 @@ const App={
     }else if((this.curSettings().selectedLessonKeys||[]).length>0){
       // 普通课文选择 + 自动混入复习词
       const keys=this.curSettings().selectedLessonKeys;
-      console.log('[beginDictation] selectedLessonKeys=',keys);
       let newWordPool=[];
       const scopeNames=[];
       const bankNames=new Set();
       keys.forEach(key=>{
         const parsed=this._parseLessonKey(key);
-        console.log('[beginDictation] parsed key=',parsed);
         if(parsed.type==='bank'){
           const bank=this.findManagedBank(this.mode,parsed.bankId);
-          console.log('[beginDictation] found bank=',bank?bank.name:'null');
           if(bank){
             bankNames.add(bank.name);
             const lesson=(bank.lessons||[]).find(l=>l.id===parsed.lessonId);
             if(lesson)scopeNames.push(bank.name+'·'+lesson.name);
             else if(parsed.lessonId==='other')scopeNames.push(bank.name+'·其他');
             const ws=(bank.lessons||[]).length?this.getBankScopeWords(bank,parsed.lessonId):this.getBankAllWords(bank);
-            console.log('[beginDictation] got words=',ws.length);
             newWordPool=newWordPool.concat(ws);
           }
         }
       });
-      console.log('[beginDictation] total newWordPool=',newWordPool.length);
       // 普通课文词去重
       const seenNew=new Set();
       newWordPool=newWordPool.filter(w=>{const t=w.text.toLocaleLowerCase();if(seenNew.has(t))return false;seenNew.add(t);return true;});
