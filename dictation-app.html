@@ -2399,37 +2399,44 @@ const App={
   // 初始化云端同步：先检测后端，再拉取数据
   async initCloudSync(){
     this.cloudSyncReady=false;
-    const ok=await CloudSync.init();
-    if(ok){
-      // 从云端拉取数据
-      const cloudData=await CloudSync.pull();
-      if(cloudData){
-        // 合并云端数据到本地（云端优先，但保留本地比云端新的日志）
-        const mergeResult=this.mergeCloudData(cloudData);
-        // 首次打开或本地账号丢失时，初次请求只包含旧的临时用户。
-        // 切换到云端用户后必须用新 userId 重新拉取，否则会把空词库误上传。
-        if(mergeResult&&mergeResult.switchedUser){
-          const selectedUserData=await CloudSync.pull(true);
-          if(!selectedUserData){
-            CloudSync.updateIndicator('error');
-            this.cloudSyncReady=true;
-            return;
+    try{
+      const ok=await CloudSync.init();
+      if(ok){
+        // 从云端拉取数据
+        const cloudData=await CloudSync.pull();
+        if(cloudData){
+          // 合并云端数据到本地（云端优先，但保留本地比云端新的日志）
+          const mergeResult=this.mergeCloudData(cloudData);
+          // 首次打开或本地账号丢失时，初次请求只包含旧的临时用户。
+          // 切换到云端用户后必须用新 userId 重新拉取，否则会把空词库误上传。
+          if(mergeResult&&mergeResult.switchedUser){
+            const selectedUserData=await CloudSync.pull(true);
+            if(selectedUserData){
+              this.mergeCloudData(selectedUserData);
+            }
           }
-          this.mergeCloudData(selectedUserData);
         }
+        // 云端合并完成后才允许新建教材词库，避免本地空缓存与云端旧词库形成同名副本。
+        const catalogResult=this.applyCatalogWordLists(true);
+        if(catalogResult.updatedBanks>0){this.renderHomeEntries();this.refreshWordBankViewsAfterSync();}
+        // 每次重新连线后都推送一次本地数据；新 D1 为空时会自动完成首次迁移。
+        await CloudSync.push();
+      }else{
+        // 离线时也要能使用内置教材词库；恢复网络后的常规同步会把它上传。
+        const catalogResult=this.applyCatalogWordLists(true);
+        if(catalogResult.updatedBanks>0){this.renderHomeEntries();this.refreshWordBankViewsAfterSync();}
+        CloudSync.updateIndicator('offline');
       }
-      // 云端合并完成后才允许新建教材词库，避免本地空缓存与云端旧词库形成同名副本。
+    }catch(e){
+      // 同步出错也不阻塞使用，离线模式下本地词库照常可用
+      console.warn('Cloud sync init error:',e);
+      try{CloudSync.updateIndicator('error');}catch(_){}
       const catalogResult=this.applyCatalogWordLists(true);
       if(catalogResult.updatedBanks>0){this.renderHomeEntries();this.refreshWordBankViewsAfterSync();}
-      // 每次重新连线后都推送一次本地数据；新 D1 为空时会自动完成首次迁移。
-      await CloudSync.push();
-    }else{
-      // 离线时也要能使用内置教材词库；恢复网络后的常规同步会把它上传。
-      const catalogResult=this.applyCatalogWordLists(true);
-      if(catalogResult.updatedBanks>0){this.renderHomeEntries();this.refreshWordBankViewsAfterSync();}
-      CloudSync.updateIndicator('offline');
+    }finally{
+      // 不管成功失败，都要允许用户开始听写
+      this.cloudSyncReady=true;
     }
-    this.cloudSyncReady=true;
   },
 
   refreshWordBankViewsAfterSync(){
