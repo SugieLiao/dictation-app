@@ -2710,8 +2710,6 @@ const App={
           this.curSettings()[setKey]=parseFn(b.dataset[getKey]);
           this.saveSettings();
           if(segId==='seg-count'){
-            const bank=this.findManagedBank(this.langPageMode,this.curSettings().bankId||this.curSettings().grade);
-            if(bank)this.updateLangLessonNote(bank);
           }
         };
       });
@@ -3605,7 +3603,6 @@ const App={
       newLessonBtn.onclick=()=>this.showCreateLessonModal();
       list.appendChild(newLessonBtn);
     }
-    this.updateLangLessonNote();
   },
 
   toggleLessonKey(key){
