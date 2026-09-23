@@ -4338,7 +4338,6 @@ const App={
       return 9999; // 没有数字的排最后
     };
     banks.forEach(bank=>{
-      console.log('[getAllSourceOptions] bank:', bank.name, 'lessons:', (bank.lessons||[]).length, 'other:', (bank.other||[]).length, 'source:', bank.source);
       const lessons=(bank.lessons||[]).slice();
       // 教材内按课文序号排序
       lessons.sort((a,b)=>extractLessonNum(a.name)-extractLessonNum(b.name));
@@ -4347,10 +4346,7 @@ const App={
       });
       options.push(bank.name+'-其他');
     });
-    const result=[...new Set(options)];
-    console.log('[getAllSourceOptions] result contains 四年级上册-其他:', result.includes('四年级上册-其他'));
-    console.log('[getAllSourceOptions] total options:', result.length);
-    return result;
+    return [...new Set(options)];
   },
   editReviewSource(key){
     const textEl=document.getElementById('src-text-'+key);
