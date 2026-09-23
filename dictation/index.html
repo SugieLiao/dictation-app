@@ -4343,9 +4343,7 @@ const App={
       lessons.forEach(lesson=>{
         options.push(bank.name+'-'+lesson.name);
       });
-      if((bank.other||[]).length){
-        options.push(bank.name+'-其他');
-      }
+      options.push(bank.name+'-其他');
     });
     return [...new Set(options)];
   },
