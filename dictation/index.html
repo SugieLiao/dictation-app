@@ -4620,7 +4620,7 @@ const App={
     }
     document.getElementById('word-edit-hint-field').style.display = '';
     document.getElementById('word-edit-source-field').style.display = '';
-    document.getElementById('word-edit-text').placeholder = '输入词语';
+    document.getElementById('word-edit-text').placeholder = '输入词语，可用逗号/顿号/|/空格 分隔一次添加多个';
     document.getElementById('word-edit-msg').innerHTML = '';
     document.getElementById('word-edit-msg').style.color = '';
     this.openWordEditMask();
@@ -4737,32 +4737,41 @@ const App={
       this.closeWordEditModal();
       this.showToast('✏️ 词语已修改：' + text);
     } else {
-      // 添加模式 - 如果已存在则重置状态（streak=0，重新开始复习）
+      // 添加模式 - 支持一次输入多个词（逗号、顿号、|、空格分隔），全部添加到选中的来源
+      const rawText = text;
+      const texts = rawText.split(/[,，、|\s]+/).map(s=>s.trim()).filter(Boolean);
+      if(!texts.length){ msg.style.color='var(--red)'; msg.textContent='请输入词语'; document.getElementById('word-edit-text').focus(); return; }
       const now = Date.now();
-      const dupIdx = list.findIndex(w => w.text === text);
-      // 清除该词的删除记录（如果之前删过现在又加回来）
+      let added=0, reset=0;
+      // 清除这些词的删除记录（如果之前删过现在又加回来）
       const deleted = JSON.parse(localStorage.getItem(App.userKey('dict_deleted_review')) || '[]');
-      const delIdx = deleted.findIndex(d => d.text === text && d.mode === this.reviewLang);
-      if (delIdx >= 0) { deleted.splice(delIdx, 1); localStorage.setItem(App.userKey('dict_deleted_review'), JSON.stringify(deleted)); }
-      if (dupIdx >= 0) {
-        list[dupIdx].streak = 0;
-        list[dupIdx].last = now;
-        list[dupIdx].nextReview = this.getNextReviewTs(0);
-        list[dupIdx].hint = hint || list[dupIdx].hint;
-        if(source)list[dupIdx].source = source;
-        list[dupIdx].archived = false;
-        // 保留原来的加入时间
-        if(!list[dupIdx].addedAt)list[dupIdx].addedAt = now;
-        this.saveReviewBank(bank);
-        this._refreshReviewUI();
-        this.closeWordEditModal();
-        this.showToast('🔄 「' + text + '」已重置为待复习状态');
-      } else {
-        list.push({ text, hint, source: source||undefined, streak: 0, last: now, nextReview: this.getNextReviewTs(0), addedAt: now });
-        this.saveReviewBank(bank);
-        this._refreshReviewUI();
-        this.closeWordEditModal();
-        this.showToast('➕ 「' + text + '」已添加到复习库');
+      const keptDeleted = deleted.filter(d => !(d.mode===this.reviewLang && texts.includes(d.text)));
+      if(keptDeleted.length!==deleted.length)localStorage.setItem(App.userKey('dict_deleted_review'), JSON.stringify(keptDeleted));
+      texts.forEach(t=>{
+        const dupIdx = list.findIndex(w => w.text === t);
+        if (dupIdx >= 0) {
+          // 已存在则重置状态（streak=0，重新开始复习）
+          list[dupIdx].streak = 0;
+          list[dupIdx].last = now;
+          list[dupIdx].nextReview = this.getNextReviewTs(0);
+          if(texts.length===1)list[dupIdx].hint = hint || list[dupIdx].hint;
+          if(source)list[dupIdx].source = source;
+          list[dupIdx].archived = false;
+          // 保留原来的加入时间
+          if(!list[dupIdx].addedAt)list[dupIdx].addedAt = now;
+          reset++;
+        } else {
+          list.push({ text: t, hint: texts.length===1?hint:'', source: source||undefined, streak: 0, last: now, nextReview: this.getNextReviewTs(0), addedAt: now });
+          added++;
+        }
+      });
+      this.saveReviewBank(bank);
+      this._refreshReviewUI();
+      this.closeWordEditModal();
+      if(texts.length===1){
+        this.showToast(added===1?'➕ 「'+texts[0]+'」已添加到复习库':'🔄 「'+texts[0]+'」已重置为待复习状态');
+      }else{
+        this.showToast('➕ 已添加 '+added+' 个、重置 '+reset+' 个词语到复习库');
       }
     }
     this._wordEditTarget = null;
