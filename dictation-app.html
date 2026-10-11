@@ -2361,6 +2361,9 @@ const App={
     this.updateUserSwitchBtn();
     // 4. 异步从云端拉取数据（不阻塞页面渲染）
     this.initCloudSync();
+    // 5. hash 路由：浏览器前进/后退、手动改 hash 时刷新当前页；刷新后停留在当前页
+    window.addEventListener('hashchange',()=>this._applyRoute(location.hash||'#/home'));
+    this._applyRoute(location.hash||'#/home');
   },
 
   // 从 localStorage 加载所有数据到内存
@@ -3168,8 +3171,7 @@ const App={
     this.bankManagerBankId=null;
     this.bankManagerAddMethod='manual';
     this.resetBankManagerBulkState();
-    this.go('banks');
-    this.renderBankManager();
+    this.go('banks',{lang:this.bankManagerLang});
   },
   leaveBankManager(){
     this.bankManagerBankId=null;
@@ -3177,7 +3179,7 @@ const App={
     this.goBack();
     if(document.getElementById('screen-lang').classList.contains('active'))this.renderLangLessonSelector();
   },
-  switchBankManagerLang(lang){this.bankManagerLang=lang;this.bankManagerBankId=null;this.resetBankManagerBulkState();this.renderBankManager();},
+  switchBankManagerLang(lang){this.bankManagerLang=lang;this.bankManagerBankId=null;this.resetBankManagerBulkState();location.replace('#/banks/'+lang);this.renderBankManager();},
   renderBankManager(){
     const root=document.getElementById('bank-manager-root');if(!root)return;
     if(this.bankManagerBankId){this.renderBankManagerDetail();return;}
@@ -3201,7 +3203,7 @@ const App={
     reviewCard.className='bm-bank-card';
     reviewCard.style.border='2px solid var(--primary)';
     reviewCard.innerHTML=`<div class="bm-bank-top"><span style="font-size:22px;">🔁</span><div class="bm-bank-name">复习库</div><div class="bm-bank-count">${reviewWords.length} 词 ›</div></div><div class="bm-bank-meta">待复习 ${reviewPending} 词 · 已掌握 ${reviewMastered} 词 · 按艾宾浩斯遗忘曲线复习</div>`;
-    reviewCard.onclick=()=>{this.reviewLang=lang;this.go('review');this.renderReviewPending();this.renderReviewMastered();this.renderReviewCounts();};
+    reviewCard.onclick=()=>{this.go('review',{lang});};
     list.appendChild(reviewCard);
     if(!banks.length){return;}
     banks.slice().sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0)).forEach(bank=>{
@@ -3466,6 +3468,11 @@ const App={
 
   // 从首页图片按钮进入语言分区页
   openLangSection(lang){
+    this.go('lang',{lang});
+  },
+
+  // 进入语言听写页时初始化并刷新数据（hash 路由进入/返回时都会调用）
+  initLangPage(lang){
     this.langPageMode=lang;
     this.mode=lang;
     const catalogResult=this.applyCatalogWordLists(true);
@@ -3477,7 +3484,6 @@ const App={
       startBtn.classList.remove('mode-zh','mode-en');
       startBtn.classList.add('mode-'+lang);
     }
-    this.go('lang');
     // 刷新设置界面（确保听写数量等按钮按当前语言的最低值显示）
     this.syncSettingsUI();
     // 渲染词库选择
@@ -3846,6 +3852,12 @@ const App={
     document.getElementById('prog-fill').style.width=((this.idx)/this.words.length*100)+'%';
     document.getElementById('hint-box').innerHTML=this.showHint&&w.hint?('💡 '+w.hint):'&nbsp;';
     document.getElementById('feedback').innerHTML='在纸上写出你听到的词 ✍️';
+    // 自动保存听写进度：中途刷新/关闭后可以从当前词继续
+    if(this.words&&this.words.length&&this.sessionSource){
+      localStorage.setItem(this.userKey('dict_progress'),JSON.stringify({
+        words:this.words,idx:this.idx,source:this.sessionSource,date:new Date().toISOString()
+      }));
+    }
     // 上一个按钮：第一个词时禁用
     document.getElementById('btn-prev').disabled=(this.idx===0);
     document.getElementById('btn-prev').style.opacity=(this.idx===0?0.4:1);
@@ -3918,7 +3930,7 @@ const App={
   // 丢弃进度
   discardProgress(){
     document.getElementById('confirm-save').style.display='none';
-    localStorage.removeItem(this.userKey('dict_progress'));CloudSync.pushDebounced();
+    localStorage.removeItem(this.userKey('dict_progress'));sessionStorage.removeItem('dict_result_cache');CloudSync.pushDebounced();
     this.sessionSource=null;
     this.go('home');
     this.renderHomeEntries();
@@ -3941,6 +3953,8 @@ const App={
 
   // 显示答案核对页（完成全部）
   showAnswerReview(){
+    // 缓存结果数据：刷新结果页后可以从缓存恢复
+    try{sessionStorage.setItem('dict_result_cache',JSON.stringify({words:this.words,source:this.sessionSource,mode:this.mode}));}catch(e){}
     document.getElementById('prog-fill').style.width='100%';
     const total=this.words.length;
     document.getElementById('result-icon').textContent='📝';
@@ -4020,7 +4034,7 @@ const App={
       wrongIdx:[]
     });
     if(this.sessionSource&&this.sessionSource.type==='continue'){
-      localStorage.removeItem(this.userKey('dict_progress'));CloudSync.pushDebounced();
+      localStorage.removeItem(this.userKey('dict_progress'));sessionStorage.removeItem('dict_result_cache');CloudSync.pushDebounced();
     }
     this.sessionSource=null;
     this.go('home');
@@ -4092,7 +4106,7 @@ const App={
       wrongIdx:[...checkedIdx]
     });
     if(this.sessionSource&&this.sessionSource.type==='continue'){
-      localStorage.removeItem(this.userKey('dict_progress'));CloudSync.pushDebounced();
+      localStorage.removeItem(this.userKey('dict_progress'));sessionStorage.removeItem('dict_result_cache');CloudSync.pushDebounced();
     }
     this.sessionSource=null;
     let msg=`已记录：${wrongCount} 个错题`;
@@ -4127,11 +4141,16 @@ const App={
 
   // ===== 复习库页面 =====
   showReview(){
+    this.go('review');
+  },
+
+  // 进入复习库页时初始化并刷新数据（hash 路由进入/返回时都会调用）
+  initReviewPage(lang){
+    this.reviewLang=lang||this.reviewLang||'zh';
     const bank=this.getReviewBank();
     const zhP=(bank.zh||[]).filter(w=>(w.streak||0)<3).length;
     const enP=(bank.en||[]).filter(w=>(w.streak||0)<3).length;
     // 默认选有待复习词的语言（若 reviewLang 已被预选则尊重它）
-    if(this.reviewLang!=='zh'&&this.reviewLang!=='en')this.reviewLang='zh';
     if((this.reviewLang==='zh'&&bank.zh.length===0&&bank.en.length>0)||
        (this.reviewLang==='en'&&bank.en.length===0&&bank.zh.length>0)){
       this.reviewLang=zhP>0?'zh':'en';
@@ -4142,9 +4161,14 @@ const App={
     this.renderReviewMastered();
     this.switchReviewTab('pending');
     this.syncReviewLangUI();
-    document.getElementById('review-edit-toolbar').style.display = '';
-    this._initReviewEditDelegation();
-    this.go('review');
+    const tb=document.getElementById('review-edit-toolbar');
+    if(tb)tb.style.display='';
+    this._editMode=false;
+    const etb=document.getElementById('et-toggle-btn');
+    if(etb){etb.classList.remove('active');etb.textContent='✏️ 编辑';}
+    const ab=document.getElementById('et-add-btn');
+    if(ab)ab.style.display='none';
+    if(typeof this._initReviewEditDelegation==='function')this._initReviewEditDelegation();
   },
 
   // 复习库编辑按钮事件委托（避免内联 onclick 的转义问题）
@@ -4175,6 +4199,7 @@ const App={
   },
   switchReviewLang(lang){
     this.reviewLang=lang;
+    location.replace('#/review/'+lang);
     this.syncReviewLangUI();
     this.renderReviewCounts();
     this.renderReviewPending();
@@ -4789,6 +4814,11 @@ const App={
 
   // ===== 日志功能 =====
   showLog(){
+    this.go('log');
+  },
+
+  // 进入日志页时初始化并刷新数据（hash 路由进入/返回时都会调用）
+  initLogPage(){
     let logs=[];
     try{logs=JSON.parse(localStorage.getItem(this.userKey('dict_log'))||'[]');}catch(e){logs=[];}
     const zhHas=logs.some(l=>l.mode==='zh');
@@ -4806,7 +4836,6 @@ const App={
     this.syncLogLangUI();
     this.bindLogViewToggle();
     this.renderLog();
-    this.go('log');
   },
   formatDate(date){
     const m=String(date).match(/(\d+)-(\d+)-(\d+)/);
@@ -4819,6 +4848,7 @@ const App={
   },
   switchLogLang(lang){
     this.logLang=lang;
+    location.replace('#/log/'+lang);
     this.calSelectedDate=new Date().toISOString().slice(0,10);
     this.syncLogLangUI();
     this.renderLog();
@@ -5380,35 +5410,84 @@ const App={
   },
   // 导航历史栈，用于「返回上一页」
   navHistory:[],
-  go(name){
-    const cur=document.querySelector('.screen.active');
-    if(cur){
-      const curName=cur.id.replace('screen-','');
-      if(curName!==name)this.navHistory.push(curName);
-    }
+  _lastRoute:'',
+  // ===== hash 路由：每个页面有独立 URL，刷新停留在当前页，跳转时刷新数据 =====
+  _buildRoute(name,params={}){
+    if(name==='lang')return '#/lang/'+(params.lang||this.langPageMode||'zh');
+    if(name==='review')return '#/review/'+(params.lang||this.reviewLang||'zh');
+    if(name==='ocr')return '#/ocr/'+(params.lang||this.ocrLang||'zh');
+    if(name==='log')return '#/log/'+(params.lang||this.logLang||'zh');
+    if(name==='banks')return '#/banks/'+(params.lang||this.bankManagerLang||'zh');
+    return '#/'+name;
+  },
+  _parseRoute(route){
+    const parts=(route||'').replace(/^#\/?/,'').split('/');
+    return {name:parts[0]||'home',lang:parts[1]||''};
+  },
+  _currentRoute(){return location.hash||'#/home';},
+  go(name,params={}){
+    const route=this._buildRoute(name,params);
+    const cur=this._currentRoute();
+    if(cur&&cur!==route&&this.navHistory[this.navHistory.length-1]!==cur)this.navHistory.push(cur);
+    this._applyRoute(route);
+    if(location.hash!==route)location.hash=route;
+  },
+  _applyRoute(route){
+    route=route||location.hash||'#/home';
+    if(route===this._lastRoute)return;
+    this._lastRoute=route;
+    const {name,lang}=this._parseRoute(route);
+    // 恢复各页面语言状态
+    if(name==='lang'&&lang)this.langPageMode=lang;
+    if(name==='review'&&lang)this.reviewLang=lang;
+    if(name==='ocr'&&lang)this.ocrLang=lang;
+    if(name==='log'&&lang)this.logLang=lang;
+    if(name==='banks'&&lang)this.bankManagerLang=lang;
+    const target=document.getElementById('screen-'+name);
+    if(!target){this.navHistory.length=0;this.go('home');return;}
     document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
-    document.getElementById('screen-'+name).classList.add('active');
+    target.classList.add('active');
     window.scrollTo(0,0);
-    // 进入复习库时：显示编辑工具栏，重置编辑模式，初始化事件委托
-    if(name==='review'){
-      const tb=document.getElementById('review-edit-toolbar');
-      if(tb)tb.style.display='';
-      this._editMode=false;
-      const etb=document.getElementById('et-toggle-btn');
-      if(etb){etb.classList.remove('active');etb.textContent='✏️ 编辑';}
-      const ab=document.getElementById('et-add-btn');
-      if(ab)ab.style.display='none';
-      // 初始化行内编辑/删除按钮的事件委托
-      if(typeof this._initReviewEditDelegation==='function')this._initReviewEditDelegation();
+    // 进入页面时刷新数据
+    this._refreshScreen(name);
+  },
+  _refreshScreen(name){
+    switch(name){
+      case 'home':this.renderHomeEntries();break;
+      case 'lang':this.initLangPage(this.langPageMode);break;
+      case 'review':this.initReviewPage(this.reviewLang);break;
+      case 'banks':this.renderBankManager();break;
+      case 'ocr':this.initOcrPage();break;
+      case 'log':this.initLogPage();break;
+      case 'dict':this.tryRestoreDict();break;
+      case 'result':
+        if(this.words&&this.words.length)break;
+        try{
+          const c=JSON.parse(sessionStorage.getItem('dict_result_cache')||'null');
+          if(c&&c.words&&c.words.length){this.words=c.words;this.sessionSource=c.source;this.mode=c.mode||'zh';this.showAnswerReview();}
+          else{this.navHistory.length=0;location.hash='#/home';this._applyRoute('#/home');}
+        }catch(e){this.navHistory.length=0;this.go('home');}
+        break;
     }
+  },
+  tryRestoreDict(){
+    // 刷新后停留在听写页：已有会话直接返回；否则尝试从未完成进度恢复
+    if(this.words&&this.words.length&&this.sessionSource)return;
+    let p;
+    try{p=JSON.parse(localStorage.getItem(this.userKey('dict_progress'))||'null');}catch(e){}
+    if(!p||!p.words||!p.words.length){this.navHistory.length=0;location.hash='#/home';this._applyRoute('#/home');return;}
+    this.mode=p.source?p.source.mode:'zh';
+    const source={...p.source,type:'continue'};
+    this.startSession(p.words,source);
+    this.idx=Math.min(p.idx,p.words.length-1);
+    this.renderWord();
+    setTimeout(()=>this.playCurrent(),300);
   },
   goBack(){
     if(this.navHistory.length){
       const prev=this.navHistory.pop();
-      document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
-      document.getElementById('screen-'+prev).classList.add('active');
-      window.scrollTo(0,0);
-      // go函数已统一处理进入review时的工具栏显示，这里不需要额外处理
+      this._applyRoute(prev);
+      if(location.hash!==prev)location.hash=prev;
     }else{
       this.go('home');
     }
@@ -5703,6 +5782,13 @@ const App={
     this.ocrEntryMode=options.entryMode==='chars'?'chars':'words';
     this.ocrReturnToManager=!!options.returnToManager;
     this.ocrTargetBankId=options.targetBankId||null;
+    this.go('ocr');
+  },
+
+  // 进入拍照听写页时初始化并刷新数据（hash 路由进入/返回时都会调用）
+  initOcrPage(){
+    const lang=this.ocrLang||'zh';
+    if(this.ocrEntryMode!=='chars')this.ocrEntryMode='words';
     this.ocrImageData=null;
     this.ocrWords=[];
     this.ocrSelectedBank=null;
@@ -5749,7 +5835,6 @@ const App={
       if(bank){this.ocrSelectedBank=bank.name;this.ocrSelectedBankId=bank.id;this._ocrBankType='custom';}
     }
     this.ocrLoadReviewPref();
-    this.go('ocr');
     this.ocrLoadTesseract();
   },
 
