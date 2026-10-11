@@ -2298,7 +2298,7 @@ const App={
       if(s.zhSettings)Object.assign(this.zhSettings,s.zhSettings);
       if(s.enSettings)Object.assign(this.enSettings,s.enSettings);
       // 确保不低于各语言最低值
-      if(this.zhSettings.dailyCount>0&&this.zhSettings.dailyCount<20)this.zhSettings.dailyCount=20;
+      if(this.zhSettings.dailyCount>0&&this.zhSettings.dailyCount<15)this.zhSettings.dailyCount=15;
       if(this.enSettings.dailyCount>0&&this.enSettings.dailyCount<10)this.enSettings.dailyCount=10;
     }catch(e){}
     this.migrateReviewBank();this.migrateLessonIds();
@@ -2392,7 +2392,7 @@ const App={
       if(s.zhSettings){Object.assign(this.zhSettings,s.zhSettings);}
       if(s.enSettings){Object.assign(this.enSettings,s.enSettings);}
       // 确保不低于各语言最低值
-      if(this.zhSettings.dailyCount>0&&this.zhSettings.dailyCount<20)this.zhSettings.dailyCount=20;
+      if(this.zhSettings.dailyCount>0&&this.zhSettings.dailyCount<15)this.zhSettings.dailyCount=15;
       if(this.enSettings.dailyCount>0&&this.enSettings.dailyCount<10)this.enSettings.dailyCount=10;
     }catch(e){}
   },
@@ -2736,7 +2736,7 @@ const App={
     const s=this.curSettings();
     const lang=this.langPageMode;
     // 每种语言的最低每日听写数量（仅用于控制按钮显隐；数据合法性由加载/合并层保证，此处不再修正以免触发云同步循环）
-    const minCount=lang==='zh'?20:10;
+    const minCount=lang==='zh'?15:10;
     const syncSeg=(segId,getKey,curVal,parseFn)=>{
       const seg=document.getElementById(segId);
       if(!seg)return;
