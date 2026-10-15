@@ -559,6 +559,9 @@
   .rd-tag{font-size:11px;color:#b26a00;background:#fff4ec;border-radius:6px;padding:2px 7px;margin-left:auto;white-space:nowrap;flex-shrink:0;}
   .rd-tag.due{color:#a32d2d;background:#fdecec;}
   .rd-note{font-size:12px;color:var(--muted);margin-top:2px;line-height:1.5;}
+  .rd-label-row{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+  .rd-select-all-btn{padding:4px 12px;border-radius:8px;border:1.5px solid var(--primary);background:#fff;color:var(--primary);font-size:12px;font-weight:600;cursor:pointer;flex-shrink:0;}
+  .rd-select-all-btn:active{background:#fff4ec;}
   .detail-grid{display:flex;flex-wrap:wrap;gap:8px;}
   .dw-item{
     display:flex;align-items:center;gap:6px;
@@ -1352,7 +1355,10 @@
           </div>
         </div>
         <div class="rd-manual-wrap" id="rd-manual-panel" style="display:none;">
-          <div class="rd-label">勾选要听写的词语（默认已按到期勾选，可自行增删）<span id="rd-manual-count" style="margin-left:8px;color:var(--primary);font-weight:700;"></span></div>
+          <div class="rd-label rd-label-row">
+            <span>勾选要听写的词语（默认已按到期勾选，可自行增删）<span id="rd-manual-count" style="margin-left:8px;color:var(--primary);font-weight:700;"></span></span>
+            <button class="rd-select-all-btn" id="rd-select-all-btn" onclick="App.toggleReviewDictSelectAll()">全选</button>
+          </div>
           <div class="rd-manual-list" id="rd-manual-list"></div>
         </div>
         <div class="rd-note" id="rd-note"></div>
@@ -4226,7 +4232,7 @@ const App={
         b.classList.toggle('active',isAll?(b.textContent==='全部'):(b.textContent===String(n)));
       });
     }
-    this.reviewDictRefreshManual();
+    this.reviewDictRefreshManual(true);
   },
   reviewDictSetMode(mode){
     this._reviewDictMode=mode;
@@ -4241,9 +4247,9 @@ const App={
         ?'按艾宾浩斯到期时间自动挑选：已到期的优先，未到期的按最近到期排序，取所选数量。'
         :'勾选要听写的词语；已默认按到期勾选了所选数量，可自行增删，以勾选为准。';
     }
-    if(mode==='manual')this.reviewDictRefreshManual();
+    if(mode==='manual')this.reviewDictRefreshManual(true);
   },
-  reviewDictRefreshManual(){
+  reviewDictRefreshManual(reset){
     const list=document.getElementById('rd-manual-list');
     if(!list)return;
     const pool=this._reviewDictPool||[];
@@ -4251,24 +4257,45 @@ const App={
     const now=Date.now();
     // 按到期排序
     const ordered=pool.slice().sort((a,b)=>(a.nextReview||0)-(b.nextReview||0));
-    // 默认勾选：按数量取前 N 个（可自行调整）
-    const n=this._reviewDictCount==='all'?pool.length:Math.min(parseInt(this._reviewDictCount)||10,pool.length);
-    const defaultKeys=ordered.slice(0,n).map(w=>w.key);
-    this._reviewDictManualSel=new Set(defaultKeys);
+    if(reset||!this._reviewDictManualSel){
+      // 默认勾选：按数量取前 N 个（可自行调整）
+      const n=this._reviewDictCount==='all'?pool.length:Math.min(parseInt(this._reviewDictCount)||10,pool.length);
+      const defaultKeys=ordered.slice(0,n).map(w=>w.key);
+      this._reviewDictManualSel=new Set(defaultKeys);
+    }
     list.innerHTML=ordered.map(w=>{
       const due=!w.nextReview||w.nextReview<=now;
       const tag=due?'<span class="rd-tag due">已到期</span>':'<span class="rd-tag">'+this._escHtml(this.reviewDueLabel(w))+'</span>';
-      return `<label class="rd-item"><input type="checkbox" checked onchange="App.toggleReviewDictManual('${w.key}',this.checked)"><span class="rd-item-text">${this._escHtml(w.text)}</span>${w.hint?'<span class="rd-item-hint">'+this._escHtml(w.hint)+'</span>':''}${tag}</label>`;
+      const checked=this._reviewDictManualSel.has(w.key);
+      return `<label class="rd-item"><input type="checkbox" ${checked?'checked':''} onchange="App.toggleReviewDictManual('${w.key}',this.checked)"><span class="rd-item-text">${this._escHtml(w.text)}</span>${w.hint?'<span class="rd-item-hint">'+this._escHtml(w.hint)+'</span>':''}${tag}</label>`;
     }).join('');
+    this.reviewDictUpdateManualUI();
+  },
+  reviewDictUpdateManualUI(){
+    const pool=this._reviewDictPool||[];
+    const sel=this._reviewDictManualSel||new Set();
     const cnt=document.getElementById('rd-manual-count');
-    if(cnt)cnt.textContent=`已选 ${defaultKeys.length} 个`;
+    if(cnt)cnt.textContent=`已选 ${sel.size} 个`;
+    const btn=document.getElementById('rd-select-all-btn');
+    if(btn)btn.textContent=(sel.size>0&&sel.size>=pool.length)?'取消全选':'全选';
+  },
+  toggleReviewDictSelectAll(){
+    const pool=this._reviewDictPool||[];
+    if(!pool.length)return;
+    const sel=this._reviewDictManualSel||new Set();
+    const allSelected=sel.size>0&&sel.size>=pool.length;
+    if(allSelected){
+      this._reviewDictManualSel=new Set();
+    }else{
+      this._reviewDictManualSel=new Set(pool.map(w=>w.key));
+    }
+    this.reviewDictRefreshManual(false);
   },
   toggleReviewDictManual(key,checked){
     if(!this._reviewDictManualSel)this._reviewDictManualSel=new Set();
     if(checked)this._reviewDictManualSel.add(key);
     else this._reviewDictManualSel.delete(key);
-    const cnt=document.getElementById('rd-manual-count');
-    if(cnt)cnt.textContent=`已选 ${this._reviewDictManualSel.size} 个`;
+    this.reviewDictUpdateManualUI();
   },
   reviewDueLabel(w){
     if(!w.nextReview)return '待安排';

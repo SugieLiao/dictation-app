@@ -129,4 +129,29 @@ assert.strictEqual(sessions.length,0,'0 selected → no session');
 App.reviewDictSetCount('2');
 assert.strictEqual(App._reviewDictManualSel.size,2,'count change resets manual default to 2');
 
+// —— 全选 / 取消全选 ——
+const selBtn=document.getElementById('rd-select-all-btn');
+assert.strictEqual(selBtn.textContent,'全选','btn shows 全选 when not all selected');
+App.toggleReviewDictSelectAll();
+assert.strictEqual(App._reviewDictManualSel.size,6,'select all picks all 6');
+assert.strictEqual(selBtn.textContent,'取消全选','btn shows 取消全选 when all selected');
+App.toggleReviewDictSelectAll();
+assert.strictEqual(App._reviewDictManualSel.size,0,'select all again clears all');
+assert.strictEqual(selBtn.textContent,'全选','btn back to 全选 after clear');
+// 全选后取消一个 → 文案回 全选
+App.toggleReviewDictSelectAll();
+App.toggleReviewDictManual(App._reviewDictPool[0].key,false);
+assert.strictEqual(selBtn.textContent,'全选','btn back to 全选 after unchecking one');
+// 取消全选后开始听写 → 拦截
+sessions.length=0;
+App._reviewDictManualSel=new Set();
+App.startReviewFromModal();
+assert.strictEqual(sessions.length,0,'none selected after clear-all blocks start');
+// 全选后开始听写 → 6 个词全部听写
+App.toggleReviewDictSelectAll();
+sessions.length=0;
+App.startReviewFromModal();
+assert.strictEqual(sessions.length,1);
+assert.strictEqual(sessions[0].words.length,6,'select-all then start writes all 6');
+
 console.log('review-dict-modal tests passed');
