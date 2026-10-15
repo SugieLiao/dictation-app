@@ -540,6 +540,25 @@
   .modal-body{padding:12px 16px;overflow-y:auto;-webkit-overflow-scrolling:touch;}
   #word-edit-mask.keyboard-aware{align-items:center;overflow-y:auto;padding:max(12px,env(safe-area-inset-top)) 16px max(12px,env(safe-area-inset-bottom));}
   #word-edit-mask.keyboard-aware .modal-card{max-height:calc(100% - 8px);}
+  /* 复习库听写设置弹窗 */
+  .modal-foot{display:flex;justify-content:flex-end;gap:10px;padding:12px 16px;border-top:1px solid var(--border);}
+  .rd-field{margin-bottom:14px;}
+  .rd-label{font-size:13px;font-weight:700;margin-bottom:8px;color:var(--text);}
+  .rd-count-row{display:flex;flex-wrap:wrap;gap:8px;}
+  .rd-count-btn{padding:6px 15px;border-radius:10px;border:1.5px solid var(--border);background:#fff;font-size:14px;font-weight:600;cursor:pointer;color:var(--text);}
+  .rd-count-btn.active{border-color:var(--primary);color:var(--primary);background:#fff4ec;}
+  .rd-mode-row{display:flex;gap:8px;flex-wrap:wrap;}
+  .rd-mode-btn{padding:8px 12px;border-radius:10px;border:1.5px solid var(--border);background:#fff;font-size:13px;font-weight:600;cursor:pointer;color:var(--text);line-height:1.35;}
+  .rd-mode-btn.active{border-color:var(--primary);color:var(--primary);background:#fff4ec;}
+  .rd-manual-list{max-height:270px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;padding:6px;-webkit-overflow-scrolling:touch;}
+  .rd-item{display:flex;align-items:center;gap:8px;padding:7px 6px;border-radius:8px;cursor:pointer;}
+  .rd-item:hover{background:#f7f7f7;}
+  .rd-item input{flex-shrink:0;width:17px;height:17px;}
+  .rd-item-text{font-size:14px;font-weight:600;color:var(--text);}
+  .rd-item-hint{font-size:12px;color:var(--muted);}
+  .rd-tag{font-size:11px;color:#b26a00;background:#fff4ec;border-radius:6px;padding:2px 7px;margin-left:auto;white-space:nowrap;flex-shrink:0;}
+  .rd-tag.due{color:#a32d2d;background:#fdecec;}
+  .rd-note{font-size:12px;color:var(--muted);margin-top:2px;line-height:1.5;}
   .detail-grid{display:flex;flex-wrap:wrap;gap:8px;}
   .dw-item{
     display:flex;align-items:center;gap:6px;
@@ -1309,6 +1328,41 @@
       <div id="review-panel-mastered" style="display:none;"></div>
     </div>
   </section>
+
+  <!-- 复习库听写设置弹窗 -->
+  <div class="modal-mask" id="review-dict-mask" onclick="if(event.target===this)App.closeReviewDictModal()">
+    <div class="modal-card">
+      <div class="modal-head">
+        <div>
+          <div class="m-title">🔁 复习库听写</div>
+          <div class="m-sub" id="rd-mask-sub"></div>
+        </div>
+        <div class="m-close" onclick="App.closeReviewDictModal()">✕</div>
+      </div>
+      <div class="modal-body">
+        <div class="rd-field">
+          <div class="rd-label">听写词数</div>
+          <div class="rd-count-row" id="rd-count-row"></div>
+        </div>
+        <div class="rd-field">
+          <div class="rd-label">选词方式</div>
+          <div class="rd-mode-row">
+            <button class="rd-mode-btn active" data-mode="auto" onclick="App.reviewDictSetMode('auto')">① 按到期时间自动选词</button>
+            <button class="rd-mode-btn" data-mode="manual" onclick="App.reviewDictSetMode('manual')">② 手动选择词语</button>
+          </div>
+        </div>
+        <div class="rd-manual-wrap" id="rd-manual-panel" style="display:none;">
+          <div class="rd-label">勾选要听写的词语（默认已按到期勾选，可自行增删）<span id="rd-manual-count" style="margin-left:8px;color:var(--primary);font-weight:700;"></span></div>
+          <div class="rd-manual-list" id="rd-manual-list"></div>
+        </div>
+        <div class="rd-note" id="rd-note"></div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-ghost" onclick="App.closeReviewDictModal()">取消</button>
+        <button class="btn btn-primary" onclick="App.startReviewFromModal()">开始听写</button>
+      </div>
+    </div>
+  </div>
 
   <!-- 保存进度确认框 -->
   <div class="confirm-box" id="confirm-save" style="display:none;">
@@ -4117,12 +4171,11 @@ const App={
     this.renderHomeEntries();
   },
 
-  // 开始复习库听写（只听当前语言未掌握的词，优先到期的）
+  // 开始复习库听写：弹出设置框（选词数 + 选词方式）
   startReview(){
     const bank=this.getReviewBank();
     const mode=this.reviewLang;
     const langLabel=mode==='zh'?'语文':'英语';
-    const now=Date.now();
     const all=bank[mode]||[];
     const pool=all.filter(w=>(w.streak||0)<3);
     if(!pool.length){
@@ -4133,10 +4186,116 @@ const App={
       }
       return;
     }
-    // 艾宾浩斯：已到期的优先，未到期的按最近到期排序
-    pool.sort((a,b)=>(a.nextReview||0)-(b.nextReview||0));
+    // 待复习词池（含索引 key 用于手动勾选）
+    this._reviewDictPool=pool.map((w,i)=>({...w,key:mode+'-'+i}));
+    this._reviewDictMode='auto';
+    this._reviewDictCount='10';
+    this._reviewDictManualSel=null;
+    // 数量档位
+    const countRow=document.getElementById('rd-count-row');
+    countRow.innerHTML='';
+    [5,10,15,20,30].forEach(n=>{
+      const b=document.createElement('button');
+      b.className='rd-count-btn'+(this._reviewDictCount===String(n)?' active':'');
+      b.textContent=String(n);
+      b.onclick=()=>this.reviewDictSetCount(n);
+      countRow.appendChild(b);
+    });
+    const allBtn=document.createElement('button');
+    allBtn.className='rd-count-btn'+(this._reviewDictCount==='all'?' active':'');
+    allBtn.textContent='全部';
+    allBtn.onclick=()=>this.reviewDictSetCount('all');
+    countRow.appendChild(allBtn);
+    // 副标题：待复习数 + 已到期数
+    const now=Date.now();
+    const due=pool.filter(w=>!w.nextReview||w.nextReview<=now).length;
+    document.getElementById('rd-mask-sub').textContent=`${langLabel} · 待复习 ${pool.length} 词 · 已到期 ${due} 词`;
+    this.reviewDictSetMode('auto');
+    document.getElementById('review-dict-mask').classList.add('show');
+  },
+  closeReviewDictModal(){
+    const mask=document.getElementById('review-dict-mask');
+    if(mask)mask.classList.remove('show');
+  },
+  reviewDictSetCount(n){
+    this._reviewDictCount=String(n);
+    const row=document.getElementById('rd-count-row');
+    if(row){
+      row.querySelectorAll('.rd-count-btn').forEach(b=>{
+        const isAll=n==='all';
+        b.classList.toggle('active',isAll?(b.textContent==='全部'):(b.textContent===String(n)));
+      });
+    }
+    this.reviewDictRefreshManual();
+  },
+  reviewDictSetMode(mode){
+    this._reviewDictMode=mode;
+    document.querySelectorAll('#review-dict-mask .rd-mode-btn').forEach(b=>{
+      b.classList.toggle('active',b.dataset.mode===mode);
+    });
+    const panel=document.getElementById('rd-manual-panel');
+    if(panel)panel.style.display=(mode==='manual')?'block':'none';
+    const note=document.getElementById('rd-note');
+    if(note){
+      note.innerHTML=mode==='auto'
+        ?'按艾宾浩斯到期时间自动挑选：已到期的优先，未到期的按最近到期排序，取所选数量。'
+        :'勾选要听写的词语；已默认按到期勾选了所选数量，可自行增删，以勾选为准。';
+    }
+    if(mode==='manual')this.reviewDictRefreshManual();
+  },
+  reviewDictRefreshManual(){
+    const list=document.getElementById('rd-manual-list');
+    if(!list)return;
+    const pool=this._reviewDictPool||[];
+    if(!pool.length)return;
+    const now=Date.now();
+    // 按到期排序
+    const ordered=pool.slice().sort((a,b)=>(a.nextReview||0)-(b.nextReview||0));
+    // 默认勾选：按数量取前 N 个（可自行调整）
+    const n=this._reviewDictCount==='all'?pool.length:Math.min(parseInt(this._reviewDictCount)||10,pool.length);
+    const defaultKeys=ordered.slice(0,n).map(w=>w.key);
+    this._reviewDictManualSel=new Set(defaultKeys);
+    list.innerHTML=ordered.map(w=>{
+      const due=!w.nextReview||w.nextReview<=now;
+      const tag=due?'<span class="rd-tag due">已到期</span>':'<span class="rd-tag">'+this._escHtml(this.reviewDueLabel(w))+'</span>';
+      return `<label class="rd-item"><input type="checkbox" checked onchange="App.toggleReviewDictManual('${w.key}',this.checked)"><span class="rd-item-text">${this._escHtml(w.text)}</span>${w.hint?'<span class="rd-item-hint">'+this._escHtml(w.hint)+'</span>':''}${tag}</label>`;
+    }).join('');
+    const cnt=document.getElementById('rd-manual-count');
+    if(cnt)cnt.textContent=`已选 ${defaultKeys.length} 个`;
+  },
+  toggleReviewDictManual(key,checked){
+    if(!this._reviewDictManualSel)this._reviewDictManualSel=new Set();
+    if(checked)this._reviewDictManualSel.add(key);
+    else this._reviewDictManualSel.delete(key);
+    const cnt=document.getElementById('rd-manual-count');
+    if(cnt)cnt.textContent=`已选 ${this._reviewDictManualSel.size} 个`;
+  },
+  reviewDueLabel(w){
+    if(!w.nextReview)return '待安排';
+    const days=Math.ceil((w.nextReview-Date.now())/86400000);
+    if(days<=0)return '已到期';
+    return days+'天后';
+  },
+  // 从弹窗开始复习库听写
+  startReviewFromModal(){
+    const mode=this.reviewLang;
+    const langLabel=mode==='zh'?'语文':'英语';
+    let words;
+    if(this._reviewDictMode==='manual'){
+      const sel=this._reviewDictManualSel?[...this._reviewDictManualSel]:[];
+      if(!sel.length){this.showToast('请至少勾选 1 个词语');return;}
+      const byKey={};
+      (this._reviewDictPool||[]).forEach(w=>byKey[w.key]=w);
+      words=sel.map(k=>byKey[k]).filter(Boolean);
+    }else{
+      const pool=(this._reviewDictPool||[]).slice().sort((a,b)=>(a.nextReview||0)-(b.nextReview||0));
+      const n=this._reviewDictCount==='all'?pool.length:Math.min(parseInt(this._reviewDictCount)||10,pool.length);
+      words=pool.slice(0,n);
+    }
+    if(!words.length){this.showToast(`${langLabel}复习库没有可听写的词`);return;}
+    this.closeReviewDictModal();
     this.mode=mode;
-    this.startSession(pool.map(w=>({text:w.text,hint:w.hint||'',fromReview:true})),{type:'review',mode:mode,grade:'复习库'});
+    this.startSession(words.map(w=>({text:w.text,hint:w.hint||'',fromReview:true})),{type:'review',mode:mode,grade:'复习库'});
   },
 
   // ===== 复习库页面 =====
