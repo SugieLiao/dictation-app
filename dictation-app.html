@@ -562,10 +562,11 @@
   .rd-tag.due{color:#a32d2d;background:#fdecec;}
   .rd-note{font-size:12px;color:var(--muted);margin-top:2px;line-height:1.5;}
   .rd-label-row{display:flex;align-items:center;justify-content:space-between;gap:10px;}
-  .rd-label-text{white-space:nowrap;flex:1;min-width:0;}
-  .rd-label-right{display:flex;align-items:center;gap:10px;flex-shrink:0;white-space:nowrap;}
+  .rd-label-text{white-space:nowrap;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;}
+  .rd-label-right{display:flex;align-items:center;gap:6px;flex-shrink:0;white-space:nowrap;}
   #review-dict-mask .modal-card{max-width:520px;}
-  .rd-select-all-btn{padding:4px 12px;border-radius:8px;border:1.5px solid var(--primary);background:#fff;color:var(--primary);font-size:12px;font-weight:600;cursor:pointer;flex-shrink:0;}
+  #review-dict-mask .modal-body{padding:12px 14px;}
+  .rd-select-all-btn{padding:3px 8px;border-radius:8px;border:1.5px solid var(--primary);background:#fff;color:var(--primary);font-size:12px;font-weight:600;cursor:pointer;flex-shrink:0;}
   .rd-select-all-btn:active{background:#fff4ec;}
   .detail-grid{display:flex;flex-wrap:wrap;gap:8px;}
   .dw-item{
@@ -1349,21 +1350,21 @@
       </div>
       <div class="modal-body">
         <div class="rd-field">
-          <div class="rd-label">听写词数</div>
-          <div class="rd-count-row" id="rd-count-row"></div>
-        </div>
-        <div class="rd-field">
           <div class="rd-label">选词方式</div>
           <div class="rd-mode-row">
             <button class="rd-mode-btn active" data-mode="auto" onclick="App.reviewDictSetMode('auto')">① 按到期时间自动选词</button>
             <button class="rd-mode-btn" data-mode="manual" onclick="App.reviewDictSetMode('manual')">② 手动选择词语</button>
           </div>
         </div>
+        <div class="rd-field" id="rd-count-field">
+          <div class="rd-label">听写词数</div>
+          <div class="rd-count-row" id="rd-count-row"></div>
+        </div>
         <div class="rd-manual-wrap" id="rd-manual-panel" style="display:none;">
           <div class="rd-label rd-label-row">
-            <span class="rd-label-text">勾选要听写的词语</span>
+            <span class="rd-label-text">勾选要听写的词语（默认已按到期勾选）</span>
             <span class="rd-label-right">
-              <span id="rd-manual-count" style="color:var(--primary);font-weight:700;"></span>
+              <span id="rd-manual-count" style="color:var(--primary);font-weight:700;font-size:12px;"></span>
               <button class="rd-select-all-btn" id="rd-select-all-btn" onclick="App.toggleReviewDictSelectAll()">全选</button>
             </span>
           </div>
@@ -4240,20 +4241,24 @@ const App={
         b.classList.toggle('active',isAll?(b.textContent==='全部'):(b.textContent===String(n)));
       });
     }
-    this.reviewDictRefreshManual(true);
+    // 词数仅在方式1使用；不影响手动勾选（方式2选多少听多少）
+    this.reviewDictRefreshManual(false);
   },
   reviewDictSetMode(mode){
     this._reviewDictMode=mode;
     document.querySelectorAll('#review-dict-mask .rd-mode-btn').forEach(b=>{
       b.classList.toggle('active',b.dataset.mode===mode);
     });
+    // 仅方式1（按到期自动选词）需要选择词数
+    const cf=document.getElementById('rd-count-field');
+    if(cf)cf.style.display=(mode==='auto')?'block':'none';
     const panel=document.getElementById('rd-manual-panel');
     if(panel)panel.style.display=(mode==='manual')?'block':'none';
     const note=document.getElementById('rd-note');
     if(note){
       note.innerHTML=mode==='auto'
         ?'按艾宾浩斯到期时间自动挑选：已到期的优先，未到期的按最近到期排序，取所选数量。'
-        :'勾选要听写的词语；已默认按到期勾选了所选数量，以勾选为准。';
+        :'勾选要听写的词语；已默认勾选已到期的词，以勾选为准。';
     }
     if(mode==='manual')this.reviewDictRefreshManual(true);
   },
@@ -4266,10 +4271,9 @@ const App={
     // 按到期排序
     const ordered=pool.slice().sort((a,b)=>(a.nextReview||0)-(b.nextReview||0));
     if(reset||!this._reviewDictManualSel){
-      // 默认勾选：按数量取前 N 个（可自行调整）
-      const n=this._reviewDictCount==='all'?pool.length:Math.min(parseInt(this._reviewDictCount)||10,pool.length);
-      const defaultKeys=ordered.slice(0,n).map(w=>w.key);
-      this._reviewDictManualSel=new Set(defaultKeys);
+      // 方式2默认勾选：已到期（含未安排）的词，选多少听多少，可自行增删
+      const dueKeys=ordered.filter(w=>!w.nextReview||w.nextReview<=now).map(w=>w.key);
+      this._reviewDictManualSel=new Set(dueKeys);
     }
     list.innerHTML=ordered.map(w=>{
       const due=!w.nextReview||w.nextReview<=now;

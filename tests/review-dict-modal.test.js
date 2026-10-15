@@ -80,6 +80,10 @@ const mask=document.getElementById('review-dict-mask');
 assert.ok(mask.classList.contains('show'),'modal shown');
 assert.strictEqual(document.getElementById('rd-mask-sub').textContent,'语文 · 待复习 6 词 · 已到期 2 词');
 
+// 默认方式1：词数栏可见，手动面板隐藏
+const cf=document.getElementById('rd-count-field');
+assert.strictEqual(cf.style.display,'block','count field visible in auto mode');
+assert.strictEqual(document.getElementById('rd-manual-panel').style.display,'none','manual panel hidden in auto mode');
 // 数量档位：5/10/15/20/30/全部 共 6 个
 const countRow=document.getElementById('rd-count-row');
 assert.strictEqual(countRow.children.length,6,'6 count buttons');
@@ -103,20 +107,20 @@ assert.ok(!mask.classList.contains('show'),'modal closed after start');
 
 // —— 方式2 手动：重新打开，切手动，取消一个再开始 ——
 App.startReview();
-App.reviewDictSetCount('3');
 App.reviewDictSetMode('manual');
 assert.ok(document.getElementById('rd-manual-panel').style.display==='block','manual panel shown');
-// 默认勾选 3 个（按到期排序前3：浩浩荡荡、人山人海、窃窃私语）
+assert.strictEqual(cf.style.display,'none','count field hidden in manual mode');
+// 默认勾选已到期的 2 个（浩浩荡荡、人山人海）
 const sel=App._reviewDictManualSel;
-assert.strictEqual(sel.size,3,'default 3 selected');
-assert.ok(document.getElementById('rd-manual-count').textContent.includes('已选 3 个'));
-// 取消第一个
+assert.strictEqual(sel.size,2,'default selects due words only');
+assert.ok(document.getElementById('rd-manual-count').textContent.includes('已选 2 个'));
+// 取消第一个（已到期之一）
 App.toggleReviewDictManual(App._reviewDictPool[0].key,false);
-assert.strictEqual(sel.size,2,'after uncheck 2 selected');
+assert.strictEqual(sel.size,1,'after uncheck 1 selected');
 sessions.length=0;
 App.startReviewFromModal();
 assert.strictEqual(sessions.length,1);
-assert.strictEqual(sessions[0].words.length,2,'manual uses checked words');
+assert.strictEqual(sessions[0].words.length,1,'manual uses checked words');
 assert.ok(!sessions[0].words.some(w=>w.text==='浩浩荡荡'),'unchecked word excluded');
 
 // —— 手动勾选 0 个 → 提示不开始 ——
@@ -125,9 +129,15 @@ App._reviewDictManualSel=new Set();
 App.startReviewFromModal();
 assert.strictEqual(sessions.length,0,'0 selected → no session');
 
-// —— 数量切换会重置手动默认勾选 ——
-App.reviewDictSetCount('2');
-assert.strictEqual(App._reviewDictManualSel.size,2,'count change resets manual default to 2');
+// —— 方式2 选多少听多少：先回到默认勾选状态（到期2个）再手动加勾一个未到期词 ——
+App.startReview();
+App.reviewDictSetMode('manual');
+assert.strictEqual(App._reviewDictManualSel.size,2,'back to due-only default');
+sessions.length=0;
+App.toggleReviewDictManual(App._reviewDictPool.find(w=>w.text==='窃窃私语').key,true);
+App.startReviewFromModal();
+assert.strictEqual(sessions.length,1);
+assert.strictEqual(sessions[0].words.length,3,'manual writes exactly checked words (2 due + 1 extra)');
 
 // —— 全选 / 取消全选 ——
 const selBtn=document.getElementById('rd-select-all-btn');
@@ -142,6 +152,10 @@ assert.strictEqual(selBtn.textContent,'全选','btn back to 全选 after clear')
 App.toggleReviewDictSelectAll();
 App.toggleReviewDictManual(App._reviewDictPool[0].key,false);
 assert.strictEqual(selBtn.textContent,'全选','btn back to 全选 after unchecking one');
+// 手动模式下切数量不会改变手动勾选（词数栏已隐藏，选多少听多少）
+const selBefore=App._reviewDictManualSel.size;
+App.reviewDictSetCount('5');
+assert.strictEqual(App._reviewDictManualSel.size,selBefore,'count change does not affect manual selection');
 // 取消全选后开始听写 → 拦截
 sessions.length=0;
 App._reviewDictManualSel=new Set();
