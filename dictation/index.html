@@ -1361,7 +1361,7 @@
         </div>
         <div class="rd-manual-wrap" id="rd-manual-panel" style="display:none;">
           <div class="rd-label rd-label-row">
-            <span class="rd-label-text">勾选要听写的词语（默认按到期勾选，可增删）</span>
+            <span class="rd-label-text">勾选要听写的词语</span>
             <span class="rd-label-right">
               <span id="rd-manual-count" style="color:var(--primary);font-weight:700;"></span>
               <button class="rd-select-all-btn" id="rd-select-all-btn" onclick="App.toggleReviewDictSelectAll()">全选</button>
@@ -4253,7 +4253,7 @@ const App={
     if(note){
       note.innerHTML=mode==='auto'
         ?'按艾宾浩斯到期时间自动挑选：已到期的优先，未到期的按最近到期排序，取所选数量。'
-        :'勾选要听写的词语；已默认按到期勾选了所选数量，可自行增删，以勾选为准。';
+        :'勾选要听写的词语；已默认按到期勾选了所选数量，以勾选为准。';
     }
     if(mode==='manual')this.reviewDictRefreshManual(true);
   },
