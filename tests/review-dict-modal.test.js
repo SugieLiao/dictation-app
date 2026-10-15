@@ -41,7 +41,7 @@ global.document={
   getElementById:getEl,
   querySelector:(sel)=>{if(sel==='#review-dict-mask .rd-mode-btn')return null;return null;},
   querySelectorAll:(sel)=>{if(sel==='#review-dict-mask .rd-mode-btn')return getEl('review-dict-mask').children;return [];},
-  createElement:(tag)=>{const b=mkBtn('');b.tag=tag;return b;}
+  createElement:(tag)=>{const b=mkBtn('');b.tag=tag;let _tc='';Object.defineProperty(b,'textContent',{get(){return _tc;},set(v){_tc=String(v);b.innerHTML=_tc.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}});return b;}
 };
 global.window={scrollTo(){},addEventListener(){}};
 global.location={hash:'',replace(){}};
@@ -128,6 +128,29 @@ sessions.length=0;
 App._reviewDictManualSel=new Set();
 App.startReviewFromModal();
 assert.strictEqual(sessions.length,0,'0 selected → no session');
+
+// —— 表头排序：默认到期升序；点「来源」按来源排序；再点降序；切回到期 ——
+App.startReview();
+App.reviewDictSetMode('manual');
+assert.strictEqual(App._reviewDictManualSel.size,2,'reset default due selection before sort');
+assert.strictEqual(App._reviewDictSort.key,'due','default sort by due');
+assert.strictEqual(App._reviewDictSort.dir,1,'due asc default');
+assert.ok(els['rd-sort-due'].textContent.includes('▲'),'due asc indicator');
+App.reviewDictSort('src');
+assert.strictEqual(App._reviewDictSort.key,'src');
+assert.strictEqual(App._reviewDictSort.dir,1);
+const htmlSrcAsc=els['rd-manual-list'].innerHTML;
+assert.ok(htmlSrcAsc.indexOf('浩浩荡荡')<htmlSrcAsc.indexOf('目不转睛'),'src asc: lesson1 before lesson2');
+assert.ok(htmlSrcAsc.indexOf('目不转睛')<htmlSrcAsc.indexOf('窃窃私语'),'src asc: lesson2 before lesson3');
+assert.strictEqual(els['rd-sort-src'].textContent.includes('▲'),true,'src asc indicator');
+App.reviewDictSort('src');
+assert.strictEqual(App._reviewDictSort.dir,-1,'src desc');
+const htmlSrcDesc=els['rd-manual-list'].innerHTML;
+assert.ok(htmlSrcDesc.indexOf('窃窃私语')<htmlSrcDesc.indexOf('目不转睛'),'src desc: lesson3 first');
+App.reviewDictSort('due');
+assert.strictEqual(App._reviewDictSort.key,'due','back to due sort');
+assert.strictEqual(App._reviewDictSort.dir,1);
+assert.strictEqual(App._reviewDictManualSel.size,2,'sort does not change selection');
 
 // —— 方式2 选多少听多少：先回到默认勾选状态（到期2个）再手动加勾一个未到期词 ——
 App.startReview();

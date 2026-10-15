@@ -553,10 +553,14 @@
   .rd-mode-btn{padding:8px 12px;border-radius:10px;border:1.5px solid var(--border);background:#fff;font-size:13px;font-weight:600;cursor:pointer;color:var(--text);line-height:1.35;}
   .rd-mode-btn.active{border-color:var(--primary);color:var(--primary);background:#fff4ec;}
   .rd-manual-list{max-height:270px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;padding:6px;-webkit-overflow-scrolling:touch;}
-  .rd-item{display:flex;align-items:center;gap:8px;padding:7px 6px;border-radius:8px;cursor:pointer;}
+  .rd-manual-head{display:grid;grid-template-columns:1fr 1.15fr auto;gap:8px;align-items:center;padding:5px 6px;font-size:12px;color:var(--muted);border-bottom:1px solid #eee;}
+  .rd-col-sort{cursor:pointer;user-select:none;white-space:nowrap;}
+  .rd-col-sort.active{color:var(--primary);font-weight:700;}
+  .rd-item{display:grid;grid-template-columns:1fr 1.15fr auto;gap:8px;align-items:center;padding:7px 6px;border-radius:8px;cursor:pointer;}
   .rd-item:hover{background:#f7f7f7;}
   .rd-item input{flex-shrink:0;width:17px;height:17px;}
-  .rd-item-text{font-size:14px;font-weight:600;color:var(--text);}
+  .rd-item-left{display:flex;align-items:center;gap:8px;min-width:0;overflow:hidden;}
+  .rd-item-text{font-size:14px;font-weight:600;color:var(--text);white-space:nowrap;}
   .rd-item-hint{font-size:12px;color:var(--muted);}
   .rd-item-src{font-size:11px;color:var(--muted);opacity:.8;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .rd-tag{font-size:11px;color:#b26a00;background:#fff4ec;border-radius:6px;padding:2px 7px;margin-left:auto;white-space:nowrap;flex-shrink:0;}
@@ -1368,6 +1372,11 @@
               <span id="rd-manual-count" style="color:var(--primary);font-weight:700;font-size:12px;"></span>
               <button class="rd-select-all-btn" id="rd-select-all-btn" onclick="App.toggleReviewDictSelectAll()">全选</button>
             </span>
+          </div>
+          <div class="rd-manual-head">
+            <span class="rd-col-word">词语</span>
+            <span class="rd-col-sort" id="rd-sort-src" onclick="App.reviewDictSort('src')">来源 ↕</span>
+            <span class="rd-col-sort" id="rd-sort-due" onclick="App.reviewDictSort('due')">到期 ↕</span>
           </div>
           <div class="rd-manual-list" id="rd-manual-list"></div>
         </div>
@@ -4269,8 +4278,15 @@ const App={
     const pool=this._reviewDictPool||[];
     if(!pool.length)return;
     const now=Date.now();
-    // 按到期排序
-    const ordered=pool.slice().sort((a,b)=>(a.nextReview||0)-(b.nextReview||0));
+    // 排序：默认按到期时间（可点表头按来源/到期排序）
+    if(!this._reviewDictSort)this._reviewDictSort={key:'due',dir:1};
+    const st=this._reviewDictSort;
+    let ordered=pool.slice();
+    if(st.key==='src'){
+      ordered.sort((a,b)=>String(a.source||'').localeCompare(String(b.source||''),'zh-Hans-CN')*st.dir);
+    }else{
+      ordered.sort((a,b)=>((a.nextReview||0)-(b.nextReview||0))*st.dir);
+    }
     if(reset||!this._reviewDictManualSel){
       // 方式2默认勾选：已到期（含未安排）的词，选多少听多少，可自行增删
       const dueKeys=ordered.filter(w=>!w.nextReview||w.nextReview<=now).map(w=>w.key);
@@ -4280,9 +4296,20 @@ const App={
       const due=!w.nextReview||w.nextReview<=now;
       const tag=due?'<span class="rd-tag due">已到期</span>':'<span class="rd-tag">'+this._escHtml(this.reviewDueLabel(w))+'</span>';
       const checked=this._reviewDictManualSel.has(w.key);
-      return `<label class="rd-item"><input type="checkbox" ${checked?'checked':''} onchange="App.toggleReviewDictManual('${w.key}',this.checked)"><span class="rd-item-text">${this._escHtml(w.text)}</span>${w.hint?'<span class="rd-item-hint">'+this._escHtml(w.hint)+'</span>':''}<span class="rd-item-src">${this._escHtml(w.source||'')}</span>${tag}</label>`;
+      return `<label class="rd-item"><span class="rd-item-left"><input type="checkbox" ${checked?'checked':''} onchange="App.toggleReviewDictManual('${w.key}',this.checked)"><span class="rd-item-text">${this._escHtml(w.text)}</span>${w.hint?'<span class="rd-item-hint">'+this._escHtml(w.hint)+'</span>':''}</span><span class="rd-item-src">${this._escHtml(w.source||'')}</span>${tag}</label>`;
     }).join('');
+    const st2=this._reviewDictSort||{key:'due',dir:1};
+    const s1=document.getElementById('rd-sort-src');
+    const s2=document.getElementById('rd-sort-due');
+    if(s1){s1.textContent='来源 '+(st2.key==='src'?(st2.dir>0?'▲':'▼'):'↕');s1.classList.toggle('active',st2.key==='src');}
+    if(s2){s2.textContent='到期 '+(st2.key==='due'?(st2.dir>0?'▲':'▼'):'↕');s2.classList.toggle('active',st2.key==='due');}
     this.reviewDictUpdateManualUI();
+  },
+  reviewDictSort(key){
+    const st=this._reviewDictSort||{key:'due',dir:1};
+    if(st.key===key)this._reviewDictSort={key,dir:st.dir*-1};
+    else this._reviewDictSort={key,dir:1};
+    this.reviewDictRefreshManual(false);
   },
   reviewDictUpdateManualUI(){
     const pool=this._reviewDictPool||[];
