@@ -558,6 +558,7 @@
   .rd-item input{flex-shrink:0;width:17px;height:17px;}
   .rd-item-text{font-size:14px;font-weight:600;color:var(--text);}
   .rd-item-hint{font-size:12px;color:var(--muted);}
+  .rd-item-src{font-size:11px;color:var(--muted);opacity:.8;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .rd-tag{font-size:11px;color:#b26a00;background:#fff4ec;border-radius:6px;padding:2px 7px;margin-left:auto;white-space:nowrap;flex-shrink:0;}
   .rd-tag.due{color:#a32d2d;background:#fdecec;}
   .rd-note{font-size:12px;color:var(--muted);margin-top:2px;line-height:1.5;}
@@ -4279,7 +4280,7 @@ const App={
       const due=!w.nextReview||w.nextReview<=now;
       const tag=due?'<span class="rd-tag due">已到期</span>':'<span class="rd-tag">'+this._escHtml(this.reviewDueLabel(w))+'</span>';
       const checked=this._reviewDictManualSel.has(w.key);
-      return `<label class="rd-item"><input type="checkbox" ${checked?'checked':''} onchange="App.toggleReviewDictManual('${w.key}',this.checked)"><span class="rd-item-text">${this._escHtml(w.text)}</span>${w.hint?'<span class="rd-item-hint">'+this._escHtml(w.hint)+'</span>':''}${tag}</label>`;
+      return `<label class="rd-item"><input type="checkbox" ${checked?'checked':''} onchange="App.toggleReviewDictManual('${w.key}',this.checked)"><span class="rd-item-text">${this._escHtml(w.text)}</span>${w.hint?'<span class="rd-item-hint">'+this._escHtml(w.hint)+'</span>':''}<span class="rd-item-src">${this._escHtml(w.source||'')}</span>${tag}</label>`;
     }).join('');
     this.reviewDictUpdateManualUI();
   },
