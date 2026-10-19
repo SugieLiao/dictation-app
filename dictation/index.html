@@ -7399,6 +7399,7 @@ const CloudSync={
   syncing:false,         // 是否正在同步中
   lastSyncTs:0,          // 上次成功同步时间戳
   pendingTimer:null,     // 防抖定时器
+  retryTimer:null,       // 离线自动重连定时器（网络恢复后自动重新连线）
   cache:null,            // 当前用户的云端缓存
   remoteWasEmpty:false,  // 新 D1 首次启用时，用于自动迁移本机全部用户数据
 
@@ -7410,11 +7411,19 @@ const CloudSync={
         this.enabled=true;
         this.cache=data;
         this.remoteWasEmpty=this._remoteIsEmpty(data);
+        if(this.retryTimer){clearTimeout(this.retryTimer);this.retryTimer=null;}
         return true;
       }
     }catch(e){}
     this.enabled=false;
     this.updateIndicator('offline');
+    // 离线自动重连：每 30 秒探测一次后端，恢复后走完整同步流程，避免一直停在「离线模式」
+    if(!this.retryTimer){
+      this.retryTimer=setTimeout(()=>{
+        this.retryTimer=null;
+        if(!this.enabled)App.initCloudSync();
+      },30000);
+    }
     return false;
   },
 
