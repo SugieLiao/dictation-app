@@ -173,6 +173,18 @@ App.startBankReviewFromModal();
 assert.strictEqual(sessions.length,0,'0 selected → no session');
 
 // —— 对错规则 ——
+// 0) 选「复习库」作为范围：打开弹窗，范围=复习库全部词（含已掌握）
+App.zhSettings={...App.enSettings,currentBankId:'__review__',selectedLessonKeys:[]};
+App.enSettings.currentBankId='__review__';
+App.enSettings.selectedLessonKeys=[];
+App.langPageMode='en';App.mode='en';
+App.openBankReviewModal();
+assert.ok(document.getElementById('br-mask-sub').textContent.includes('复习库'),'review-bank scope subtitle: '+document.getElementById('br-mask-sub').textContent);
+assert.ok(document.getElementById('br-mask-sub').textContent.includes('可复习 2 词'),'review-bank practiced count');
+assert.strictEqual(App._bankReviewPool.length,2,'review-bank pool = all review words');
+App.closeBankReviewModal();
+App.enSettings.currentBankId='b1';App.enSettings.selectedLessonKeys=['bank::b1::l1'];
+
 // 1) 复习写对且词在复习库 → streak+1（需求2）
 const rb0=JSON.parse(storage[App.userKey('dict_review')]);
 const vb0=rb0.en.find(w=>w.text==='volleyball');

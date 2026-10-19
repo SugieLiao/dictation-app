@@ -4486,10 +4486,17 @@ const App={
 
   // ===== 听写页复习（重听已掌握词）=====
   openBankReviewModal(){
-    const keys=this.curSettings().selectedLessonKeys||[];
-    if(!keys.length){this.showToast('请先选择要听写的课文');return;}
+    const settings=this.curSettings();
+    const keys=settings.selectedLessonKeys||[];
+    if(!keys.length&&settings.currentBankId!=='__review__'){this.showToast('请先选择要听写的课文');return;}
     const langLabel=this.mode==='zh'?'语文':'英语';
     const scopeWords=[],scopeNames=[];
+    // 特殊词库：复习库 → 复习范围=复习库全部词
+    if(settings.currentBankId==='__review__'){
+      scopeNames.push('复习库');
+      const rb=this.getReviewBank();
+      scopeWords.push(...((rb[this.mode]||[]).filter(w=>!w.archived)));
+    }
     keys.forEach(key=>{
       const parsed=this._parseLessonKey(key);
       if(parsed.type!=='bank')return;
