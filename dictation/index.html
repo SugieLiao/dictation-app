@@ -7713,6 +7713,44 @@ const CloudSync={
   }
 };
 
+
+  // ===== 同步诊断（仅 ?diag=1 时显示，正常访问无影响）=====
+  if(typeof location!=='undefined'&&location.search&&location.search.indexOf('diag=1')>=0){
+    (function(){
+      var log=[];
+      function out(msg){log.push(msg);}
+      window.__diag=function(){return log.join('\n');};
+      window.addEventListener('error',function(e){out('GLOBAL-ERR '+e.message);});
+      window.addEventListener('unhandledrejection',function(e){out('REJECT '+(e.reason&&(e.reason.message||e.reason.name)||e.reason));});
+      var orig=window.fetch;
+      window.fetch=function(){
+        var url=String(arguments[0]),opts=arguments[1]||{};
+        var entry={t:new Date().toISOString().slice(11,19),m:opts.method||'GET',u:url.replace(location.origin,''),n:opts.body?String(opts.body).length:0};
+        out('REQ '+entry.t+' '+entry.m+' '+entry.u+' body='+entry.n);
+        var p;
+        try{p=orig.apply(this,arguments);}catch(err){out('SYNC-THROW '+err.message);throw err;}
+        p.then(function(r){
+          out('RESP '+entry.t+' '+entry.m+' '+entry.u+' -> '+r.status);
+          if(r.status!==200){r.text().then(function(t){out('BODY '+entry.u+' '+t.slice(0,120));}).catch(function(){});}
+          return r;
+        }).catch(function(err){out('FETCH-ERR '+entry.t+' '+entry.m+' '+entry.u+' '+err.name+':'+err.message);});
+        return p;
+      };
+      window.addEventListener('load',function(){
+        setTimeout(function(){
+          var d=document.createElement('div');
+          d.style.cssText='position:fixed;left:4px;right:4px;bottom:4px;z-index:99999;background:#111;color:#0f0;font:11px/1.5 monospace;padding:8px;border-radius:6px;max-height:45vh;overflow:auto;white-space:pre-wrap;opacity:.95;';
+          d.id='diag-box';
+          d.textContent=log.join('\n');
+          document.body.appendChild(d);
+          var iv=setInterval(function(){var el=document.getElementById('diag-box');if(el)el.textContent=log.join('\n');},1500);
+          setTimeout(function(){clearInterval(iv);},60000);
+        },3000);
+      });
+    })();
+  }
+  // ===== 同步诊断结束 =====
+
 App.init();
 </script>
 </body>
