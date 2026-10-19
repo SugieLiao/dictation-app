@@ -1,5 +1,5 @@
 // Cloudflare Worker —— 听写 App 页面 + 同源 D1 云同步 API
-// 路由：liaohao.cc/dictation*
+// 路由：kids.liaohao.cc/dictation*（旧地址 liaohao.cc 兼容）
 // D1 绑定：DICTATION_DB（见 wrangler.jsonc）
 
 function b64ToUtf8(b64){
@@ -85,7 +85,7 @@ function allowedOrigin(request){
   if (!origin) return true;
   try {
     const parsed = new URL(origin);
-    if (parsed.protocol === 'https:' && parsed.hostname === 'liaohao.cc') return true;
+    if (parsed.protocol === 'https:' && (parsed.hostname === 'liaohao.cc' || parsed.hostname === 'kids.liaohao.cc')) return true;
     return parsed.protocol === 'http:' && (parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1');
   } catch (error) {
     return false;
