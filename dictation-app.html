@@ -3610,6 +3610,19 @@ const App={
       };
       wrap.appendChild(c);
     };
+    // 特殊词库：复习库（听写入口，流程同复习库页面的开始听写）
+    const reviewChip=document.createElement('div');
+    const rb=this.getReviewBank();
+    const rw=(rb[this.mode]||[]).filter(w=>(w.streak||0)<3);
+    reviewChip.className='chip'+(settings.currentBankId==='__review__'?' active':'');
+    reviewChip.textContent='🔁 复习库'+(rw.length?`（${rw.length}）`:'');
+    reviewChip.onclick=()=>{
+      settings.currentBankId='__review__';
+      this.saveSettings();
+      this.renderLangGradeChips();
+      this.renderLangLessonSelector();
+    };
+    wrap.appendChild(reviewChip);
     presetBanks.forEach(renderBankChip);
     if(presetBanks.length&&customBanks.length){
       const sep=document.createElement('div');
@@ -3641,6 +3654,19 @@ const App={
     if(!currentBankId){row.style.display='none';return;}
     row.style.display='block';
     list.innerHTML='';
+    if(currentBankId==='__review__'){
+      if(label)label.textContent='复习库（特殊词库）';
+      const rb2=this.getReviewBank();
+      const rw2=(rb2[mode]||[]).filter(w=>(w.streak||0)<3);
+      const now2=Date.now();
+      const due2=rw2.filter(w=>!w.nextReview||w.nextReview<=now2).length;
+      const info=document.createElement('div');
+      info.className='lesson-multi-item';
+      info.style.cssText='cursor:default;color:var(--muted);';
+      info.innerHTML=`🔁 待复习 <b>${rw2.length}</b> 词 · 已到期 <b>${due2}</b> 词<br><span style="font-size:12px;">点击「开始听写」设置选词方式与词数</span>`;
+      list.appendChild(info);
+      return;
+    }
     if(label)label.textContent='选择课文（可多选）';
     // 显示普通教材的课文
     {
@@ -3831,6 +3857,12 @@ const App={
     // 同步状态不阻塞开始听写；未同步完成时用本地数据即可，后续同步会自动修正
     if(!this.cloudSyncReady){
       App.showToast('同步未完成，使用本地数据开始听写');
+    }
+    // 特殊词库：复习库 → 走复习库听写设置弹窗
+    if(this.curSettings().currentBankId==='__review__'){
+      this.reviewLang=this.mode;
+      this.startReview();
+      return;
     }
     const custom=document.getElementById('lang-custom-list').value.trim();
     let words,source;
@@ -4474,7 +4506,7 @@ const App={
     let html='';
     html+=`<div class="review-head">
       <div class="rh-info">${langLabel} · 共 <b>${items.length}</b> 个词待复习${dueCnt>0?` · <b>${dueCnt}</b> 个已到期`:''}<br><span style="font-size:11px;">📅 按艾宾浩斯遗忘曲线安排复习</span></div>
-      <div>${items.length?`<button class="btn btn-primary" onclick="App.startReview()">开始听写</button>`:''}</div>
+      <div></div>
     </div>`;
     if(!items.length){
       html+=`<div class="empty-box"><span class="big-emoji">🎯</span>${langLabel}没有待复习的词<br>听写中写错的词会自动出现在这里</div>`;

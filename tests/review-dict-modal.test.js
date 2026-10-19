@@ -191,4 +191,19 @@ App.startReviewFromModal();
 assert.strictEqual(sessions.length,1);
 assert.strictEqual(sessions[0].words.length,6,'select-all then start writes all 6');
 
+// —— 迁移：语言页选择「复习库」词库 → 开始听写走复习库弹窗 ——
+App.mode='zh';App.reviewLang='zh';
+const st=App.curSettings();
+st.currentBankId='__review__';
+App.startReview();   // 重置弹窗 + 词池
+els['review-dict-mask'].classList.remove('show');
+App.beginDictation();
+assert.strictEqual(els['review-dict-mask'].classList.contains('show'),true,'beginDictation with __review__ opens review modal');
+assert.strictEqual(App._reviewDictPool.length>0,true,'review pool loaded');
+// 未选复习库（普通词库）时 beginDictation 不应打开复习库弹窗（无课文选择 → toast 拦截）
+els['review-dict-mask'].classList.remove('show');
+st.currentBankId='other-bank';
+App.beginDictation();
+assert.strictEqual(els['review-dict-mask'].classList.contains('show'),false,'beginDictation with normal bank does not open review modal');
+
 console.log('review-dict-modal tests passed');
