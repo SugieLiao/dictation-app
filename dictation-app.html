@@ -573,6 +573,19 @@
   #review-dict-mask .modal-body{padding:12px 14px;}
   .rd-select-all-btn{padding:3px 8px;border-radius:8px;border:1.5px solid var(--primary);background:#fff;color:var(--primary);font-size:12px;font-weight:600;cursor:pointer;flex-shrink:0;}
   .rd-select-all-btn:active{background:#fff4ec;}
+  #bank-review-mask .modal-card{max-width:540px;}
+  #bank-review-mask .modal-body{padding:12px 14px;}
+  .br-manual-head{display:grid;grid-template-columns:1fr 70px 1fr;gap:8px;align-items:center;padding:5px 6px;font-size:12px;color:var(--muted);border-bottom:1px solid #eee;}
+  .br-item{display:grid;grid-template-columns:1fr 70px 1fr;gap:8px;align-items:center;padding:7px 6px;border-radius:8px;cursor:pointer;}
+  .br-item:hover{background:#f7f7f7;}
+  .br-item input{flex-shrink:0;width:17px;height:17px;}
+  .br-item-left{display:flex;align-items:center;gap:8px;min-width:0;overflow:hidden;}
+  .br-item-text{font-size:14px;font-weight:600;color:var(--text);white-space:nowrap;}
+  .br-item-hint{font-size:12px;color:var(--muted);}
+  .br-status{font-size:11px;border-radius:6px;padding:2px 6px;white-space:nowrap;justify-self:start;flex-shrink:0;}
+  .br-status.passed{color:#1e7a3c;background:#e7f6ec;}
+  .br-status.review{color:#b26a00;background:#fff4ec;}
+  .br-status.new{color:#6b7280;background:#f0f1f3;}
   .detail-grid{display:flex;flex-wrap:wrap;gap:8px;}
   .dw-item{
     display:flex;align-items:center;gap:6px;
@@ -610,9 +623,17 @@
   .lang-header .lang-title{
     font-size:18px;font-weight:700;color:var(--text);
   }
-  .mode-btn.mode-start{
-    width:100%;margin-bottom:16px;
+  .mode-start-row{
+    display:flex;gap:10px;margin-bottom:16px;
   }
+  .mode-btn.mode-start{
+    flex:1;margin-bottom:0;
+  }
+  .mode-btn.mode-review{
+    flex:0 0 auto;width:auto;padding:28px 20px;font-size:16px;
+    background:linear-gradient(135deg,#7C8CFF,#4F6BED);
+  }
+  .mode-btn.mode-review:active{transform:scale(.96);}
 
   /* 自定义听写内容切换 */
   .custom-toggle{
@@ -1107,7 +1128,10 @@
       <div class="hint-text" id="lang-custom-hint" style="display:none;">粘贴内容后会以粘贴内容为准；留空则使用上方选中的词库。</div>
     </div>
 
-    <button class="mode-btn mode-start" id="lang-start-btn" onclick="App.beginDictation()">开始听写</button>
+    <div class="mode-start-row">
+      <button class="mode-btn mode-start" id="lang-start-btn" onclick="App.beginDictation()">开始听写</button>
+      <button class="mode-btn mode-review" id="lang-review-btn" onclick="App.openBankReviewModal()">复习</button>
+    </div>
 
     <!-- 复习库 / 听写日志 快捷入口 -->
     <div class="lang-quick-cards">
@@ -1385,6 +1409,59 @@
       <div class="modal-foot">
         <button class="btn btn-ghost" onclick="App.closeReviewDictModal()">取消</button>
         <button class="btn btn-primary" onclick="App.startReviewFromModal()">开始听写</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 听写页复习弹窗（重听已掌握词） -->
+  <div class="modal-mask" id="bank-review-mask" onclick="if(event.target===this)App.closeBankReviewModal()">
+    <div class="modal-card">
+      <div class="modal-head">
+        <div>
+          <div class="m-title">📖 复习 · 重听已掌握词</div>
+          <div class="m-sub" id="br-mask-sub"></div>
+        </div>
+        <div class="m-close" onclick="App.closeBankReviewModal()">✕</div>
+      </div>
+      <div class="modal-body">
+        <div class="rd-field">
+          <div class="rd-label">选词方式</div>
+          <div class="rd-mode-row">
+            <button class="rd-mode-btn active" data-mode="auto" onclick="App.bankReviewSetMode('auto')">① 难度优先</button>
+            <button class="rd-mode-btn" data-mode="manual" onclick="App.bankReviewSetMode('manual')">② 手动选择词语</button>
+          </div>
+        </div>
+        <div class="rd-field" id="br-count-field">
+          <div class="rd-label">听写个数</div>
+          <div class="rd-count-row" id="br-count-row"></div>
+        </div>
+        <div class="rd-field">
+          <div class="rd-label">顺序</div>
+          <div class="rd-mode-row">
+            <button class="rd-mode-btn active" data-order="seq" onclick="App.bankReviewSetOrder('seq')">顺序</button>
+            <button class="rd-mode-btn" data-order="shuffle" onclick="App.bankReviewSetOrder('shuffle')">乱序</button>
+          </div>
+        </div>
+        <div class="rd-manual-wrap" id="br-manual-panel" style="display:none;">
+          <div class="rd-label rd-label-row">
+            <span class="rd-label-text">勾选要复习的词语（默认勾选已听写过的词）</span>
+            <span class="rd-label-right">
+              <span id="br-manual-count" style="color:var(--primary);font-weight:700;font-size:12px;"></span>
+              <button class="rd-select-all-btn" id="br-select-all-btn" onclick="App.bankReviewToggleAll()">全选</button>
+            </span>
+          </div>
+          <div class="br-manual-head">
+            <span class="rd-col-word">词语</span>
+            <span class="rd-col-sort" id="br-sort-status" onclick="App.bankReviewSort('status')">状态 ↕</span>
+            <span class="rd-col-sort" id="br-sort-src" onclick="App.bankReviewSort('src')">来源 ↕</span>
+          </div>
+          <div class="rd-manual-list" id="br-manual-list"></div>
+        </div>
+        <div class="rd-note" id="br-note"></div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-ghost" onclick="App.closeBankReviewModal()">取消</button>
+        <button class="btn btn-primary" onclick="App.startBankReviewFromModal()">开始复习</button>
       </div>
     </div>
   </div>
@@ -4126,6 +4203,9 @@ const App={
             item.nextReview=this.getNextReviewTs(item.streak);
             if(item.streak>=3 && prev<3)mastered++;
             item.last=today;
+          }else{
+            // 复习词不在复习库中（已过关/未听写）：全对时保持/标记过关
+            this.markWordPassed(this.mode,w.text);
           }
         }else{
           // 新词写对→直接标记为已掌握（streak=3），不再出现
@@ -4194,18 +4274,21 @@ const App={
           if(existing.streak>=3 && prev<3)mastered++;
         }
         existing.last=today;
-      }else if(!w.fromReview){
-        // 真正的新词（不在复习库中且不是复习库听写）：写错→加入复习库；写对→标记为已掌握
+      }else{
+        // 不在复习库中的词：写错→加入复习库（含已过关词复习写错、新词首次写错）；写对→标记为过关
         if(isWrong){
           bank[this.mode].push({text:w.text,hint:w.hint||'',streak:0,last:today,nextReview:this.getNextReviewTs(0),source:reviewSource,addedAt:Date.now()});
           added++;
         }else{
-          bank[this.mode].push({text:w.text,hint:w.hint||'',streak:3,last:today,nextReview:0,addedAt:Date.now()});
-          mastered++;
+          this.markWordPassed(this.mode,w.text);
+          if(!w.fromReview){
+            // 真正的新词（非复习会话）写对：记入复习库已掌握
+            bank[this.mode].push({text:w.text,hint:w.hint||'',streak:3,last:today,nextReview:0,addedAt:Date.now()});
+            mastered++;
+          }
         }
         existMap.set(w.text,bank[this.mode][bank[this.mode].length-1]);
       }
-      // w.fromReview 但不在复习库中（已被删除）：什么都不做
     });
     this.saveReviewBank(bank);
     const wrongCount=checkedIdx.size;
@@ -4399,6 +4482,204 @@ const App={
     this.closeReviewDictModal();
     this.mode=mode;
     this.startSession(words.map(w=>({text:w.text,hint:w.hint||'',fromReview:true})),{type:'review',mode:mode,grade:'复习库'});
+  },
+
+  // ===== 听写页复习（重听已掌握词）=====
+  openBankReviewModal(){
+    const keys=this.curSettings().selectedLessonKeys||[];
+    if(!keys.length){this.showToast('请先选择要听写的课文');return;}
+    const langLabel=this.mode==='zh'?'语文':'英语';
+    const scopeWords=[],scopeNames=[];
+    keys.forEach(key=>{
+      const parsed=this._parseLessonKey(key);
+      if(parsed.type!=='bank')return;
+      const bank=this.findManagedBank(this.mode,parsed.bankId);
+      if(!bank)return;
+      const lesson=(bank.lessons||[]).find(l=>l.id===parsed.lessonId);
+      if(lesson)scopeNames.push(bank.name+'·'+lesson.name);
+      else if(parsed.lessonId==='other')scopeNames.push(bank.name+'·其他');
+      const ws=(bank.lessons||[]).length?this.getBankScopeWords(bank,parsed.lessonId):this.getBankAllWords(bank);
+      scopeWords.push(...ws);
+    });
+    if(!scopeWords.length){this.showToast('所选内容中没有词语');return;}
+    const seen=new Set();
+    const uniq=scopeWords.filter(w=>{const t=w.text.toLocaleLowerCase();if(seen.has(t))return false;seen.add(t);return true;});
+    // 标注状态：已过关 / 复习库 / 未听写
+    const reviewBank=this.getReviewBank();
+    const rbMap=new Map((reviewBank[this.mode]||[]).map(w=>[w.text.toLocaleLowerCase(),w]));
+    uniq.forEach(w=>{
+      const t=w.text.toLocaleLowerCase(),rw=rbMap.get(t);
+      const isPassed=this.isWordPassed(this.mode,w.text)||(rw&&(rw.streak||0)>=3);
+      if(rw&&(rw.streak||0)<3)w._status='review';
+      else if(isPassed)w._status='passed';
+      else w._status='new';
+    });
+    // 方式1词池：已听写过/已掌握（过关+复习库），按难度降序
+    const practiced=uniq.filter(w=>w._status!=='new');
+    this._bankReviewPool=uniq.map((w,i)=>({...w,key:this.mode+'-rev-'+i}));
+    this._bankReviewScored=practiced.map(w=>({w,score:this.bankReviewDifficulty(w)})).sort((a,b)=>b.score-a.score||a.w.text.localeCompare(b.w.text,'zh-CN'));
+    this._bankReviewMode='auto';
+    this._bankReviewCount='10';
+    this._bankReviewOrder='seq';
+    this._bankReviewSort={key:'status',dir:1};
+    this._bankReviewManualSel=null;
+    this._bankReviewScopeName=scopeNames.length>3?scopeNames.slice(0,3).join('、')+'等':scopeNames.join('、');
+    // 词数档位
+    const countRow=document.getElementById('br-count-row');
+    countRow.innerHTML='';
+    [5,10,15,20,30].forEach(n=>{
+      const b=document.createElement('button');
+      b.className='rd-count-btn'+(this._bankReviewCount===String(n)?' active':'');
+      b.textContent=String(n);
+      b.onclick=()=>this.bankReviewSetCount(n);
+      countRow.appendChild(b);
+    });
+    const allBtn=document.createElement('button');
+    allBtn.className='rd-count-btn'+(this._bankReviewCount==='all'?' active':'');
+    allBtn.textContent='全部';
+    allBtn.onclick=()=>this.bankReviewSetCount('all');
+    countRow.appendChild(allBtn);
+    document.getElementById('br-mask-sub').textContent=`${langLabel} · ${this._bankReviewScopeName} · 可复习 ${practiced.length} 词（共 ${uniq.length} 词）`;
+    this.bankReviewSetMode('auto');
+    document.getElementById('bank-review-mask').classList.add('show');
+  },
+  closeBankReviewModal(){
+    const mask=document.getElementById('bank-review-mask');
+    if(mask)mask.classList.remove('show');
+  },
+  bankReviewDifficulty(w){
+    let errCount=0,total=0,lastTs=0;
+    try{
+      const logs=JSON.parse(localStorage.getItem(this.userKey('dict_log'))||'[]');
+      const t=w.text.toLocaleLowerCase();
+      logs.forEach(log=>{
+        if(log.mode!==this.mode||!log.words)return;
+        log.words.forEach((x,i)=>{
+          if(x.text.toLocaleLowerCase()!==t)return;
+          total++;
+          if((log.wrongIdx||[]).includes(i))errCount++;
+        });
+        if(log.date){const ts=new Date(log.date).getTime();if(ts>lastTs)lastTs=ts;}
+      });
+    }catch(e){}
+    const now=Date.now();
+    let forgetDays=lastTs?Math.round((now-lastTs)/86400000):0;
+    if(!lastTs){
+      const passed=this.getPassedWords();
+      const pt=passed[this._passedKey(this.mode,w.text)];
+      if(pt)forgetDays=Math.round((now-pt)/86400000);
+    }
+    const errRate=total?(errCount/total):0;
+    const len=this.mode==='en'?w.text.length:(w.text.replace(/[^\u4e00-\u9fa5]/g,'').length);
+    const lenBonus=this.mode==='en'?(len>=6?2:0):(len>=3?1.5:0);
+    let score=errCount*2+errRate*100*0.03+Math.min(forgetDays,90)*0.4+lenBonus;
+    if(forgetDays>30)score+=1;
+    return Math.round(score*10)/10;
+  },
+  bankReviewSetCount(n){
+    this._bankReviewCount=String(n);
+    const row=document.getElementById('br-count-row');
+    if(row)row.querySelectorAll('.rd-count-btn').forEach(b=>{
+      const isAll=n==='all';
+      b.classList.toggle('active',isAll?(b.textContent==='全部'):(b.textContent===String(n)));
+    });
+  },
+  bankReviewSetOrder(o){
+    this._bankReviewOrder=o;
+    document.querySelectorAll('#bank-review-mask .rd-mode-btn[data-order]').forEach(b=>{
+      b.classList.toggle('active',b.dataset.order===o);
+    });
+  },
+  bankReviewSetMode(mode){
+    this._bankReviewMode=mode;
+    document.querySelectorAll('#bank-review-mask .rd-mode-btn[data-mode]').forEach(b=>{
+      b.classList.toggle('active',b.dataset.mode===mode);
+    });
+    const cf=document.getElementById('br-count-field');
+    if(cf)cf.style.display=(mode==='auto')?'block':'none';
+    const panel=document.getElementById('br-manual-panel');
+    if(panel)panel.style.display=(mode==='manual')?'block':'none';
+    const note=document.getElementById('br-note');
+    if(note){
+      note.innerHTML=mode==='auto'
+        ?'按难度自动挑选：错误多、遗忘久、英文长词/语文多字词优先；取所选数量。'
+        :'勾选要复习的词语，以勾选为准；每个词显示当前状态（已过关/未听写/复习库）。';
+    }
+    if(mode==='manual')this.bankReviewRefreshManual(true);
+  },
+  bankReviewSort(key){
+    const st=this._bankReviewSort||{key:'status',dir:1};
+    if(st.key===key)this._bankReviewSort={key,dir:st.dir*-1};
+    else this._bankReviewSort={key,dir:1};
+    this.bankReviewRefreshManual(false);
+  },
+  bankReviewRefreshManual(reset){
+    const list=document.getElementById('br-manual-list');
+    if(!list)return;
+    const pool=this._bankReviewPool||[];
+    if(!pool.length)return;
+    const st=this._bankReviewSort||{key:'status',dir:1};
+    const statusOrder={review:0,passed:1,new:2};
+    let ordered=pool.slice();
+    if(st.key==='src'){
+      ordered.sort((a,b)=>String(a.source||'').localeCompare(String(b.source||''),'zh-Hans-CN')*st.dir);
+    }else{
+      ordered.sort((a,b)=>(statusOrder[a._status]-statusOrder[b._status])*st.dir||String(a.source||'').localeCompare(String(b.source||''),'zh-Hans-CN'));
+    }
+    if(reset||!this._bankReviewManualSel){
+      // 默认勾选：复习库词 + 已过关词（已听写过的），未听写不默认勾选
+      this._bankReviewManualSel=new Set(ordered.filter(w=>w._status!=='new').map(w=>w.key));
+    }
+    const statusLabel={passed:'已过关',review:'复习库',new:'未听写'};
+    list.innerHTML=ordered.map(w=>{
+      const checked=this._bankReviewManualSel.has(w.key);
+      return `<label class="br-item"><span class="br-item-left"><input type="checkbox" ${checked?'checked':''} onchange="App.bankReviewToggleManual('${w.key}',this.checked)"><span class="br-item-text">${this._escHtml(w.text)}</span>${w.hint?'<span class="br-item-hint">'+this._escHtml(w.hint)+'</span>':''}</span><span class="br-status ${w._status}">${statusLabel[w._status]}</span><span class="rd-item-src">${this._escHtml(w.source||'')}</span></label>`;
+    }).join('');
+    const s1=document.getElementById('br-sort-status'),s2=document.getElementById('br-sort-src');
+    if(s1){s1.textContent='状态 '+(st.key==='status'?(st.dir>0?'▲':'▼'):'↕');s1.classList.toggle('active',st.key==='status');}
+    if(s2){s2.textContent='来源 '+(st.key==='src'?(st.dir>0?'▲':'▼'):'↕');s2.classList.toggle('active',st.key==='src');}
+    this.bankReviewUpdateUI();
+  },
+  bankReviewToggleAll(){
+    const pool=this._bankReviewPool||[];
+    if(!pool.length)return;
+    const sel=this._bankReviewManualSel||new Set();
+    if(sel.size>=pool.length)this._bankReviewManualSel=new Set();
+    else this._bankReviewManualSel=new Set(pool.map(w=>w.key));
+    this.bankReviewRefreshManual(false);
+  },
+  bankReviewToggleManual(key,checked){
+    if(!this._bankReviewManualSel)this._bankReviewManualSel=new Set();
+    if(checked)this._bankReviewManualSel.add(key);
+    else this._bankReviewManualSel.delete(key);
+    this.bankReviewUpdateUI();
+  },
+  bankReviewUpdateUI(){
+    const pool=this._bankReviewPool||[];
+    const sel=this._bankReviewManualSel||new Set();
+    const cnt=document.getElementById('br-manual-count');
+    if(cnt)cnt.textContent=`已选 ${sel.size} 个`;
+    const btn=document.getElementById('br-select-all-btn');
+    if(btn)btn.textContent=(sel.size>0&&sel.size>=pool.length)?'取消全选':'全选';
+  },
+  startBankReviewFromModal(){
+    const mode=this.mode;
+    let items;
+    if(this._bankReviewMode==='manual'){
+      const sel=this._bankReviewManualSel?[...this._bankReviewManualSel]:[];
+      if(!sel.length){this.showToast('请至少勾选 1 个词语');return;}
+      const byKey={};
+      (this._bankReviewPool||[]).forEach(w=>byKey[w.key]=w);
+      items=sel.map(k=>byKey[k]).filter(Boolean);
+    }else{
+      const scored=this._bankReviewScored||[];
+      const n=this._bankReviewCount==='all'?scored.length:Math.min(parseInt(this._bankReviewCount)||10,scored.length);
+      items=scored.slice(0,n).map(x=>x.w);
+    }
+    if(!items.length){this.showToast('没有可复习的词语');return;}
+    if(this._bankReviewOrder==='shuffle')items=this.shuffleArray(items);
+    this.closeBankReviewModal();
+    this.startSession(items.map(w=>({text:w.text,hint:w.hint||'',fromReview:true})),{type:'review',mode,grade:'复习',bankName:this._bankReviewScopeName,lessonName:''});
   },
 
   // ===== 复习库页面 =====
