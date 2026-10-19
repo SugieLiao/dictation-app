@@ -792,8 +792,8 @@
   .bm-word-chip .edit{font-size:11px;color:var(--primary);}
   .bm-word-chip.passed{border-color:#34c759;background:#f0fff4;}
   .bm-word-chip.in-review{border-color:var(--primary);background:#fff4ec;}
-  .bm-word-chip .passed-mark{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:#34c759;color:#fff;font-size:10px;font-weight:800;cursor:pointer;flex-shrink:0;line-height:1;}
-  .bm-word-chip .passed-mark:hover{background:#28a745;}
+  .bm-word-chip .passed-mark{font-size:11px;color:#9aa0a6;cursor:pointer;flex-shrink:0;padding:1px 5px;border-radius:6px;background:#f2f3f5;}
+  .bm-word-chip .passed-mark:hover{color:#d93025;background:#fdecea;}
   .bm-word-chip .review-mark{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:var(--primary);color:#fff;font-size:9px;font-weight:800;cursor:pointer;flex-shrink:0;line-height:1;}
   .bm-word-chip .review-mark:hover{background:var(--primary-dark);}
   .bm-word-status-legend{display:flex;gap:16px;flex-wrap:wrap;margin:8px 0 4px;font-size:12px;color:var(--muted);}
@@ -3369,7 +3369,7 @@ const App={
         if(effectivelyPassed)chip.classList.add('passed');
         else if(isInReview)chip.classList.add('in-review');
         chip.setAttribute('aria-pressed',selected?'true':'false');
-        const passedMark=effectivelyPassed&&!this.bankManagerBulkMode?`<span class="passed-mark" title="已过关，点击取消过关">✓</span>`:'';
+        const passedMark=effectivelyPassed&&!this.bankManagerBulkMode?`<span class="passed-mark" title="已过关，点击可取消过关">取消过关</span>`:'';
         const reviewMark=isInReview&&!effectivelyPassed&&!this.bankManagerBulkMode?`<span class="review-mark" title="在复习库中">🔁</span>`:'';
         chip.innerHTML=`${this.bankManagerBulkMode?'<span class="select-mark" aria-hidden="true">✓</span>':''}<span>${this._escHtml(word.text)}</span>${word.hint?`<span class="hint">${this._escHtml(word.hint)}</span>`:''}${passedMark}${reviewMark}<span class="edit">编辑</span>`;
         chip.onclick=e=>{
