@@ -1094,7 +1094,7 @@
       <div class="bm-scope-row" id="lang-lesson-row" style="display:none;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
           <label id="lang-lesson-label" style="font-size:13px;font-weight:600;">选择课文（可多选）</label>
-          <div style="display:flex;gap:6px;flex-shrink:0;">
+          <div id="lang-lesson-btns" style="display:flex;gap:6px;flex-shrink:0;">
             <button class="btn btn-ghost" style="padding:3px 10px;font-size:12px;white-space:nowrap;" onclick="App.toggleAllLessons(true)">全选</button>
             <button class="btn btn-ghost" style="padding:3px 10px;font-size:12px;white-space:nowrap;" onclick="App.toggleAllLessons(false)">全不选</button>
           </div>
@@ -3655,6 +3655,8 @@ const App={
     row.style.display='block';
     list.innerHTML='';
     if(currentBankId==='__review__'){
+      const btns=document.getElementById('lang-lesson-btns');
+      if(btns)btns.style.display='none';
       if(label)label.textContent='复习库（特殊词库）';
       const rb2=this.getReviewBank();
       const rw2=(rb2[mode]||[]).filter(w=>(w.streak||0)<3);
@@ -3667,6 +3669,8 @@ const App={
       list.appendChild(info);
       return;
     }
+    const btns=document.getElementById('lang-lesson-btns');
+    if(btns)btns.style.display='flex';
     if(label)label.textContent='选择课文（可多选）';
     // 显示普通教材的课文
     {
