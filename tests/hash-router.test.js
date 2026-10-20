@@ -1,7 +1,7 @@
 // hash 路由核心逻辑回归测试：验证路由构建/解析/切屏/历史/语言恢复与数据刷新分派
 const fs=require('fs'),path=require('path'),assert=require('assert');
 const html=fs.readFileSync(path.join(__dirname,'..','dictation-app.html'),'utf8');
-const m=html.match(/<script>([\s\S]*)<\/script>/);
+const m=html.match(/<script>([\s\S]*?)<\/script>/);
 if(!m)throw new Error('script block not found');
 
 const els={};

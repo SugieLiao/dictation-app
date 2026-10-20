@@ -1,7 +1,7 @@
 // 复习库听写弹窗回归测试：词数档位 / 选词方式（自动按到期 / 手动勾选）/ startSession 入参
 const fs=require('fs'),path=require('path'),assert=require('assert');
 const html=fs.readFileSync(path.join(__dirname,'..','dictation-app.html'),'utf8');
-const m=html.match(/<script>([\s\S]*)<\/script>/);
+const m=html.match(/<script>([\s\S]*?)<\/script>/);
 if(!m)throw new Error('script block not found');
 
 const els={};

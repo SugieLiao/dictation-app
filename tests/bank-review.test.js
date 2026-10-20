@@ -1,7 +1,7 @@
 // 听写页「复习」功能回归测试：入口按钮 / 复习弹窗（难度优先+手动+顺序乱序）/ 对错规则（复习词同步复习库与过关状态）
 const fs=require('fs'),path=require('path'),assert=require('assert');
 const html=fs.readFileSync(path.join(__dirname,'..','dictation-app.html'),'utf8');
-const m=html.match(/<script>([\s\S]*)<\/script>/);
+const m=html.match(/<script>([\s\S]*?)<\/script>/);
 if(!m)throw new Error('script block not found');
 
 // —— 入口按钮存在性（静态）——
