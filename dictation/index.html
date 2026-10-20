@@ -1625,6 +1625,15 @@
               <option value="">— 未知来源 —</option>
             </select>
           </div>
+          <div id="word-edit-streak-field" style="display:none;">
+            <label style="font-size:13px;color:var(--muted);display:block;margin-bottom:5px;">已对次数（满 3 次过关）</label>
+            <select id="word-edit-streak" style="width:100%;padding:10px 12px;font-size:14px;border:1px solid var(--border);border-radius:8px;box-sizing:border-box;background:var(--card);color:var(--text);">
+              <option value="0">0 次 · 未过关</option>
+              <option value="1">1 次</option>
+              <option value="2">2 次</option>
+              <option value="3">3 次 · 已过关</option>
+            </select>
+          </div>
           <div id="word-edit-msg" style="font-size:13px;min-height:18px;"></div>
           <div class="btn-row">
             <button class="btn btn-ghost" style="flex:1;" onclick="App.closeWordEditModal()">取消</button>
@@ -5195,6 +5204,13 @@ const App={
     }
     document.getElementById('word-edit-hint-field').style.display = '';
     document.getElementById('word-edit-source-field').style.display = '';
+    // 已对次数（过关门槛 streak，0~3）
+    const streakSel=document.getElementById('word-edit-streak');
+    if(streakSel){
+      const s=Math.max(0,Math.min(3,(word.streak||0)));
+      streakSel.value=String(s);
+      document.getElementById('word-edit-streak-field').style.display = '';
+    }
     document.getElementById('word-edit-text').placeholder = '输入词语，可用逗号/顿号/|/空格 分隔一次添加多个';
     document.getElementById('word-edit-msg').innerHTML = '';
     document.getElementById('word-edit-msg').style.color = '';
@@ -5220,6 +5236,8 @@ const App={
     });
     document.getElementById('word-edit-hint-field').style.display = 'none';
     document.getElementById('word-edit-source-field').style.display = '';
+    const streakField=document.getElementById('word-edit-streak-field');
+    if(streakField)streakField.style.display = 'none';
     document.getElementById('word-edit-text').placeholder = '输入词语';
     document.getElementById('word-edit-msg').innerHTML = '';
     document.getElementById('word-edit-msg').style.color = '';
@@ -5306,6 +5324,16 @@ const App={
         list[t.index].hint = hint;
         if(source)list[t.index].source=source;
         else if(source==='')delete list[t.index].source;
+        // 已对次数（过关门槛）可手动调整，同步重新安排到期日
+        const streakSel=document.getElementById('word-edit-streak');
+        if(streakSel){
+          const ns=parseInt(streakSel.value,10);
+          if(!isNaN(ns)&&ns>=0&&ns<=3&&ns!==(list[t.index].streak||0)){
+            list[t.index].streak=ns;
+            list[t.index].nextReview=(ns>=3)?0:this.getNextReviewTs(ns);
+            list[t.index].last=Date.now();
+          }
+        }
       }
       this.saveReviewBank(bank);
       this._refreshReviewUI();

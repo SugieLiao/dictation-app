@@ -29,7 +29,7 @@ function mkBtn(label){
 function getEl(id){
   if(!els[id])els[id]={id,classList:mkClassList(),style:{},dataset:{},innerHTML:'',textContent:'',
     disabled:false,value:'',checked:false,onclick:null,children:[],
-    querySelectorAll:(sel)=>els[id].children,querySelector:()=>null,
+    focus(){},querySelectorAll:(sel)=>els[id].children,querySelector:()=>null,
     appendChild(c){els[id].children.push(c);},removeEventListener(){},addEventListener(){}};
   return els[id];
 }
@@ -225,5 +225,47 @@ const rb3=JSON.parse(storage[App.userKey('dict_review')]);
 assert.ok(rb3.en.filter(w=>w.text==='rubbish').length===1,'rubbish not duplicated');
 const passed2=JSON.parse(storage[App.userKey('dict_passed')]);
 assert.ok(passed2['en::rubbish']||rb3.en.some(w=>w.text==='rubbish'&&(w.streak||0)>=3),'rubbish remains mastered');
+
+// —— 编辑弹窗：修改已对次数（streak）——
+storage[App.userKey('dict_admin_pwd')]='1234';
+App.reviewLang='en';
+// volleyball 当前 streak=3（上一步写对+1）→ 先重置为 1 以便测编辑
+let rbE=JSON.parse(storage[App.userKey('dict_review')]);
+rbE.en.find(w=>w.text==='volleyball').streak=1;
+storage[App.userKey('dict_review')]=JSON.stringify(rbE);
+// 打开编辑弹窗（走密码验证）
+App._requestEditWord('en-0','volleyball');
+assert.ok(document.getElementById('edit-pwd-mask').classList.contains('show'),'pwd prompt shown');
+document.getElementById('edit-pwd-input').value='1234';
+App._confirmPwdCheck();
+assert.ok(!document.getElementById('edit-pwd-mask').classList.contains('show'),'pwd prompt closed');
+// 弹窗内 streak 字段显示，默认当前值 1
+assert.strictEqual(document.getElementById('word-edit-streak-field').style.display,'','streak field visible in edit mode');
+assert.strictEqual(document.getElementById('word-edit-streak').value,'1','streak prefilled with current value');
+// 改为 2 → 保存
+document.getElementById('word-edit-streak').value='2';
+document.getElementById('word-edit-text').value='volleyball';
+document.getElementById('word-edit-hint').value='排球';
+App.submitWordEdit();
+let rbE2=JSON.parse(storage[App.userKey('dict_review')]);
+const vbE=rbE2.en.find(w=>w.text==='volleyball');
+assert.strictEqual(vbE.streak,2,'streak updated to 2 after edit');
+assert.ok(vbE.nextReview>Date.now(),'nextReview rescheduled from today (streak 2 → interval >0)');
+// 改为 3 → 保存 → 已掌握（nextReview=0）
+App._requestEditWord('en-0','volleyball');
+document.getElementById('edit-pwd-input').value='1234';
+App._confirmPwdCheck();
+document.getElementById('word-edit-streak').value='3';
+document.getElementById('word-edit-text').value='volleyball';
+document.getElementById('word-edit-hint').value='排球';
+App.submitWordEdit();
+let rbE3=JSON.parse(storage[App.userKey('dict_review')]);
+const vbE3=rbE3.en.find(w=>w.text==='volleyball');
+assert.strictEqual(vbE3.streak,3,'streak updated to 3 (mastered)');
+assert.strictEqual(vbE3.nextReview,0,'mastered words have nextReview=0');
+// 添加模式：streak 字段隐藏
+App.showAddWordModal();
+assert.strictEqual(document.getElementById('word-edit-streak-field').style.display,'none','streak field hidden in add mode');
+App.closeWordEditModal();
 
 console.log('bank-review tests passed');
