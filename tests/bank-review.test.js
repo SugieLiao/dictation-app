@@ -54,7 +54,9 @@ global.alert=()=>{};
 global.prompt=()=>null;
 global.confirm=()=>true;
 
-const App=new Function(m[1]+'\n;return App;')();
+const loaded=new Function(m[1]+'\n;return {App,CloudSync};')();
+const App=loaded.App;
+const CloudSync=loaded.CloudSync;
 
 // —— 准备数据：英语词库 + 复习库 + 过关标记 + 日志 ——
 const now=Date.now(),DAY=86400000;
@@ -267,5 +269,27 @@ assert.strictEqual(vbE3.nextReview,0,'mastered words have nextReview=0');
 App.showAddWordModal();
 assert.strictEqual(document.getElementById('word-edit-streak-field').style.display,'none','streak field hidden in add mode');
 App.closeWordEditModal();
+
+// —— 云端合并：按 updatedAt 取新版本（修复“改低过关次数刷新后被旧值覆盖”）——
+const nowX=Date.now();
+const localBank={zh:[],en:[
+  {text:'摇摇欲坠',hint:'',source:'语文-第1课',streak:1,last:nowX,nextReview:nowX+86400000,addedAt:nowX-86400000*10,updatedAt:nowX+1000} // 本地刚改：2→1
+]};
+const cloudBank={zh:[],en:[
+  {text:'摇摇欲坠',hint:'',source:'语文-第1课',streak:2,last:nowX-86400000,nextReview:nowX,addedAt:nowX-86400000*10,updatedAt:nowX} // 云端旧：2
+]};
+const merged=CloudSync.mergeReviewBanks(localBank,cloudBank);
+assert.strictEqual(merged.en[0].streak,1,'local newer edit wins (streak kept at 1, not overridden by cloud 2)');
+// 旧数据兼容：两边都无 updatedAt → 保留 streak 高者
+const oldLocal={zh:[],en:[{text:'词A',streak:3,last:'',nextReview:0,addedAt:1}]};
+const oldCloud={zh:[],en:[{text:'词A',streak:2,last:'',nextReview:0,addedAt:1}]};
+const mergedOld=CloudSync.mergeReviewBanks(oldLocal,oldCloud);
+assert.strictEqual(mergedOld.en[0].streak,3,'legacy no-updatedAt keeps higher streak');
+// 云端新版本胜出：云端 updatedAt 更新 → 取云端
+const cloudNewer=CloudSync.mergeReviewBanks(
+  {zh:[],en:[{text:'词B',streak:2,updatedAt:1000}]},
+  {zh:[],en:[{text:'词B',streak:0,updatedAt:2000}]}
+);
+assert.strictEqual(cloudNewer.en[0].streak,0,'cloud newer wins when updatedAt larger');
 
 console.log('bank-review tests passed');

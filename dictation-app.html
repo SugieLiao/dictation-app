@@ -4212,6 +4212,7 @@ const App={
             item.nextReview=this.getNextReviewTs(item.streak);
             if(item.streak>=3 && prev<3)mastered++;
             item.last=today;
+            item.updatedAt=Date.now();
           }else{
             // 复习词不在复习库中（已过关/未听写）：全对时保持/标记过关
             this.markWordPassed(this.mode,w.text);
@@ -4219,7 +4220,7 @@ const App={
         }else{
           // 新词写对→直接标记为已掌握（streak=3），不再出现
           if(!existMap.has(w.text)){
-            bank[this.mode].push({text:w.text,hint:w.hint||'',streak:3,last:today,nextReview:0,source:reviewSource});
+            bank[this.mode].push({text:w.text,hint:w.hint||'',streak:3,last:today,nextReview:0,source:reviewSource,updatedAt:Date.now()});
             existMap.set(w.text,bank[this.mode][bank[this.mode].length-1]);
             newAdded++;
           }
@@ -4283,16 +4284,17 @@ const App={
           if(existing.streak>=3 && prev<3)mastered++;
         }
         existing.last=today;
+        existing.updatedAt=Date.now();
       }else{
         // 不在复习库中的词：写错→加入复习库（含已过关词复习写错、新词首次写错）；写对→标记为过关
         if(isWrong){
-          bank[this.mode].push({text:w.text,hint:w.hint||'',streak:0,last:today,nextReview:this.getNextReviewTs(0),source:reviewSource,addedAt:Date.now()});
+          bank[this.mode].push({text:w.text,hint:w.hint||'',streak:0,last:today,nextReview:this.getNextReviewTs(0),source:reviewSource,addedAt:Date.now(),updatedAt:Date.now()});
           added++;
         }else{
           this.markWordPassed(this.mode,w.text);
           if(!w.fromReview){
             // 真正的新词（非复习会话）写对：记入复习库已掌握
-            bank[this.mode].push({text:w.text,hint:w.hint||'',streak:3,last:today,nextReview:0,addedAt:Date.now()});
+            bank[this.mode].push({text:w.text,hint:w.hint||'',streak:3,last:today,nextReview:0,addedAt:Date.now(),updatedAt:Date.now()});
             mastered++;
           }
         }
@@ -5334,6 +5336,7 @@ const App={
             list[t.index].last=Date.now();
           }
         }
+        list[t.index].updatedAt = Date.now();
       }
       this.saveReviewBank(bank);
       this._refreshReviewUI();
@@ -5364,7 +5367,7 @@ const App={
           if(!list[dupIdx].addedAt)list[dupIdx].addedAt = now;
           reset++;
         } else {
-          list.push({ text: t, hint: texts.length===1?hint:'', source: source||undefined, streak: 0, last: now, nextReview: this.getNextReviewTs(0), addedAt: now });
+          list.push({ text: t, hint: texts.length===1?hint:'', source: source||undefined, streak: 0, last: now, nextReview: this.getNextReviewTs(0), addedAt: now, updatedAt: now });
           added++;
         }
       });
@@ -5712,10 +5715,11 @@ const App={
       list[dupIdx].last=now;
       list[dupIdx].nextReview=this.getNextReviewTs(0);
       list[dupIdx].archived=false;
+      list[dupIdx].updatedAt=now;
       this.saveReviewBank(bank);
       this.showToast('🔄 「'+w.text+'」已重置为待复习状态');
     }else{
-      list.push({text:w.text,hint:w.hint||'',streak:0,last:now,nextReview:this.getNextReviewTs(0)});
+      list.push({text:w.text,hint:w.hint||'',streak:0,last:now,nextReview:this.getNextReviewTs(0),updatedAt:now});
       this.saveReviewBank(bank);
       this.showToast('➕ 「'+w.text+'」已添加到复习库');
     }
@@ -5821,6 +5825,7 @@ const App={
             if(reviewTexts.has(item.text) && item.last===l.date && (item.streak||0)>0){
               item.streak=Math.max(0,(item.streak||0)-1);
               item.nextReview=this.getNextReviewTs(item.streak);
+              item.updatedAt=Date.now();
               reverted++;
             }
           }
@@ -7939,8 +7944,10 @@ const CloudSync={
         if(!existing){
           map.set(w.text,{...w});
         }else{
-          // 保留 streak 更高的版本（更接近掌握）
-          if((w.streak||0)>(existing.streak||0)){
+          // 按最后更新时间取新版本（updatedAt 大者胜）；
+          // 两边都没有 updatedAt（旧数据）时，才保留 streak 更高的版本
+          const wt=w.updatedAt||0,et=existing.updatedAt||0;
+          if(wt>et||(wt===et&&(w.streak||0)>(existing.streak||0))){
             map.set(w.text,{...w});
           }
         }
