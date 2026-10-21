@@ -8,10 +8,6 @@
     {
       "pattern": "kids.liaohao.cc/dictation*",
       "zone_name": "liaohao.cc"
-    },
-    {
-      "pattern": "liaohao.cc/dictation*",
-      "zone_name": "liaohao.cc"
     }
   ],
   "d1_databases": [
