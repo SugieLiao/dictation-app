@@ -316,6 +316,7 @@ assert.strictEqual(typeof App.closeBmModal,'function','closeBmModal exists');
 // 批量删除入口存在（绑定在 renderBankManagerDetail 中）
 assert.strictEqual(typeof App.deleteSelectedManagedWords,'function','deleteSelectedManagedWords exists');
 assert.strictEqual(typeof App.passSelectedManagedWords,'function','passSelectedManagedWords exists');
+assert.strictEqual(typeof App.addSelectedToReviewBank,'function','addSelectedToReviewBank exists');
 
 // —— 同名词库合并：消除“添加进一个词库、听写选另一个”的歧义 ——
 const dupStore={version:2,zh:[

@@ -3482,7 +3482,7 @@ const App={
         <div class="bm-field" id="bm-new-lesson-field" style="display:none;"><label>新课文名称</label><input id="bm-manual-new-lesson" placeholder="例如：第3课 现代诗二首"></div>
         <button class="btn btn-primary" id="bm-save-manual" style="width:100%;">加入词库</button>
       </div>
-    </div><div class="section-title">词库内容 · ${this.getBankWordCount(bank)} 词</div><button class="bm-select-btn ${bulk?'active':''}" id="bm-bulk-toggle">${bulk?'✓ 退出批量选择':'☑️ 选择多个词语并调整课文'}</button><div id="bm-content"></div>${bulk?`<div class="bm-bulk-bar"><div class="bm-bulk-summary">已选 <b id="bm-selected-count">0</b> 个词语</div><div class="bm-bulk-actions"><select id="bm-bulk-target"><option value="">选择目标课文…</option><option value="other">其他</option>${moveLessonOptions}<option value="new">＋ 新建课文</option></select><button id="bm-move-selected" disabled>移动</button><button id="bm-pass-selected" disabled>过关</button><button id="bm-delete-selected" class="danger" disabled>删除</button></div></div>`:''}`;
+    </div><div class="section-title">词库内容 · ${this.getBankWordCount(bank)} 词</div><button class="bm-select-btn ${bulk?'active':''}" id="bm-bulk-toggle">${bulk?'✓ 退出批量选择':'☑️ 选择多个词语并调整课文'}</button><div id="bm-content"></div>${bulk?`<div class="bm-bulk-bar"><div class="bm-bulk-summary">已选 <b id="bm-selected-count">0</b> 个词语</div><div class="bm-bulk-actions"><select id="bm-bulk-target"><option value="">选择目标课文…</option><option value="other">其他</option>${moveLessonOptions}<option value="new">＋ 新建课文</option></select><button id="bm-move-selected" disabled>移动</button><button id="bm-pass-selected" disabled>过关</button><button id="bm-add-review-selected" disabled>加入复习库</button><button id="bm-delete-selected" class="danger" disabled>删除</button></div></div>`:''}`;
     root.querySelector('#bm-detail-back').onclick=()=>{this.bankManagerBankId=null;this.resetBankManagerBulkState();this.renderBankManager();};
     root.querySelector('#bm-bulk-toggle').onclick=()=>this.toggleBankManagerBulkMode();
     root.querySelector('#bm-rename-bank').onclick=()=>this.renameManagedBank();
@@ -3499,6 +3499,7 @@ const App={
       root.querySelector('#bm-bulk-target').onchange=()=>this.updateBankManagerSelectionUI();
       root.querySelector('#bm-move-selected').onclick=()=>this.moveSelectedManagedWords();
       root.querySelector('#bm-pass-selected').onclick=()=>this.passSelectedManagedWords();
+      root.querySelector('#bm-add-review-selected').onclick=()=>this.addSelectedToReviewBank();
       root.querySelector('#bm-delete-selected').onclick=()=>this.deleteSelectedManagedWords();
     }
     this.renderBankManagerContent(bank);
@@ -3586,10 +3587,11 @@ const App={
       const key=this.bankManagerWordSelectionKey(chip.dataset.lessonId,Number(chip.dataset.wordIndex));
       const selected=this.bankManagerSelectedWords.has(key);chip.classList.toggle('selected',selected);chip.setAttribute('aria-pressed',selected?'true':'false');
     });
-    const count=this.bankManagerSelectedWords.size,countEl=root.querySelector('#bm-selected-count'),target=root.querySelector('#bm-bulk-target'),button=root.querySelector('#bm-move-selected'),passBtn=root.querySelector('#bm-pass-selected'),delBtn=root.querySelector('#bm-delete-selected');
+    const count=this.bankManagerSelectedWords.size,countEl=root.querySelector('#bm-selected-count'),target=root.querySelector('#bm-bulk-target'),button=root.querySelector('#bm-move-selected'),passBtn=root.querySelector('#bm-pass-selected'),addRevBtn=root.querySelector('#bm-add-review-selected'),delBtn=root.querySelector('#bm-delete-selected');
     if(countEl)countEl.textContent=String(count);
     if(button)button.disabled=count===0||!(target&&target.value);
     if(passBtn)passBtn.disabled=count===0;
+    if(addRevBtn)addRevBtn.disabled=count===0;
     if(delBtn)delBtn.disabled=count===0;
   },
   bindBankManagerBulkGesture(wrap){
@@ -3794,6 +3796,43 @@ const App={
     this.bmConfirm('标记为已过关','确定把选中的 <b>'+count+'</b> 个词语标记为「已过关」吗？已过关的词语将不再出现在普通听写中（复习功能里仍可复习）。','过关',()=>{
       texts.forEach(t=>this.markWordPassed(this.bankManagerLang,t));
       this.resetBankManagerBulkState();this.renderBankManagerDetail();this.showToast('✅ 已标记 '+count+' 个词语为已过关');
+    });
+  },
+
+  // —— 批量加入复习库 ——
+  addSelectedToReviewBank(){
+    if(!this.bankManagerSelectedWords.size){this.showToast('请先选择词语');return;}
+    const store=this.getWordBankStore(),bank=this._findBankInStore(store,this.bankManagerLang,this.bankManagerBankId);if(!bank)return;
+    const refs=[...this.bankManagerSelectedWords].map(key=>this.bankManagerWordSelectionRef(key)).filter(Boolean);
+    const words=[];
+    refs.forEach(r=>{
+      const list=r.lessonId==='other'?bank.other:((bank.lessons||[]).find(l=>l.id===r.lessonId)||{}).words;
+      const w=list&&list[r.index];
+      if(w&&w.text)words.push({text:w.text,hint:w.hint||''});
+    });
+    if(!words.length){this.showToast('没有可加入的词语');return;}
+    const count=words.length;
+    this.bmConfirm('加入复习库','确定把选中的 <b>'+count+'</b> 个词语加入复习库吗？加入后按艾宾浩斯遗忘曲线安排复习。','加入',()=>{
+      const bank=this.getReviewBank(),mode=this.bankManagerLang,list=bank[mode]||[];
+      const now=Date.now();
+      const deleted=JSON.parse(localStorage.getItem(this.userKey('dict_deleted_review'))||'[]');
+      let fresh=0;
+      words.forEach(w=>{
+        const key=w.text.toLocaleLowerCase();
+        const delIdx=deleted.findIndex(d=>d.text.toLocaleLowerCase()===key&&d.mode===mode);
+        if(delIdx>=0)deleted.splice(delIdx,1);
+        const dupIdx=list.findIndex(rw=>rw.text.toLocaleLowerCase()===key);
+        if(dupIdx>=0){
+          list[dupIdx].streak=0;list[dupIdx].last=now;list[dupIdx].nextReview=this.getNextReviewTs(0);list[dupIdx].archived=false;list[dupIdx].updatedAt=now;
+        }else{
+          list.push({text:w.text,hint:w.hint,streak:0,last:now,nextReview:this.getNextReviewTs(0),updatedAt:now});fresh++;
+        }
+      });
+      localStorage.setItem(this.userKey('dict_deleted_review'),JSON.stringify(deleted));
+      this.saveReviewBank(bank);
+      this.reviewLang=mode;
+      this.resetBankManagerBulkState();this.renderBankManagerDetail();
+      this.showToast('✅ 已加入 '+count+' 个词语到复习库'+(fresh<count?'（'+fresh+' 个新词，其余已重置复习状态）':''));
     });
   },
 
