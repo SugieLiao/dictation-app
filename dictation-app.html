@@ -3656,13 +3656,18 @@ const App={
     }
     doMove('');
   },
-  bmAddManual(){
+  async bmAddManual(){
     const raw=(document.getElementById('bm-manual-words').value||'').trim();
     if(!raw){this.showToast('请输入至少一个词语');return;}
     const words=this.parseManualWords(raw),choice=document.getElementById('bm-manual-lesson').value,newName=(document.getElementById('bm-manual-new-lesson').value||'').trim();
     const store=this.getWordBankStore();let result;
     try{result=this._addWordsToBank(store,this.bankManagerLang,this.bankManagerBankId,choice,newName,words);}catch(e){this.showToast(e.message);return;}
-    this.saveWordBankStore(store);this.renderBankManagerDetail();this.showToast(result.added?'✅ 已加入 '+result.added+' 个词':'这些词已在词库中');
+    this.saveWordBankStore(store,true);
+    this.renderBankManagerDetail();
+    if(!result.added){this.showToast('这些词已在词库中');return;}
+    this.showToast('✅ 已加入 '+result.added+' 个词，正在同步…');
+    const ok=await CloudSync.push();
+    if(ok)this.showToast('✅ 已加入 '+result.added+' 个词，已同步云端');
   },
   bmStartOcr(method){
     const bankId=this.bankManagerBankId,lang=this.bankManagerLang;
@@ -8009,7 +8014,6 @@ const CloudSync={
 
   // 防抖推送：500ms内多次调用合并为一次
   pushDebounced(){
-    if(!this.enabled)return;
     if(this.pendingTimer)clearTimeout(this.pendingTimer);
     this.pendingTimer=setTimeout(()=>{void this.push();},500);
   },
