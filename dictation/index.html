@@ -8094,15 +8094,26 @@ const CloudSync={
       }else{
         this.updateIndicator('error');
         this._notifySyncFailure();
+        this._schedulePushRetry();
         return false;
       }
     }catch(e){
       this.updateIndicator('error');
       this._notifySyncFailure();
+      this._schedulePushRetry();
       return false;
     }finally{
       this.syncing=false;
     }
+  },
+
+  // 同步失败后 10 秒自动重试一次（防止网络瞬断导致的静默丢数据）
+  _schedulePushRetry(){
+    if(this._retryTimer)return;
+    this._retryTimer=setTimeout(()=>{
+      this._retryTimer=null;
+      if(this.enabled&&!this.syncing)void this.push();
+    },10000);
   },
 
   // 同步失败可见提示：1 分钟内只弹一次，避免连续弹窗打扰
