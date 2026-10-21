@@ -8004,7 +8004,7 @@ const CloudSync={
       const uid=App.currentUserId||'default';
       const remote=(data.userData&&data.userData[uid])||{};
       return {...remote,users:Array.isArray(data.users)?data.users:[]};
-    }catch(e){return null;}
+    }catch(e){this._notifySyncFailure();return null;}
   },
 
   // 防抖推送：500ms内多次调用合并为一次
@@ -8093,14 +8093,24 @@ const CloudSync={
         return true;
       }else{
         this.updateIndicator('error');
+        this._notifySyncFailure();
         return false;
       }
     }catch(e){
       this.updateIndicator('error');
+      this._notifySyncFailure();
       return false;
     }finally{
       this.syncing=false;
     }
+  },
+
+  // 同步失败可见提示：1 分钟内只弹一次，避免连续弹窗打扰
+  _notifySyncFailure(){
+    const now=Date.now();
+    if(this._lastSyncFailToast&&now-this._lastSyncFailToast<60000)return;
+    this._lastSyncFailToast=now;
+    if(App&&typeof App.showToast==='function')App.showToast('⚠️ 同步失败：刚才的更改可能未保存到云端，请检查网络后刷新重试');
   },
 
   // 合并两个复习库：基于文本去重 + 处理改名 + 排除已删除
