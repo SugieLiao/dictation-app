@@ -3806,9 +3806,14 @@ const App={
     const refs=[...this.bankManagerSelectedWords].map(key=>this.bankManagerWordSelectionRef(key)).filter(Boolean);
     const words=[];
     refs.forEach(r=>{
-      const list=r.lessonId==='other'?bank.other:((bank.lessons||[]).find(l=>l.id===r.lessonId)||{}).words;
+      const lesson=r.lessonId==='other'?null:((bank.lessons||[]).find(l=>l.id===r.lessonId)||null);
+      const list=r.lessonId==='other'?bank.other:(lesson?lesson.words:null);
       const w=list&&list[r.index];
-      if(w&&w.text)words.push({text:w.text,hint:w.hint||''});
+      if(w&&w.text){
+        const lessonName=lesson?lesson.name:'';
+        const source=bank.name+(lessonName&&lessonName!=='其他（不指定课文）'?'-'+lessonName:'');
+        words.push({text:w.text,hint:w.hint||'',source});
+      }
     });
     if(!words.length){this.showToast('没有可加入的词语');return;}
     const count=words.length;
@@ -3823,9 +3828,9 @@ const App={
         if(delIdx>=0)deleted.splice(delIdx,1);
         const dupIdx=list.findIndex(rw=>rw.text.toLocaleLowerCase()===key);
         if(dupIdx>=0){
-          list[dupIdx].streak=0;list[dupIdx].last=now;list[dupIdx].nextReview=this.getNextReviewTs(0);list[dupIdx].archived=false;list[dupIdx].updatedAt=now;
+          list[dupIdx].streak=0;list[dupIdx].last=now;list[dupIdx].nextReview=this.getNextReviewTs(0);list[dupIdx].archived=false;list[dupIdx].source=w.source;list[dupIdx].updatedAt=now;
         }else{
-          list.push({text:w.text,hint:w.hint,streak:0,last:now,nextReview:this.getNextReviewTs(0),updatedAt:now});fresh++;
+          list.push({text:w.text,hint:w.hint,source:w.source,streak:0,last:now,nextReview:this.getNextReviewTs(0),updatedAt:now});fresh++;
         }
       });
       localStorage.setItem(this.userKey('dict_deleted_review'),JSON.stringify(deleted));
