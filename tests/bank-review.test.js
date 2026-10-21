@@ -292,4 +292,28 @@ const cloudNewer=CloudSync.mergeReviewBanks(
 );
 assert.strictEqual(cloudNewer.en[0].streak,0,'cloud newer wins when updatedAt larger');
 
+// —— 词库管理：批量删除词语（跨课文、同课文多个，降序删除防索引偏移）——
+const bmBank={id:'b1',name:'测试词库',other:[{text:'杂词1'},{text:'杂词2'}],lessons:[
+  {id:'l1',name:'第1课',words:[{text:'词一'},{text:'词二'},{text:'词三'},{text:'词四'}]},
+  {id:'l2',name:'第2课',words:[{text:'词A'},{text:'词B'}]}
+]};
+// 删第1课 index 0 和 2、第2课 index 1、其他 index 0 → 应删 4 个
+const removed=App._deleteManagedBankWords(bmBank,[
+  {lessonId:'l1',index:0},{lessonId:'l1',index:2},{lessonId:'l2',index:1},{lessonId:'other',index:0}
+]);
+assert.strictEqual(removed,4,'4 words removed');
+assert.deepStrictEqual(bmBank.lessons[0].words.map(w=>w.text),['词二','词四'],'l1 keeps 词二,词四');
+assert.deepStrictEqual(bmBank.lessons[1].words.map(w=>w.text),['词A'],'l2 keeps 词A');
+assert.deepStrictEqual(bmBank.other.map(w=>w.text),['杂词2'],'other keeps 杂词2');
+// 越界 index 应容错（Set 已保证同一词不会重复选中）
+const removed2=App._deleteManagedBankWords(bmBank,[{lessonId:'l1',index:0},{lessonId:'l1',index:99}]);
+assert.strictEqual(removed2,1,'out-of-range tolerated, valid index removed');
+// 通用居中弹窗方法存在
+assert.strictEqual(typeof App.bmOpenModal,'function','bmOpenModal exists');
+assert.strictEqual(typeof App.bmPrompt,'function','bmPrompt exists');
+assert.strictEqual(typeof App.bmConfirm,'function','bmConfirm exists');
+assert.strictEqual(typeof App.closeBmModal,'function','closeBmModal exists');
+// 批量删除入口存在（绑定在 renderBankManagerDetail 中）
+assert.strictEqual(typeof App.deleteSelectedManagedWords,'function','deleteSelectedManagedWords exists');
+
 console.log('bank-review tests passed');

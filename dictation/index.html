@@ -836,6 +836,9 @@
   .bm-bulk-actions{display:flex;gap:8px;}
   .bm-bulk-actions select{min-width:0;flex:1;padding:9px 10px;border:1.5px solid var(--border);border-radius:9px;background:var(--card);font-size:14px;color:var(--text);}
   .bm-bulk-actions button{flex:0 0 auto;border:0;border-radius:9px;padding:9px 15px;background:var(--primary);color:#fff;font-size:14px;font-weight:700;cursor:pointer;}
+  .bm-bulk-actions button.danger{background:#e5484d;}
+  .btn-danger{background:#e5484d;border-color:#e5484d;color:#fff;}
+  .btn-danger:active{background:#d63b40;}
   .bm-bulk-actions button:disabled{background:var(--border);color:var(--muted);cursor:not-allowed;}
   .bm-lesson-empty{padding:12px;color:var(--muted);font-size:13px;}
   .lesson-group{margin-bottom:12px;border:1px solid var(--border);border-radius:10px;overflow:hidden;}
@@ -1641,6 +1644,18 @@
           </div>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- 词库管理通用居中弹窗（替代浏览器 prompt/confirm） -->
+  <div class="modal-mask" id="bm-modal-mask" onclick="if(event.target===this)App.closeBmModal()">
+    <div class="modal-card" style="max-width:420px;">
+      <div class="modal-head">
+        <div class="m-title" id="bm-modal-title"></div>
+        <button class="m-close" onclick="App.closeBmModal()">✕</button>
+      </div>
+      <div class="modal-body" id="bm-modal-body"></div>
+      <div class="modal-foot" id="bm-modal-foot"></div>
     </div>
   </div>
 
@@ -3405,7 +3420,7 @@ const App={
         <div class="bm-field" id="bm-new-lesson-field" style="display:none;"><label>新课文名称</label><input id="bm-manual-new-lesson" placeholder="例如：第3课 现代诗二首"></div>
         <button class="btn btn-primary" id="bm-save-manual" style="width:100%;">加入词库</button>
       </div>
-    </div><div class="section-title">词库内容 · ${this.getBankWordCount(bank)} 词</div><button class="bm-select-btn ${bulk?'active':''}" id="bm-bulk-toggle">${bulk?'✓ 退出批量选择':'☑️ 选择多个词语并调整课文'}</button><div id="bm-content"></div>${bulk?`<div class="bm-bulk-bar"><div class="bm-bulk-summary">已选 <b id="bm-selected-count">0</b> 个词语</div><div class="bm-bulk-actions"><select id="bm-bulk-target"><option value="">选择目标课文…</option><option value="other">其他</option>${moveLessonOptions}<option value="new">＋ 新建课文</option></select><button id="bm-move-selected" disabled>移动</button></div></div>`:''}`;
+    </div><div class="section-title">词库内容 · ${this.getBankWordCount(bank)} 词</div><button class="bm-select-btn ${bulk?'active':''}" id="bm-bulk-toggle">${bulk?'✓ 退出批量选择':'☑️ 选择多个词语并调整课文'}</button><div id="bm-content"></div>${bulk?`<div class="bm-bulk-bar"><div class="bm-bulk-summary">已选 <b id="bm-selected-count">0</b> 个词语</div><div class="bm-bulk-actions"><select id="bm-bulk-target"><option value="">选择目标课文…</option><option value="other">其他</option>${moveLessonOptions}<option value="new">＋ 新建课文</option></select><button id="bm-move-selected" disabled>移动</button><button id="bm-delete-selected" class="danger" disabled>删除</button></div></div>`:''}`;
     root.querySelector('#bm-detail-back').onclick=()=>{this.bankManagerBankId=null;this.resetBankManagerBulkState();this.renderBankManager();};
     root.querySelector('#bm-bulk-toggle').onclick=()=>this.toggleBankManagerBulkMode();
     root.querySelector('#bm-rename-bank').onclick=()=>this.renameManagedBank();
@@ -3421,6 +3436,7 @@ const App={
     if(bulk){
       root.querySelector('#bm-bulk-target').onchange=()=>this.updateBankManagerSelectionUI();
       root.querySelector('#bm-move-selected').onclick=()=>this.moveSelectedManagedWords();
+      root.querySelector('#bm-delete-selected').onclick=()=>this.deleteSelectedManagedWords();
     }
     this.renderBankManagerContent(bank);
   },
@@ -3507,9 +3523,10 @@ const App={
       const key=this.bankManagerWordSelectionKey(chip.dataset.lessonId,Number(chip.dataset.wordIndex));
       const selected=this.bankManagerSelectedWords.has(key);chip.classList.toggle('selected',selected);chip.setAttribute('aria-pressed',selected?'true':'false');
     });
-    const count=this.bankManagerSelectedWords.size,countEl=root.querySelector('#bm-selected-count'),target=root.querySelector('#bm-bulk-target'),button=root.querySelector('#bm-move-selected');
+    const count=this.bankManagerSelectedWords.size,countEl=root.querySelector('#bm-selected-count'),target=root.querySelector('#bm-bulk-target'),button=root.querySelector('#bm-move-selected'),delBtn=root.querySelector('#bm-delete-selected');
     if(countEl)countEl.textContent=String(count);
     if(button)button.disabled=count===0||!(target&&target.value);
+    if(delBtn)delBtn.disabled=count===0;
   },
   bindBankManagerBulkGesture(wrap){
     const selectChip=(chip,selecting)=>{
@@ -3558,16 +3575,22 @@ const App={
     const select=document.getElementById('bm-bulk-target'),choice=select&&select.value;
     if(!choice){this.showToast('请选择目标课文');return;}
     if(!this.bankManagerSelectedWords.size){this.showToast('请先选择词语');return;}
-    let newLessonName='';
+    const doMove=newLessonName=>{
+      const store=this.getWordBankStore(),bank=this._findBankInStore(store,this.bankManagerLang,this.bankManagerBankId);if(!bank)return;
+      const refs=[...this.bankManagerSelectedWords].map(key=>this.bankManagerWordSelectionRef(key)).filter(Boolean);let result;
+      try{result=this._moveManagedBankWords(bank,refs,choice,newLessonName);}catch(e){this.showToast(e.message);return;}
+      if(!result.moved){this.showToast('所选词语已经在“'+result.lessonName+'”中');return;}
+      this.saveWordBankStore(store);this.resetBankManagerBulkState();this.renderBankManagerDetail();this.showToast('✅ 已将 '+result.moved+' 个词语移到“'+result.lessonName+'”');
+    };
     if(choice==='new'){
-      const value=prompt('输入新课文名称');if(value===null)return;
-      newLessonName=value.trim();if(!newLessonName){this.showToast('请输入课文名称');return;}
+      this.bmPrompt('新建课文','','输入新课文名称','',value=>{
+        if(value===null)return;
+        const clean=value.trim();if(!clean){this.showToast('请输入课文名称');return;}
+        doMove(clean);
+      });
+      return;
     }
-    const store=this.getWordBankStore(),bank=this._findBankInStore(store,this.bankManagerLang,this.bankManagerBankId);if(!bank)return;
-    const refs=[...this.bankManagerSelectedWords].map(key=>this.bankManagerWordSelectionRef(key)).filter(Boolean);let result;
-    try{result=this._moveManagedBankWords(bank,refs,choice,newLessonName);}catch(e){this.showToast(e.message);return;}
-    if(!result.moved){this.showToast('所选词语已经在“'+result.lessonName+'”中');return;}
-    this.saveWordBankStore(store);this.resetBankManagerBulkState();this.renderBankManagerDetail();this.showToast('✅ 已将 '+result.moved+' 个词语移到“'+result.lessonName+'”');
+    doMove('');
   },
   bmAddManual(){
     const raw=(document.getElementById('bm-manual-words').value||'').trim();
@@ -3584,28 +3607,34 @@ const App={
   },
   renameManagedBank(){
     const store=this.getWordBankStore(),bank=this._findBankInStore(store,this.bankManagerLang,this.bankManagerBankId);if(!bank)return;
-    const name=prompt('输入新的词库名称',bank.name);if(name===null)return;const clean=name.trim();if(!clean){this.showToast('名称不能为空');return;}
-    if(store[this.bankManagerLang].some(b=>b.id!==bank.id&&b.name===clean)){this.showToast('词库名称已存在');return;}
-    bank.name=clean;bank.updatedAt=Date.now();this.saveWordBankStore(store);this.renderBankManagerDetail();this.showToast('✅ 名称已修改');
+    this.bmPrompt('修改词库名称',bank.name,'输入新的词库名称','',value=>{
+      if(value===null)return;const clean=value.trim();if(!clean){this.showToast('名称不能为空');return;}
+      if(store[this.bankManagerLang].some(b=>b.id!==bank.id&&b.name===clean)){this.showToast('词库名称已存在');return;}
+      bank.name=clean;bank.updatedAt=Date.now();this.saveWordBankStore(store);this.renderBankManagerDetail();this.showToast('✅ 名称已修改');
+    });
   },
   deleteManagedBank(){
     const store=this.getWordBankStore(),bank=this._findBankInStore(store,this.bankManagerLang,this.bankManagerBankId);if(!bank)return;
-    if(!confirm('确定删除词库“'+bank.name+'”吗？其中的课文和词语也会删除。'))return;
-    const ts=Date.now();store[this.bankManagerLang]=store[this.bankManagerLang].filter(b=>b.id!==bank.id);store.deleted.push({lang:this.bankManagerLang,id:bank.id,ts});
-    const s=this[this.bankManagerLang+'Settings'];if(s.bankId===bank.id){s.bankId='';s.lessonId='';s.grade='';s.gradeType='preset';this.saveSettings();}
-    this.saveWordBankStore(store);this.bankManagerBankId=null;this.renderBankManager();this.showToast('词库已删除');
+    this.bmConfirm('删除词库','确定删除词库“'+this._escHtml(bank.name)+'”吗？其中的课文和词语也会删除。','删除',()=>{
+      const ts=Date.now();store[this.bankManagerLang]=store[this.bankManagerLang].filter(b=>b.id!==bank.id);store.deleted.push({lang:this.bankManagerLang,id:bank.id,ts});
+      const s=this[this.bankManagerLang+'Settings'];if(s.bankId===bank.id){s.bankId='';s.lessonId='';s.grade='';s.gradeType='preset';this.saveSettings();}
+      this.saveWordBankStore(store);this.bankManagerBankId=null;this.renderBankManager();this.showToast('词库已删除');
+    });
   },
   renameManagedLesson(lessonId){
     const store=this.getWordBankStore(),bank=this._findBankInStore(store,this.bankManagerLang,this.bankManagerBankId),lesson=bank&&(bank.lessons||[]).find(l=>l.id===lessonId);if(!lesson)return;
-    const name=prompt('输入新的课文名称',lesson.name);if(name===null)return;const clean=name.trim();if(!clean){this.showToast('名称不能为空');return;}
-    if(bank.lessons.some(l=>l.id!==lesson.id&&l.name===clean)){this.showToast('课文名称已存在');return;}
-    lesson.name=clean;lesson.updatedAt=Date.now();bank.updatedAt=Date.now();this.saveWordBankStore(store);this.renderBankManagerDetail();
+    this.bmPrompt('修改课文名称',lesson.name,'输入新的课文名称','',value=>{
+      if(value===null)return;const clean=value.trim();if(!clean){this.showToast('名称不能为空');return;}
+      if(bank.lessons.some(l=>l.id!==lesson.id&&l.name===clean)){this.showToast('课文名称已存在');return;}
+      lesson.name=clean;lesson.updatedAt=Date.now();bank.updatedAt=Date.now();this.saveWordBankStore(store);this.renderBankManagerDetail();
+    });
   },
   deleteManagedLesson(lessonId){
     const store=this.getWordBankStore(),bank=this._findBankInStore(store,this.bankManagerLang,this.bankManagerBankId),lesson=bank&&(bank.lessons||[]).find(l=>l.id===lessonId);if(!lesson)return;
-    if(!confirm('删除课文“'+lesson.name+'”？其中词语会移到“其他”，不会丢失。'))return;
-    const keys=new Set(bank.other.map(w=>w.text.toLocaleLowerCase()));(lesson.words||[]).forEach(w=>{const k=w.text.toLocaleLowerCase();if(!keys.has(k)){bank.other.push(w);keys.add(k);}});
-    bank.lessons=bank.lessons.filter(l=>l.id!==lessonId);bank.updatedAt=Date.now();this.saveWordBankStore(store);this.renderBankManagerDetail();this.showToast('课文已删除，词语已移到“其他”');
+    this.bmConfirm('删除课文','删除课文“'+this._escHtml(lesson.name)+'”？其中词语会移到“其他”，不会丢失。','删除',()=>{
+      const keys=new Set(bank.other.map(w=>w.text.toLocaleLowerCase()));(lesson.words||[]).forEach(w=>{const k=w.text.toLocaleLowerCase();if(!keys.has(k)){bank.other.push(w);keys.add(k);}});
+      bank.lessons=bank.lessons.filter(l=>l.id!==lessonId);bank.updatedAt=Date.now();this.saveWordBankStore(store);this.renderBankManagerDetail();this.showToast('课文已删除，词语已移到“其他”');
+    });
   },
   editManagedWord(lessonId,index){
     const store=this.getWordBankStore(),bank=this._findBankInStore(store,this.bankManagerLang,this.bankManagerBankId);if(!bank)return;
@@ -3613,10 +3642,15 @@ const App={
     const old=target[index];
     // 兼容旧版本：当时第一个“|”后面的多个词会被误存进 hint，编辑时要还原完整输入才能正确拆分。
     const initialValue=old.hint?(old.hint.includes('|')?old.text+' | '+old.hint:old.text+'：'+old.hint):old.text;
-    const value=prompt('修改词语；“|”或空格用于拆分，冒号后填写说明。留空后确认将删除。',initialValue);if(value===null)return;
-    if(!value.trim()){
-      if(!confirm('确定删除“'+old.text+'”吗？'))return;target.splice(index,1);this.showToast('词语已删除');
-    }else{
+    const applyEdit=value=>{
+      if(value===null)return;
+      if(!value.trim()){
+        this.bmConfirm('删除词语','确定删除“'+this._escHtml(old.text)+'”吗？','删除',()=>{
+          target.splice(index,1);
+          bank.updatedAt=Date.now();this.saveWordBankStore(store);this.renderBankManagerDetail();this.showToast('词语已删除');
+        });
+        return;
+      }
       const replacements=this.parseManualWords(value);if(!replacements.length){this.showToast('词语不能为空');return;}
       target.splice(index,1);
       // 编辑后的拆分只在当前课文内去重，其他课文可以保留同名词。
@@ -3626,9 +3660,81 @@ const App={
         const key=word.text.toLocaleLowerCase();
         if(!targetKeys.has(key)){if(replacements.length===1&&wordIndex===0&&!word.hint)word.hint=old.hint||'';insert.push(word);targetKeys.add(key);}
       });
-      target.splice(index,0,...insert);this.showToast(insert.length>1?'✅ 已拆分为 '+insert.length+' 个词语':'✅ 词语已修改');
-    }
-    bank.updatedAt=Date.now();this.saveWordBankStore(store);this.renderBankManagerDetail();
+      target.splice(index,0,...insert);
+      bank.updatedAt=Date.now();this.saveWordBankStore(store);this.renderBankManagerDetail();
+      this.showToast(insert.length>1?'✅ 已拆分为 '+insert.length+' 个词语':'✅ 词语已修改');
+    };
+    this.bmPrompt('修改词语',initialValue,'词语；“|”或空格拆分，冒号后写说明。留空并确认将删除','',applyEdit);
+  },
+
+  // —— 词库管理通用居中弹窗（替代浏览器 prompt/confirm）——
+  bmOpenModal(title,bodyHtml,footButtons){
+    const mask=document.getElementById('bm-modal-mask');if(!mask)return;
+    document.getElementById('bm-modal-title').textContent=title;
+    document.getElementById('bm-modal-body').innerHTML=bodyHtml;
+    const foot=document.getElementById('bm-modal-foot');foot.innerHTML='';
+    (footButtons||[]).forEach(b=>{
+      const btn=document.createElement('button');
+      btn.textContent=b.label;
+      btn.className='btn '+(b.kind==='ghost'?'btn-ghost':(b.kind==='danger'?'btn-danger':'btn-primary'));
+      btn.style.flex='1';
+      btn.onclick=()=>{mask.classList.remove('show');b.onClick&&b.onClick();};
+      foot.appendChild(btn);
+    });
+    mask.classList.add('show');
+  },
+  closeBmModal(){const mask=document.getElementById('bm-modal-mask');if(mask)mask.classList.remove('show');},
+  bmPrompt(title,initialValue,placeholder,hint,onOk){
+    const body=`<div style="display:flex;flex-direction:column;gap:10px;">
+      ${hint?`<div style="font-size:13px;color:var(--muted);">${hint}</div>`:''}
+      <input type="text" id="bm-modal-input" value="${this._escHtml(initialValue||'')}" placeholder="${this._escHtml(placeholder||'')}" autocomplete="off" style="width:100%;padding:10px 12px;font-size:16px;border:1px solid var(--border);border-radius:8px;box-sizing:border-box;background:var(--card);color:var(--text);">
+    </div>`;
+    const finish=ok=>{
+      const input=document.getElementById('bm-modal-input');
+      const value=ok&&input?input.value:null;
+      this.closeBmModal();
+      onOk(value);
+    };
+    this.bmOpenModal(title,body,[
+      {label:'取消',kind:'ghost',onClick:()=>finish(false)},
+      {label:'确定',kind:'primary',onClick:()=>finish(true)}
+    ]);
+    const input=document.getElementById('bm-modal-input');
+    if(input){input.focus&&input.focus();input.onkeydown=e=>{if(e.key==='Enter')finish(true);};}
+  },
+  bmConfirm(title,message,okLabel,onOk){
+    this.bmOpenModal(title,`<div style="font-size:15px;line-height:1.6;color:var(--text);">${message}</div>`,[
+      {label:'取消',kind:'ghost',onClick:()=>this.closeBmModal()},
+      {label:okLabel||'确定',kind:'danger',onClick:onOk}
+    ]);
+  },
+
+  // —— 批量删除所选词语 ——
+  deleteSelectedManagedWords(){
+    if(!this.bankManagerSelectedWords.size){this.showToast('请先选择词语');return;}
+    const count=this.bankManagerSelectedWords.size;
+    this.bmConfirm('删除所选词语','确定删除选中的 <b>'+count+'</b> 个词语吗？','删除',()=>{
+      const store=this.getWordBankStore(),bank=this._findBankInStore(store,this.bankManagerLang,this.bankManagerBankId);if(!bank)return;
+      const refs=[...this.bankManagerSelectedWords].map(key=>this.bankManagerWordSelectionRef(key)).filter(Boolean);
+      const removed=this._deleteManagedBankWords(bank,refs);
+      if(!removed){this.showToast('没有可删除的词语');return;}
+      bank.updatedAt=Date.now();this.saveWordBankStore(store);this.resetBankManagerBulkState();this.renderBankManagerDetail();this.showToast('✅ 已删除 '+removed+' 个词语');
+    });
+  },
+  _deleteManagedBankWords(bank,refs){
+    const groups={};
+    refs.forEach(r=>{
+      if(!r)return;
+      const list=r.lessonId==='other'?bank.other:((bank.lessons||[]).find(l=>l.id===r.lessonId)||{}).words;
+      if(!list)return;
+      (groups[r.lessonId]=groups[r.lessonId]||{list,idx:[]}).idx.push(r.index);
+    });
+    let removed=0;
+    Object.keys(groups).forEach(k=>{
+      const g=groups[k];g.idx.sort((a,b)=>b-a);
+      g.idx.forEach(i=>{if(g.list[i]!==undefined){g.list.splice(i,1);removed++;}});
+    });
+    return removed;
   },
 
   // 从首页图片按钮进入语言分区页
