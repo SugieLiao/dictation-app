@@ -316,4 +316,27 @@ assert.strictEqual(typeof App.closeBmModal,'function','closeBmModal exists');
 // 批量删除入口存在（绑定在 renderBankManagerDetail 中）
 assert.strictEqual(typeof App.deleteSelectedManagedWords,'function','deleteSelectedManagedWords exists');
 
+// —— 同名词库合并：消除“添加进一个词库、听写选另一个”的歧义 ——
+const dupStore={version:2,zh:[
+  {id:'bank_a',name:'四年级上册',other:[],lessons:[
+    {id:'l1a',name:'第12课 精卫填海',words:[{text:'填补'},{text:'炎帝'},{text:'子曰'},{text:'女娃'},{text:'衔来'}]},
+    {id:'l2a',name:'第1课 观潮',words:[{text:'奇观'}]}
+  ],createdAt:1,updatedAt:1},
+  {id:'bank_b',name:'四年级上册',other:[{text:'杂词'}],lessons:[
+    {id:'l1b',name:'第12课 精卫填海',words:[{text:'填空'},{text:'填土'},{text:'黄帝'},{text:'帝王'},{text:'名曰'},{text:'娃娃'},{text:'衔接'},{text:'衔着'}]},
+    {id:'l2b',name:'1单元易错词',words:[{text:'易错1'},{text:'易错2'}]}
+  ],createdAt:2,updatedAt:2}
+],en:[],deleted:[]};
+const dupChanged=App._dedupeSameNameBanksInStore(dupStore);
+assert.strictEqual(dupChanged,true,'dup banks merged');
+assert.strictEqual(dupStore.zh.length,1,'only one bank remains');
+const mergedBank=dupStore.zh[0];
+const l12=mergedBank.lessons.find(l=>l.name==='第12课 精卫填海');
+assert.strictEqual(l12.words.length,13,'lesson 12 words union (5+8)');
+assert.ok(mergedBank.lessons.some(l=>l.name==='1单元易错词'),'unique lesson merged in');
+assert.strictEqual(mergedBank.other.length,1,'other words merged in');
+assert.strictEqual(dupStore.deleted.some(d=>d.id==='bank_a'),true,'merged-away bank (fewer words) tombstoned');
+// 再次执行应无变化
+assert.strictEqual(App._dedupeSameNameBanksInStore(dupStore),false,'idempotent');
+
 console.log('bank-review tests passed');

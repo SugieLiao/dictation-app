@@ -2536,6 +2536,7 @@ const App={
       console.log('[过关标记迁移] 语文:',migrateStats.zh,'英语:',migrateStats.en,'跳过(复习库中):',migrateStats.skipped);
     }
     this.applyPresetAdditions();
+    this.dedupeSameNameBanks();
     this.applyCatalogWordLists(false);
     this.renderHomeEntries();
     this.updateUserSwitchBtn();
@@ -2608,6 +2609,7 @@ const App={
           }
         }
         // 云端合并完成后才允许新建教材词库，避免本地空缓存与云端旧词库形成同名副本。
+        this.dedupeSameNameBanks();
         const catalogResult=this.applyCatalogWordLists(true);
         if(catalogResult.updatedBanks>0){this.renderHomeEntries();this.refreshWordBankViewsAfterSync();}
         // 每次重新连线后都推送一次本地数据；新 D1 为空时会自动完成首次迁移。
@@ -2740,6 +2742,7 @@ const App={
     if(cloudData.wordBanks){
       const localBanks=this.getWordBankStore();
       const mergedBanks=this.mergeWordBankStores(localBanks,cloudData.wordBanks);
+      this._dedupeSameNameBanksInStore(mergedBanks);
       this.saveWordBankStore(mergedBanks,true);
       needRefresh=true;
     }
@@ -3213,6 +3216,65 @@ const App={
     }
     return out;
   },
+  // 合并同名词库：保留词语最多的词库，其余同名库的词语/课文并入（按课文名去重合并），
+  // 消除“添加进一个词库、听写选了另一个”的歧义。被合并的库加删除墓碑。
+  dedupeSameNameBanks(){
+    const store=this.getWordBankStore();
+    const changed=this._dedupeSameNameBanksInStore(store);
+    if(changed)this.saveWordBankStore(store);
+    return changed;
+  },
+  _dedupeSameNameBanksInStore(store){
+    let changed=false;
+    for(const lang of['zh','en']){
+      const groups={};
+      (store[lang]||[]).forEach(bank=>{
+        const n=String(bank.name||'').trim();
+        if(!n)return;
+        (groups[n]=groups[n]||[]).push(bank);
+      });
+      Object.keys(groups).forEach(name=>{
+        const list=groups[name];
+        if(list.length<2)return;
+        const countWords=b=>{let c=(b.other||[]).length;(b.lessons||[]).forEach(l=>c+=(l.words||[]).length);return c;};
+        list.sort((a,b)=>countWords(b)-countWords(a));
+        const keep=list[0],now=Date.now();
+        const keepLessonMap=new Map();
+        (keep.lessons||[]).forEach(l=>keepLessonMap.set(String(l.name||'').replace(/\s+/g,''),l));
+        list.slice(1).forEach(extra=>{
+          const keepOtherKeys=new Set((keep.other||[]).map(w=>this._normalizeBankWord(w).text.toLocaleLowerCase()));
+          (extra.other||[]).forEach(w=>{
+            const nw=this._normalizeBankWord(w);
+            if(nw.text&&!keepOtherKeys.has(nw.text.toLocaleLowerCase())){
+              keep.other.push(nw);keepOtherKeys.add(nw.text.toLocaleLowerCase());
+            }
+          });
+          (extra.lessons||[]).forEach(l=>{
+            const k=String(l.name||'').replace(/\s+/g,'');
+            const target=keepLessonMap.get(k);
+            if(target){
+              const keys=new Set((target.words||[]).map(w=>this._normalizeBankWord(w).text.toLocaleLowerCase()));
+              (l.words||[]).forEach(w=>{
+                const nw=this._normalizeBankWord(w);
+                if(nw.text&&!keys.has(nw.text.toLocaleLowerCase())){target.words.push(nw);keys.add(nw.text.toLocaleLowerCase());}
+              });
+              target.updatedAt=now;
+            }else{
+              keep.lessons.push({...l,id:this._newId('lesson'),updatedAt:now});
+            }
+          });
+          keep.updatedAt=now;
+          store[lang]=store[lang].filter(b=>b!==extra);
+          if(!(store.deleted||=[]).some(d=>d.id===extra.id&&d.lang===lang)){
+            store.deleted.push({lang,id:extra.id,ts:now});
+          }
+          changed=true;
+        });
+      });
+    }
+    return changed;
+  },
+
   mergeWordBankStores(local,cloud){
     const a=this._normalizeWordBankStore(local||{}),b=this._normalizeWordBankStore(cloud||{});
     const out={version:2,catalogVersions:{...(b.catalogVersions||{}),...(a.catalogVersions||{})},zh:[],en:[],deleted:[]};
