@@ -8043,7 +8043,8 @@ const CloudSync={
 
   // 立即推送当前用户全部数据到云端
   async push(){
-    if(!this.enabled||this.syncing)return false;
+    if(!this.enabled){this._notifySyncFailure();return false;}
+    if(this.syncing)return false;
     this.syncing=true;
     this.updateIndicator('syncing');
     try{
