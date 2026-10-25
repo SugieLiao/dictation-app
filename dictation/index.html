@@ -2800,9 +2800,19 @@ const App={
     try{review=JSON.parse(localStorage.getItem(this.userKey('dict_review'))||'{"zh":[],"en":[]}');}catch(e){review={zh:[],en:[]};}
     if(!review.zh)review.zh=[];
     if(!review.en)review.en=[];
-    review.zh.forEach(w=>{if(typeof w.streak==='undefined')w.streak=0;if(typeof w.last==='undefined')w.last='';if(typeof w.archived==='undefined')w.archived=false;if(typeof w.source==='undefined')w.source='';});
-    review.en.forEach(w=>{if(typeof w.streak==='undefined')w.streak=0;if(typeof w.last==='undefined')w.last='';if(typeof w.archived==='undefined')w.archived=false;if(typeof w.source==='undefined')w.source='';});
+    review.zh.forEach(w=>{if(typeof w.streak==='undefined')w.streak=0;if(typeof w.last==='undefined')w.last='';if(typeof w.archived==='undefined')w.archived=false;if(typeof w.source==='undefined')w.source='';if(typeof w.source==='string'&&w.source){const _m=w.source.match(/^([^、]+?)-\1[·\-](.+)$/);if(_m)w.source=_m[1]+'-'+_m[2];}});
+    review.en.forEach(w=>{if(typeof w.streak==='undefined')w.streak=0;if(typeof w.last==='undefined')w.last='';if(typeof w.archived==='undefined')w.archived=false;if(typeof w.source==='undefined')w.source='';if(typeof w.source==='string'&&w.source){const _m=w.source.match(/^([^、]+?)-\1[·\-](.+)$/);if(_m)w.source=_m[1]+'-'+_m[2];}});
     return review;
+  },
+  // 格式化复习库来源：词库名-课文名。课文名若自带词库名前缀（如「四年级上册·第13课…」）则去掉重复前缀。
+  _formatReviewSource(bankName,lessonName){
+    let source=bankName||'';
+    let lessonLabel=lessonName||'';
+    if(lessonLabel&&lessonLabel!=='其他（不指定课文）'){
+      if(bankName&&lessonLabel.indexOf(bankName)===0)lessonLabel=lessonLabel.slice(bankName.length).replace(/^[·\-]/,'');
+      source+='-'+lessonLabel;
+    }
+    return source;
   },
   saveReviewBank(bank){localStorage.setItem(this.userKey('dict_review'),JSON.stringify(bank));CloudSync.pushDebounced();},
 
@@ -3810,8 +3820,7 @@ const App={
       const list=r.lessonId==='other'?bank.other:(lesson?lesson.words:null);
       const w=list&&list[r.index];
       if(w&&w.text){
-        const lessonName=lesson?lesson.name:'';
-        const source=bank.name+(lessonName&&lessonName!=='其他（不指定课文）'?'-'+lessonName:'');
+        const source=this._formatReviewSource(bank.name,lesson?lesson.name:'');
         words.push({text:w.text,hint:w.hint||'',source});
       }
     });
@@ -4430,13 +4439,7 @@ const App={
     const bank=this.getReviewBank();
     if(!bank[this.mode])bank[this.mode]=[];
     const today=new Date().toISOString().slice(0,10);
-    let reviewSource='';
-    if(this.sessionSource&&this.sessionSource.bankName){
-      reviewSource=this.sessionSource.bankName;
-      if(this.sessionSource.lessonName&&this.sessionSource.lessonName!=='其他（不指定课文）'){
-        reviewSource+='-'+this.sessionSource.lessonName;
-      }
-    }
+    let reviewSource=this._formatReviewSource(this.sessionSource&&this.sessionSource.bankName,this.sessionSource&&this.sessionSource.lessonName);
     let mastered=0;
     let newAdded=0;
     if(bank[this.mode]){
@@ -4493,14 +4496,8 @@ const App={
     if(!bank[this.mode])bank[this.mode]=[];
     const existMap=new Map(bank[this.mode].map(w=>[w.text,w]));
     const today=new Date().toISOString().slice(0,10);
-    // 计算来源：词库名-课文名
-    let reviewSource='';
-    if(this.sessionSource&&this.sessionSource.bankName){
-      reviewSource=this.sessionSource.bankName;
-      if(this.sessionSource.lessonName&&this.sessionSource.lessonName!=='其他（不指定课文）'){
-        reviewSource+='-'+this.sessionSource.lessonName;
-      }
-    }
+    // 计算来源：词库名-课文名（课文名自带词库名前缀时自动去重）
+    let reviewSource=this._formatReviewSource(this.sessionSource&&this.sessionSource.bankName,this.sessionSource&&this.sessionSource.lessonName);
     let added=0;       // 本次新增入复习库的新词
     let mastered=0;    // 本次新达到3次正确(掌握)的复习词
     this.words.forEach((w,i)=>{
