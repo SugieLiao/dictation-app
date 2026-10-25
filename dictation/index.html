@@ -4513,10 +4513,19 @@ const App={
           // 写错：streak 不归零，继续当前循环——按当前 streak 对应的间隔再次复习
           existing.nextReview=this.getNextReviewTs(existing.streak||0);
         }else{
-          const prev=existing.streak||0;
-          existing.streak=prev+1;
-          existing.nextReview=this.getNextReviewTs(existing.streak);
-          if(existing.streak>=3 && prev<3)mastered++;
+          // 防作弊：①错词当天加入复习库的不得当天过关 ②同一词同一天最多只涨一次掌握进度
+          const todayStr=new Date().toISOString().slice(0,10);
+          const addedSameDay=typeof existing.addedAt==='number'&&new Date(existing.addedAt).toISOString().slice(0,10)===todayStr;
+          const alreadyUpToday=existing.streakDate===todayStr;
+          if(addedSameDay||alreadyUpToday){
+            existing.nextReview=this.getNextReviewTs(existing.streak||0);
+          }else{
+            const prev=existing.streak||0;
+            existing.streak=prev+1;
+            existing.streakDate=todayStr;
+            existing.nextReview=this.getNextReviewTs(existing.streak);
+            if(existing.streak>=3 && prev<3)mastered++;
+          }
         }
         existing.last=today;
         existing.updatedAt=Date.now();
