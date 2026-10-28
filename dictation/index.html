@@ -3297,8 +3297,10 @@ const App={
     for(const lang of['zh','en']){
       const map=new Map();
       [...b[lang],...a[lang]].forEach(bank=>{
-        const old=map.get(bank.id);
-        if(!old||(bank.updatedAt||0)>=(old.updatedAt||0))map.set(bank.id,bank);
+        const id=String(bank.id);
+        const old=map.get(id);
+        if(!old){map.set(id,bank);return;}
+        map.set(id,this._unionBankVersions(old,bank));
       });
       out[lang]=[...map.values()].filter(bank=>{
         const tomb=deleted.get(lang+'|'+bank.id);
@@ -3306,6 +3308,36 @@ const App={
       });
     }
     return out;
+  },
+  // 同一词库 id 的两个版本：bank 级字段取 updatedAt 新者为主，旧版本缺失的课文/词按 id/名称/text 去重并入主版本（防止多端新增数据互相覆盖）
+  _unionBankVersions(x,y){
+    const main=Number(x.updatedAt||0)>=Number(y.updatedAt||0)?JSON.parse(JSON.stringify(x)):JSON.parse(JSON.stringify(y));
+    const sub=(Number(x.updatedAt||0)>=Number(y.updatedAt||0))?y:x;
+    const mainLessonMap=new Map();
+    (main.lessons||[]).forEach(l=>mainLessonMap.set(String(l.id||l.name||'').replace(/\s+/g,''),l));
+    (sub.lessons||[]).forEach(l=>{
+      if(!l)return;
+      const k=String(l.id||l.name||'').replace(/\s+/g,'');
+      const target=mainLessonMap.get(k);
+      if(target){
+        const keys=new Set((target.words||[]).map(w=>this._normalizeBankWord(w).text.toLocaleLowerCase()));
+        (l.words||[]).forEach(w=>{
+          const nw=this._normalizeBankWord(w);
+          if(nw.text&&!keys.has(nw.text.toLocaleLowerCase())){target.words.push(nw);keys.add(nw.text.toLocaleLowerCase());}
+        });
+        if(Number(l.updatedAt||0)>Number(target.updatedAt||0))target.updatedAt=l.updatedAt;
+      }else{
+        main.lessons.push(l);
+        mainLessonMap.set(k,l);
+      }
+    });
+    const otherKeys=new Set((main.other||[]).map(w=>this._normalizeBankWord(w).text.toLocaleLowerCase()));
+    (sub.other||[]).forEach(w=>{
+      const nw=this._normalizeBankWord(w);
+      if(nw.text&&!otherKeys.has(nw.text.toLocaleLowerCase())){main.other.push(nw);otherKeys.add(nw.text.toLocaleLowerCase());}
+    });
+    main.updatedAt=Math.max(Number(x.updatedAt||0),Number(y.updatedAt||0));
+    return main;
   },
   getManagedBanks(lang){return this.getWordBankStore()[lang]||[];},
   findManagedBank(lang,idOrName){return this.getManagedBanks(lang).find(b=>b.id===idOrName||b.name===idOrName)||null;},

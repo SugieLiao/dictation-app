@@ -139,6 +139,153 @@ async function readSyncData(request, env, url){
   return jsonResponse(request, response, 200);
 }
 
+// 服务端数据合并：PUT 时读取旧数据按规则合并，防止多端后写覆盖丢数据
+function unionBankVersionsService(x, y){
+  // 同一词库 id 的两个版本：bank 级字段取 updatedAt 新者为主，旧版本缺失的课文/词按 id/名称/text 去重并入主版本（防止多端新增数据互相覆盖）
+  const main = Number(x.updatedAt||0) >= Number(y.updatedAt||0) ? JSON.parse(JSON.stringify(x)) : JSON.parse(JSON.stringify(y));
+  const sub = (Number(x.updatedAt||0) >= Number(y.updatedAt||0)) ? y : x;
+  const mainLessonMap = new Map();
+  (main.lessons||[]).forEach(l=>mainLessonMap.set(String(l.id||l.name||'').replace(/\s+/g,''), l));
+  (sub.lessons||[]).forEach(l=>{
+    if(!l) return;
+    const k = String(l.id||l.name||'').replace(/\s+/g,'');
+    const target = mainLessonMap.get(k);
+    if(target){
+      const keys = new Set((target.words||[]).map(w=>String(w.text||'').toLocaleLowerCase()));
+      (l.words||[]).forEach(w=>{
+        if(!w || !w.text) return;
+        const t = String(w.text).toLocaleLowerCase();
+        if(!keys.has(t)){ target.words.push(w); keys.add(t); }
+      });
+      if(Number(l.updatedAt||0) > Number(target.updatedAt||0)) target.updatedAt = l.updatedAt;
+    }else{
+      main.lessons.push(l);
+      mainLessonMap.set(k, l);
+    }
+  });
+  const otherKeys = new Set((main.other||[]).map(w=>String(w.text||'').toLocaleLowerCase()));
+  (sub.other||[]).forEach(w=>{
+    if(!w || !w.text) return;
+    const t = String(w.text).toLocaleLowerCase();
+    if(!otherKeys.has(t)){ main.other.push(w); otherKeys.add(t); }
+  });
+  main.updatedAt = Math.max(Number(x.updatedAt||0), Number(y.updatedAt||0));
+  return main;
+}
+function mergeBankStoresService(a, b){
+  const out = {version:2, catalogVersions:{...(b&&b.catalogVersions)||{},...(a&&a.catalogVersions)||{}}, zh:[], en:[], deleted:[]};
+  const deleted = new Map();
+  [...((a&&a.deleted)||[]), ...((b&&b.deleted)||[])].forEach(d=>{
+    if(!d || !d.id || !d.lang) return;
+    const k = d.lang + '|' + d.id;
+    if(!deleted.has(k) || Number((deleted.get(k)).ts||0) < Number(d.ts||0)) deleted.set(k, {lang:d.lang, id:String(d.id), ts:Number(d.ts)||0});
+  });
+  out.deleted = [...deleted.values()];
+  for(const lang of ['zh','en']){
+    const map = new Map();
+    [...((b&&b[lang])||[]), ...((a&&a[lang])||[])].forEach(bank=>{
+      if(!bank || !bank.id) return;
+      const id = String(bank.id);
+      const old = map.get(id);
+      if(!old){ map.set(id, bank); return; }
+      map.set(id, unionBankVersionsService(old, bank));
+    });
+    out[lang] = [...map.values()].filter(bank=>{
+      const tomb = deleted.get(lang + '|' + bank.id);
+      return !tomb || Number(tomb.ts||0) < Number(bank.updatedAt||0);
+    });
+  }
+  dedupeSameNameBanksService(out);
+  return out;
+}
+function dedupeSameNameBanksService(store){
+  for(const lang of ['zh','en']){
+    const groups = {};
+    (store[lang]||[]).forEach(bank=>{
+      const n = String(bank.name||'').trim();
+      if(!n) return;
+      (groups[n] = groups[n] || []).push(bank);
+    });
+    Object.keys(groups).forEach(name=>{
+      const list = groups[name];
+      if(list.length < 2) return;
+      const countWords = b => { let c=(b.other||[]).length; (b.lessons||[]).forEach(l=>c+=(l.words||[]).length); return c; };
+      list.sort((x,y)=>countWords(y)-countWords(x));
+      const keep = list[0], now = Date.now();
+      const keepLessonMap = new Map();
+      (keep.lessons||[]).forEach(l=>keepLessonMap.set(String(l.name||'').replace(/\s+/g,''), l));
+      list.slice(1).forEach(extra=>{
+        const keepOtherKeys = new Set((keep.other||[]).map(w=>String(w.text||'').toLocaleLowerCase()));
+        (extra.other||[]).forEach(w=>{
+          if(!w || !w.text) return;
+          const t = String(w.text).toLocaleLowerCase();
+          if(!keepOtherKeys.has(t)){ keep.other.push(w); keepOtherKeys.add(t); }
+        });
+        (extra.lessons||[]).forEach(l=>{
+          if(!l) return;
+          const k = String(l.name||'').replace(/\s+/g,'');
+          const target = keepLessonMap.get(k);
+          if(target){
+            const keys = new Set((target.words||[]).map(w=>String(w.text||'').toLocaleLowerCase()));
+            (l.words||[]).forEach(w=>{
+              if(!w || !w.text) return;
+              const t = String(w.text).toLocaleLowerCase();
+              if(!keys.has(t)){ target.words.push(w); keys.add(t); }
+            });
+            target.updatedAt = now;
+          }else{
+            const nid = String(l.id||('lesson'+now+Math.random().toString(36).slice(2,7)));
+            keep.lessons.push(Object.assign({}, l, {id:nid, updatedAt:now}));
+            keepLessonMap.set(k, keep.lessons[keep.lessons.length-1]);
+          }
+        });
+        keep.updatedAt = now;
+        store[lang] = store[lang].filter(x=>x!==extra);
+        if(!(store.deleted||[]).some(d=>d.id===extra.id && d.lang===lang)){
+          store.deleted.push({lang:lang, id:extra.id, ts:now});
+        }
+      });
+    });
+  }
+}
+function mergeReviewService(oldR, newR){
+  const out = {zh:[], en:[]};
+  for(const lang of ['zh','en']){
+    const map = new Map();
+    [...((oldR&&oldR[lang])||[]), ...((newR&&newR[lang])||[])].forEach(w=>{
+      if(!w || !w.text) return;
+      const k = String(w.text).toLocaleLowerCase();
+      const old = map.get(k);
+      if(!old){ map.set(k, w); return; }
+      const oldS = Number(old.streak||0), newS = Number(w.streak||0);
+      if(newS > oldS || (newS === oldS && Number(w.updatedAt||0) >= Number(old.updatedAt||0))){
+        map.set(k, Object.assign({}, old, w));
+      } else {
+        map.set(k, Object.assign({}, w, old));
+      }
+    });
+    out[lang] = [...map.values()];
+  }
+  return out;
+}
+function mergeUserDataService(oldData, incoming){
+  const out = JSON.parse(JSON.stringify(incoming));
+  if(incoming.wordBanks !== undefined && oldData.wordBanks !== undefined){
+    out.wordBanks = mergeBankStoresService(oldData.wordBanks, incoming.wordBanks);
+  }
+  if(oldData.review && incoming.review){
+    out.review = mergeReviewService(oldData.review, incoming.review);
+  }
+  if(Array.isArray(oldData.log) && Array.isArray(incoming.log) && oldData.log.length > incoming.log.length){
+    out.log = oldData.log;
+  }
+  if(oldData.settings && incoming.settings && typeof incoming.settings.ts === 'number' && typeof oldData.settings.ts === 'number' && oldData.settings.ts > incoming.settings.ts){
+    out.settings = oldData.settings;
+  }
+  if(oldData.progress !== undefined && incoming.progress === undefined) out.progress = oldData.progress;
+  if(oldData.adminPwd && !incoming.adminPwd) out.adminPwd = oldData.adminPwd;
+  return out;
+}
 async function writeSyncData(request, env){
   if (request.headers.get('X-Dictation-App') !== '1') {
     return jsonResponse(request, { error: 'missing_app_header' }, 400);
@@ -170,7 +317,15 @@ async function writeSyncData(request, env){
     const userId = entry[0];
     const userData = entry[1];
     if (!validUserId(userId) || !isPlainObject(userData)) return jsonResponse(request, { error: 'invalid_user_data' }, 400);
-    const payload = JSON.stringify(userData);
+    let finalData = userData;
+    try {
+      const oldRow = await env.DICTATION_DB.prepare('SELECT payload FROM sync_records WHERE record_key = ?1').bind('user:' + userId).first();
+      if (oldRow && oldRow.payload) {
+        const oldData = parseStoredJson(oldRow.payload, null);
+        if (isPlainObject(oldData)) finalData = mergeUserDataService(oldData, userData);
+      }
+    } catch (e) { finalData = userData; }
+    const payload = JSON.stringify(finalData);
     if (byteLength(payload) > MAX_ROW_BYTES) return jsonResponse(request, { error: 'user_data_too_large', userId }, 413);
     statements.push(env.DICTATION_DB.prepare(UPSERT_SQL).bind('user:' + userId, payload, now));
   }
