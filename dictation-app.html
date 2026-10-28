@@ -4511,9 +4511,7 @@ const App={
       words:this.words.map(w=>({text:w.text,hint:w.hint||''})),
       wrongIdx:[]
     });
-    if(this.sessionSource&&this.sessionSource.type==='continue'){
-      localStorage.removeItem(this.userKey('dict_progress'));sessionStorage.removeItem('dict_result_cache');CloudSync.pushDebounced();
-    }
+    localStorage.removeItem(this.userKey('dict_progress'));sessionStorage.removeItem('dict_result_cache');CloudSync.pushDebounced();
     this.sessionSource=null;
     this.go('home');
     this.renderHomeEntries();
@@ -4590,16 +4588,13 @@ const App={
       words:this.words.map(w=>({text:w.text,hint:w.hint||''})),
       wrongIdx:[...checkedIdx]
     });
-    if(this.sessionSource&&this.sessionSource.type==='continue'){
-      localStorage.removeItem(this.userKey('dict_progress'));sessionStorage.removeItem('dict_result_cache');CloudSync.pushDebounced();
-    }
+    localStorage.removeItem(this.userKey('dict_progress'));sessionStorage.removeItem('dict_result_cache');CloudSync.pushDebounced();
     this.sessionSource=null;
     let msg=`已记录：${wrongCount} 个错题`;
     if(added)msg+=`，新增复习库 ${added}`;
     if(mastered)msg+=`，${mastered} 个复习词已掌握 ✓`;
-    alert(msg);
-    this.go('home');
-    this.renderHomeEntries();
+    this.showToast(msg);
+    setTimeout(()=>{this.go('home');this.renderHomeEntries();},1600);
   },
 
   // 开始复习库听写：弹出设置框（选词数 + 选词方式）
@@ -4611,9 +4606,9 @@ const App={
     const pool=all.filter(w=>(w.streak||0)<3);
     if(!pool.length){
       if(all.length){
-        alert(`${langLabel}复习库里的词都已掌握（写对3次）🎉！\n可到「已掌握」选项卡查看或归档。`);
+        this.showToast(`${langLabel}复习库里的词都已掌握（写对3次）🎉！可到「已掌握」选项卡查看或归档。`);
       }else{
-        alert(`${langLabel}复习库是空的`);
+        this.showToast(`${langLabel}复习库是空的`);
       }
       return;
     }
