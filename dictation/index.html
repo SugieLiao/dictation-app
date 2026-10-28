@@ -3869,9 +3869,9 @@ const App={
         if(delIdx>=0)deleted.splice(delIdx,1);
         const dupIdx=list.findIndex(rw=>rw.text.toLocaleLowerCase()===key);
         if(dupIdx>=0){
-          list[dupIdx].streak=0;list[dupIdx].last=now;list[dupIdx].nextReview=this.getNextReviewTs(0);list[dupIdx].archived=false;list[dupIdx].source=w.source;list[dupIdx].updatedAt=now;
+          list[dupIdx].streak=0;list[dupIdx].last=now;list[dupIdx].nextReview=this.getNextReviewTs(0);list[dupIdx].archived=false;list[dupIdx].source=w.source;list[dupIdx].updatedAt=now;if(!list[dupIdx].addedAt)list[dupIdx].addedAt=now;
         }else{
-          list.push({text:w.text,hint:w.hint,source:w.source,streak:0,last:now,nextReview:this.getNextReviewTs(0),updatedAt:now});fresh++;
+          list.push({text:w.text,hint:w.hint,source:w.source,streak:0,last:now,nextReview:this.getNextReviewTs(0),addedAt:now,updatedAt:now});fresh++;
         }
       });
       localStorage.setItem(this.userKey('dict_deleted_review'),JSON.stringify(deleted));
