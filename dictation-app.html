@@ -4435,6 +4435,8 @@ const App={
   showAnswerReview(){
     // 缓存结果数据：刷新结果页后可以从缓存恢复
     try{sessionStorage.setItem('dict_result_cache',JSON.stringify({words:this.words,source:this.sessionSource,mode:this.mode}));}catch(e){}
+    // 全部答完进入核对页即视为听写完成：清除未完成进度，避免首页残留「继续上次」
+    localStorage.removeItem(this.userKey('dict_progress'));CloudSync.pushDebounced();
     document.getElementById('prog-fill').style.width='100%';
     const total=this.words.length;
     document.getElementById('result-icon').textContent='📝';
