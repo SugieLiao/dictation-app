@@ -6185,6 +6185,7 @@ const App={
     if(cp!==np){showErr('❌ 两次输入的新密码不一致');return;}
     // 保存
     localStorage.setItem(this.userKey('dict_admin_pwd'),np);
+    CloudSync.pushDebounced(); // 后端权威：密码变更立即同步
     // 关闭弹窗
     this.closePwdModal();
     // 更新提示文案
@@ -6231,6 +6232,7 @@ const App={
     if(correctAnswers.some(a=>a===normalized||a===answer)){
       // 验证通过，重置密码为默认 0000
       localStorage.setItem(this.userKey('dict_admin_pwd'),'0000');
+      CloudSync.pushDebounced(); // 后端权威：密码重置立即同步
       if(msg){msg.textContent='✅ 验证成功！密码已重置为 0000，请及时修改';msg.style.color='#27ae60';}
       this.closeSecurityModal();
       this.showToast('✅ 密码已重置为 0000');
@@ -8091,8 +8093,23 @@ const CloudSync={
     }catch(e){this._notifySyncFailure();return null;}
   },
 
-  // 防抖推送：500ms内多次调用合并为一次
+  // ===== 后端权威：持久化「待同步」标记（离线写入不丢，联网自动补传）=====
+  // 语义：后端 D1 是数据最终权威，localStorage 仅是离线缓存/读写加速层。
+  // 任何数据变更都先 markDirty；push 成功后才能 clearDirty。
+  // 这样即使长期离线时写入、随后关闭页面，下次启动/重连也会把未同步变更自动补传到后端，数据不会丢失。
+  _markDirty(){
+    try{localStorage.setItem('dict_sync_dirty_'+(App.currentUserId||'default'),'1');}catch(e){}
+  },
+  _clearDirty(){
+    try{localStorage.removeItem('dict_sync_dirty_'+(App.currentUserId||'default'));}catch(e){}
+  },
+  _hasDirty(){
+    try{return localStorage.getItem('dict_sync_dirty_'+(App.currentUserId||'default'))==='1';}catch(e){return false;}
+  },
+
+  // 防抖推送：500ms内多次调用合并为一次；有数据变更即标记待同步
   pushDebounced(){
+    this._markDirty();
     if(this.pendingTimer)clearTimeout(this.pendingTimer);
     this.pendingTimer=setTimeout(()=>{void this.push();},500);
   },
@@ -8174,6 +8191,7 @@ const CloudSync={
         this.remoteWasEmpty=false;
         this.lastSyncTs=Date.now();
         this.updateIndicator('ok');
+        this._clearDirty(); // 后端权威：推送成功后清除待同步标记
         return true;
       }else{
         this.updateIndicator('error');
