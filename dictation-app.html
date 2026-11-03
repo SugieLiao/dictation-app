@@ -3127,7 +3127,11 @@ const App={
   _normalizeWordBankStore(input){
     const store={version:2,catalogVersions:{},zh:[],en:[],deleted:[]};
     if(input&&input.catalogVersions&&typeof input.catalogVersions==='object'&&!Array.isArray(input.catalogVersions))store.catalogVersions={...input.catalogVersions};
-    if(input&&Array.isArray(input.deleted))store.deleted=input.deleted.filter(d=>d&&d.id&&d.lang).map(d=>({id:String(d.id),lang:d.lang,ts:Number(d.ts)||0}));
+    if(input&&Array.isArray(input.deleted))store.deleted=input.deleted.filter(d=>{
+      if(!d||!d.lang)return false;
+      if(d.id)return true; // 词库级墓碑
+      return !!(d.bankId&&d.text); // 词级墓碑
+    }).map(d=>(d.id?{id:String(d.id),lang:d.lang,ts:Number(d.ts)||0}:{lang:d.lang,bankId:String(d.bankId),lessonId:String(d.lessonId||'other'),text:String(d.text),ts:Number(d.ts)||0}));
     for(const lang of['zh','en']){
       const list=input&&Array.isArray(input[lang])?input[lang]:[];
       store[lang]=list.map(raw=>{
@@ -3294,6 +3298,13 @@ const App={
       if(!deleted.has(k)||(deleted.get(k).ts||0)<d.ts)deleted.set(k,{...d});
     });
     out.deleted=[...deleted.values()];
+    // 词级删除墓碑：key=lang|bankId|lessonId|text，ts 大者胜，合并后按墓碑剔除被删词
+    const wordTomb=new Map();
+    [...a.deleted,...b.deleted].forEach(d=>{
+      if(!d||!d.bankId||!d.text)return;
+      const k=d.lang+'|'+d.bankId+'|'+(d.lessonId||'other')+'|'+String(d.text).trim().toLocaleLowerCase();
+      if(!wordTomb.has(k)||(wordTomb.get(k)||0)<(d.ts||0))wordTomb.set(k,d.ts||0);
+    });
     for(const lang of['zh','en']){
       const map=new Map();
       [...b[lang],...a[lang]].forEach(bank=>{
@@ -3305,6 +3316,19 @@ const App={
       out[lang]=[...map.values()].filter(bank=>{
         const tomb=deleted.get(lang+'|'+bank.id);
         return !tomb||(tomb.ts||0)<(bank.updatedAt||0);
+      }).map(bank=>{
+        if(!wordTomb.size)return bank;
+        const filterWords=(list,lessonId)=>{
+          const kp=lang+'|'+String(bank.id||'')+'|'+(lessonId||'other')+'|';
+          return (list||[]).filter(w=>{
+            const nw=this._normalizeBankWord(w);
+            if(!nw.text)return false;
+            return !wordTomb.has(kp+String(nw.text).trim().toLocaleLowerCase());
+          });
+        };
+        bank.other=filterWords(bank.other,'other');
+        (bank.lessons||[]).forEach(l=>{l.words=filterWords(l.words,l.id);});
+        return bank;
       });
     }
     return out;
@@ -3381,6 +3405,17 @@ const App={
     const now=Date.now();bank.updatedAt=now;
     if(lessonId!=='other'){
       const lesson=bank.lessons.find(l=>l.id===lessonId);if(lesson)lesson.updatedAt=now;
+    }
+    // 词被重新加入后，清除对应的词级删除墓碑，避免合并时被误过滤
+    if(added&&Array.isArray(store.deleted)){
+      const lower=new Set(target.map(w=>this._normalizeBankWord(w).text.toLocaleLowerCase()));
+      store.deleted=store.deleted.filter(d=>{
+        if(d&&d.bankId===bankId&&d.lang===lang&&(d.lessonId||'other')===(lessonId||'other')){
+          const t=String(d.text||'').trim().toLocaleLowerCase();
+          if(t&&lower.has(t))return false;
+        }
+        return true;
+      });
     }
     return {added,lessonId};
   },
@@ -3759,6 +3794,7 @@ const App={
       if(value===null)return;
       if(!value.trim()){
         this.bmConfirm('删除词语','确定删除“'+this._escHtml(old.text)+'”吗？','删除',()=>{
+          this._addWordTombstone(store,this.bankManagerLang,bank.id,lessonId,old.text);
           target.splice(index,1);
           bank.updatedAt=Date.now();this.saveWordBankStore(store);this.renderBankManagerDetail();this.showToast('词语已删除');
         });
@@ -3889,23 +3925,43 @@ const App={
     this.bmConfirm('删除所选词语','确定删除选中的 <b>'+count+'</b> 个词语吗？','删除',()=>{
       const store=this.getWordBankStore(),bank=this._findBankInStore(store,this.bankManagerLang,this.bankManagerBankId);if(!bank)return;
       const refs=[...this.bankManagerSelectedWords].map(key=>this.bankManagerWordSelectionRef(key)).filter(Boolean);
-      const removed=this._deleteManagedBankWords(bank,refs);
+      const removed=this._deleteManagedBankWords(store,bank,refs,this.bankManagerLang);
       if(!removed){this.showToast('没有可删除的词语');return;}
       bank.updatedAt=Date.now();this.saveWordBankStore(store);this.resetBankManagerBulkState();this.renderBankManagerDetail();this.showToast('✅ 已删除 '+removed+' 个词语');
     });
   },
-  _deleteManagedBankWords(bank,refs){
+  // 写词级删除墓碑：合并云端时按此剔除已删词，防止“另一端旧版有、本端已删”时被并回
+  _addWordTombstone(store,lang,bankId,lessonId,text){
+    const ts=Date.now(),n=String(text||'').trim();
+    if(!n)return;
+    const arr=store.deleted||(store.deleted=[]);
+    const key=n.toLocaleLowerCase();
+    for(let i=arr.length-1;i>=0;i--){
+      const d=arr[i];
+      if(d&&d.bankId===bankId&&d.lang===lang&&(d.lessonId||'other')===(lessonId||'other')&&String(d.text||'').trim().toLocaleLowerCase()===key){
+        arr.splice(i,1);
+      }
+    }
+    arr.push({lang,bankId,lessonId:lessonId||'other',text:n,ts});
+  },
+  _deleteManagedBankWords(store,bank,refs,lang){
     const groups={};
     refs.forEach(r=>{
       if(!r)return;
       const list=r.lessonId==='other'?bank.other:((bank.lessons||[]).find(l=>l.id===r.lessonId)||{}).words;
       if(!list)return;
-      (groups[r.lessonId]=groups[r.lessonId]||{list,idx:[]}).idx.push(r.index);
+      (groups[r.lessonId]=groups[r.lessonId]||{list,idx:[],lessonId:r.lessonId}).idx.push(r.index);
     });
     let removed=0;
     Object.keys(groups).forEach(k=>{
       const g=groups[k];g.idx.sort((a,b)=>b-a);
-      g.idx.forEach(i=>{if(g.list[i]!==undefined){g.list.splice(i,1);removed++;}});
+      g.idx.forEach(i=>{
+        if(g.list[i]!==undefined){
+          const text=this._normalizeBankWord(g.list[i]).text;
+          g.list.splice(i,1);removed++;
+          if(text)this._addWordTombstone(store,lang,bank.id,g.lessonId,text);
+        }
+      });
     });
     return removed;
   },
