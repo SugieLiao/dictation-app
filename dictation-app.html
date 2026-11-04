@@ -4886,7 +4886,7 @@ const App={
     allBtn.textContent='全部';
     allBtn.onclick=()=>this.bankReviewSetCount('all');
     countRow.appendChild(allBtn);
-    document.getElementById('br-mask-sub').textContent=`${langLabel} · ${this._bankReviewScopeName} · 可复习 ${practiced.length} 词（共 ${uniq.length} 词）`;
+    document.getElementById('br-mask-sub').textContent=`${langLabel} · ${this._bankReviewScopeName} · 可复习 ${practiced.length} 词（共 ${uniq.length} 词）· 难度优先按 10:3 混入复习库到期词`;
     this.bankReviewSetMode('auto');
     document.getElementById('bank-review-mask').classList.add('show');
   },
@@ -4949,7 +4949,7 @@ const App={
     const note=document.getElementById('br-note');
     if(note){
       note.innerHTML=mode==='auto'
-        ?'按难度自动挑选：错误多、遗忘久、英文长词/语文多字词优先；取所选数量。'
+        ?'按难度自动挑选：错误多、遗忘久、英文长词/语文多字词优先；自动按 10:3 比例混入复习库到期词（复习词约占总量 3/13）。'
         :'勾选要复习的词语，以勾选为准；每个词显示当前状态（已过关/未听写/复习库）。';
     }
     if(mode==='manual')this.bankReviewRefreshManual(true);
@@ -5020,8 +5020,22 @@ const App={
       items=sel.map(k=>byKey[k]).filter(Boolean);
     }else{
       const scored=this._bankReviewScored||[];
-      const n=this._bankReviewCount==='all'?scored.length:Math.min(parseInt(this._bankReviewCount)||10,scored.length);
-      items=scored.slice(0,n).map(x=>x.w);
+      const total=this._bankReviewCount==='all'?scored.length:Math.min(parseInt(this._bankReviewCount)||10,scored.length);
+      if(!scored.length){this.showToast('没有可复习的词语');return;}
+      // 与听写一致：按 10:3 比例混入复习库到期词（部分模式复习词占总量 3/13；全部模式按已掌握词反推 3/10）
+      const reviewCount=this._bankReviewCount==='all'
+        ?this.calculateAllReviewCount(scored.length)
+        :this.calculateReviewCountForTotal(total);
+      const baseCount=this._bankReviewCount==='all'?scored.length:Math.min(total-reviewCount,scored.length);
+      let base=scored.slice(0,baseCount).map(x=>x.w);
+      const usedTexts=new Set(base.map(w=>w.text.toLocaleLowerCase()));
+      let review=this.pickReviewWordsExcluding(mode,reviewCount,usedTexts);
+      if(review.length<reviewCount){
+        // 复习词不足时由已掌握词补足
+        const extra=scored.slice(baseCount,baseCount+(reviewCount-review.length)).map(x=>x.w);
+        base=base.concat(extra);
+      }
+      items=base.concat(review);
     }
     if(!items.length){this.showToast('没有可复习的词语');return;}
     if(this._bankReviewOrder==='shuffle')items=this.shuffleArray(items);

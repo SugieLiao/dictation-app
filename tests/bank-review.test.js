@@ -343,4 +343,62 @@ assert.strictEqual(dupStore.deleted.some(d=>d.id==='bank_a'),true,'merged-away b
 // 再次执行应无变化
 assert.strictEqual(App._dedupeSameNameBanksInStore(dupStore),false,'idempotent');
 
+// —— 复习（重听已掌握词）按 10:3 混入复习库到期词 ——
+const reviewSessions=[];
+App.startSession=(words,opts)=>{reviewSessions.push({words,opts});};
+App.mode='zh';
+// 复习库：3 个待复习词（streak<3，无 nextReview → 默认立即到期）
+storage[App.userKey('dict_review')]=JSON.stringify({zh:[
+  {text:'到期词A',hint:'',streak:1,nextReview:0},
+  {text:'到期词B',hint:'',streak:0},
+  {text:'到期词C',hint:'',streak:2,nextReview:0}
+],en:[]});
+// 已掌握词池：13 个
+App._bankReviewScored=Array.from({length:13},(_,i)=>({w:{text:'已掌握'+(i+1),hint:'',source:'x'},score:100-i}));
+App._bankReviewCount='13';
+App._bankReviewMode='auto';
+App._bankReviewOrder='seq';
+reviewSessions.length=0;
+App.startBankReviewFromModal();
+const s1=reviewSessions[reviewSessions.length-1];
+assert.strictEqual(s1.words.length,13,'mix: total 13 words');
+assert.strictEqual(s1.words.filter(w=>['到期词A','到期词B','到期词C'].includes(w.text)).length,3,'mix: 3 review words mixed (10:3)');
+assert.strictEqual(s1.words.filter(w=>w.text.startsWith('已掌握')).length,10,'mix: 10 mastered words');
+assert.strictEqual(s1.opts.type,'review','mix: source type review');
+// 全部模式：10 已掌握 → round(10*3/10)=3 复习词 → 13 词
+App._bankReviewScored=Array.from({length:10},(_,i)=>({w:{text:'掌握'+(i+1),hint:'',source:'x'},score:10-i}));
+App._bankReviewCount='all';
+reviewSessions.length=0;
+App.startBankReviewFromModal();
+const s2=reviewSessions[reviewSessions.length-1];
+assert.strictEqual(s2.words.length,13,'mix all: 10 mastered + 3 review');
+assert.strictEqual(s2.words.filter(w=>w.text.startsWith('掌握')).length,10,'mix all: 10 mastered words');
+// 复习词不足：复习库仅 1 词 → count=13 → base 10 + 补足 2 + review 1
+storage[App.userKey('dict_review')]=JSON.stringify({zh:[{text:'唯一到期',hint:'',streak:1,nextReview:0}],en:[]});
+App._bankReviewScored=Array.from({length:13},(_,i)=>({w:{text:'足词'+(i+1),hint:'',source:'x'},score:13-i}));
+App._bankReviewCount='13';
+reviewSessions.length=0;
+App.startBankReviewFromModal();
+const s3=reviewSessions[reviewSessions.length-1];
+assert.strictEqual(s3.words.length,13,'mix shortage: still 13 words');
+assert.strictEqual(s3.words.filter(w=>w.text==='唯一到期').length,1,'mix shortage: only 1 review word');
+// 文本去重：复习库词与已掌握词相同 → 不重复混入
+storage[App.userKey('dict_review')]=JSON.stringify({zh:[{text:'重复词',hint:'',streak:1,nextReview:0}],en:[]});
+App._bankReviewScored=Array.from({length:13},(_,i)=>({w:{text:i<2?'重复词':'去重词'+(i-1),hint:'',source:'x'},score:13-i}));
+App._bankReviewCount='13';
+reviewSessions.length=0;
+App.startBankReviewFromModal();
+const s4=reviewSessions[reviewSessions.length-1];
+assert.strictEqual(s4.words.filter(w=>w.text==='重复词').length,2,'mix dedupe: only base copies kept');
+assert.strictEqual(s4.words.length,13,'mix dedupe: total 13 words');
+// 手动模式不混入：勾选 2 个词 → 只听 2 个
+App._bankReviewMode='manual';
+App._bankReviewPool=[{text:'手选1',hint:''},{text:'手选2',hint:''}].map((w,i)=>({...w,key:'zh-rev-'+i,_status:'passed'}));
+App._bankReviewManualSel=new Set(['zh-rev-0','zh-rev-1']);
+reviewSessions.length=0;
+App.startBankReviewFromModal();
+const s5=reviewSessions[reviewSessions.length-1];
+assert.strictEqual(s5.words.length,2,'manual mode unchanged');
+App.mode='en';
+
 console.log('bank-review tests passed');
