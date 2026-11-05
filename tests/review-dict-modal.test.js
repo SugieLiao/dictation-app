@@ -91,18 +91,24 @@ assert.strictEqual(countRow.children[0].textContent,'5');
 assert.ok(countRow.children[1].textContent==='10'&&countRow.children[1].classList.contains('active'),'default 10 active');
 assert.strictEqual(countRow.children[5].textContent,'全部');
 
-// —— 方式1 自动：取 2 个 → 到期优先 ——
+// —— 方式1 自动：取 2 个 → 全部待复习词中随机挑选 ——
 const sessions=[];
 App.startSession=(words,opts)=>{sessions.push({words,opts});};
 App._reviewDictCount='2';
 App.reviewDictSetCount(2);
-App.startReviewFromModal();
-assert.strictEqual(sessions.length,1,'one session');
-assert.strictEqual(sessions[0].opts.type,'review');
-assert.strictEqual(sessions[0].opts.mode,'zh');
-assert.strictEqual(sessions[0].words.length,2,'auto picks 2');
-assert.strictEqual(sessions[0].words[0].text,'浩浩荡荡','due first by nextReview asc');
-assert.strictEqual(sessions[0].words[1].text,'人山人海');
+const allTexts=new Set(zh.map(w=>w.text));
+const seen=new Set();
+for(let t=0;t<30;t++){
+  App.startReviewFromModal();
+  const s=sessions[sessions.length-1];
+  assert.strictEqual(s.words.length,2,'auto picks 2');
+  assert.strictEqual(new Set(s.words.map(w=>w.text)).size,2,'no duplicate words');
+  s.words.forEach(w=>assert.ok(allTexts.has(w.text),'word comes from review pool'));
+  s.words.forEach(w=>seen.add(w.text));
+}
+assert.ok(seen.size>=3,'random covers different words across runs');
+assert.strictEqual(sessions[sessions.length-1].opts.type,'review');
+assert.strictEqual(sessions[sessions.length-1].opts.mode,'zh');
 assert.ok(!mask.classList.contains('show'),'modal closed after start');
 
 // —— 方式2 手动：重新打开，切手动，取消一个再开始 ——

@@ -1384,7 +1384,7 @@
         <div class="rd-field">
           <div class="rd-label">选词方式</div>
           <div class="rd-mode-row">
-            <button class="rd-mode-btn active" data-mode="auto" onclick="App.reviewDictSetMode('auto')">① 按到期时间自动选词</button>
+            <button class="rd-mode-btn active" data-mode="auto" onclick="App.reviewDictSetMode('auto')">① 随机自动选词</button>
             <button class="rd-mode-btn" data-mode="manual" onclick="App.reviewDictSetMode('manual')">② 手动选择词语</button>
           </div>
         </div>
@@ -4726,7 +4726,7 @@ const App={
     const note=document.getElementById('rd-note');
     if(note){
       note.innerHTML=mode==='auto'
-        ?'按艾宾浩斯到期时间自动挑选：已到期的优先，未到期的按最近到期排序，取所选数量。'
+        ?'从全部待复习/到期词中随机挑选，取所选数量；新旧词都有机会被覆盖到。'
         :'勾选要听写的词语；已默认勾选已到期的词，以勾选为准。';
     }
     if(mode==='manual')this.reviewDictRefreshManual(true);
@@ -4814,7 +4814,8 @@ const App={
       (this._reviewDictPool||[]).forEach(w=>byKey[w.key]=w);
       words=sel.map(k=>byKey[k]).filter(Boolean);
     }else{
-      const pool=(this._reviewDictPool||[]).slice().sort((a,b)=>(a.nextReview||0)-(b.nextReview||0));
+      // 随机挑选：全部待复习/到期词等概率参与，新旧词都有机会被覆盖
+      const pool=this.shuffleArray(this._reviewDictPool||[]);
       const n=this._reviewDictCount==='all'?pool.length:Math.min(parseInt(this._reviewDictCount)||10,pool.length);
       words=pool.slice(0,n);
     }
