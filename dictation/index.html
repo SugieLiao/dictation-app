@@ -2727,9 +2727,14 @@ const App={
       needRefresh=true;
     }
 
-    // 合并进度
-    if(cloudData.progress!==undefined&&cloudData.progress!==null){
-      localStorage.setItem(this.userKey('dict_progress'),JSON.stringify(cloudData.progress));
+    // 合并进度：按 updatedAt 新旧仲裁；本地已完成清空（cleared 标记）不会被云端旧进度灌回
+    const localProg=this._readLocalProgress();
+    const mergedProg=this._pickNewerProgress(localProg,cloudData.progress);
+    const localProgRaw=localStorage.getItem(this.userKey('dict_progress'));
+    const mergedProgRaw=mergedProg?JSON.stringify(mergedProg):null;
+    if(mergedProgRaw!==localProgRaw){
+      if(mergedProg)localStorage.setItem(this.userKey('dict_progress'),mergedProgRaw);
+      else localStorage.removeItem(this.userKey('dict_progress'));
       needRefresh=true;
     }
 
@@ -4391,7 +4396,7 @@ const App={
     // 自动保存听写进度：中途刷新/关闭后可以从当前词继续
     if(this.words&&this.words.length&&this.sessionSource){
       localStorage.setItem(this.userKey('dict_progress'),JSON.stringify({
-        words:this.words,idx:this.idx,source:this.sessionSource,date:new Date().toISOString()
+        words:this.words,idx:this.idx,source:this.sessionSource,date:new Date().toISOString(),updatedAt:Date.now()
       }));
     }
     // 上一个按钮：第一个词时禁用
@@ -4448,6 +4453,27 @@ const App={
     }
   },
 
+  // 读取本地未完成进度（已清空时返回 cleared 标记对象；无记录返回 null）
+  _readLocalProgress(){
+    try{return JSON.parse(localStorage.getItem(this.userKey('dict_progress'))||'null');}catch(e){return null;}
+  },
+  // 进度新旧仲裁：两端都有时按 updatedAt 取新者；时间戳相同或旧数据无时间戳时保留本地，避免云端旧进度覆盖本地已完成状态
+  _pickNewerProgress(localP,cloudP){
+    const hasL=!!(localP&&typeof localP==='object');
+    const hasC=!!(cloudP&&typeof cloudP==='object');
+    if(!hasL&&!hasC)return null;
+    if(!hasL)return cloudP;
+    if(!hasC)return localP;
+    const lt=Number(localP.updatedAt)||0, ct=Number(cloudP.updatedAt)||0;
+    if(ct>lt)return cloudP;
+    return localP;
+  },
+  // 清除未完成进度：写入带时间戳的"已清空"标记（而不是直接删键），供多端同步按新旧仲裁，防止旧进度被另一端灌回
+  clearProgress(keepResultCache){
+    localStorage.setItem(this.userKey('dict_progress'),JSON.stringify({cleared:true,updatedAt:Date.now()}));
+    if(!keepResultCache)sessionStorage.removeItem('dict_result_cache');
+    CloudSync.pushDebounced();
+  },
   // 保存进度并返回首页
   saveProgressAndExit(){
     document.getElementById('confirm-save').style.display='none';
@@ -4455,7 +4481,8 @@ const App={
       words:this.words,
       idx:this.idx,
       source:this.sessionSource,
-      date:new Date().toISOString()
+      date:new Date().toISOString(),
+      updatedAt:Date.now()
     };
     localStorage.setItem(this.userKey('dict_progress'),JSON.stringify(progress));
     CloudSync.pushDebounced();
@@ -4466,7 +4493,7 @@ const App={
   // 丢弃进度
   discardProgress(){
     document.getElementById('confirm-save').style.display='none';
-    localStorage.removeItem(this.userKey('dict_progress'));sessionStorage.removeItem('dict_result_cache');CloudSync.pushDebounced();
+    this.clearProgress();
     this.sessionSource=null;
     this.go('home');
     this.renderHomeEntries();
@@ -4491,8 +4518,8 @@ const App={
   showAnswerReview(){
     // 缓存结果数据：刷新结果页后可以从缓存恢复
     try{sessionStorage.setItem('dict_result_cache',JSON.stringify({words:this.words,source:this.sessionSource,mode:this.mode}));}catch(e){}
-    // 全部答完进入核对页即视为听写完成：清除未完成进度，避免首页残留「继续上次」
-    localStorage.removeItem(this.userKey('dict_progress'));CloudSync.pushDebounced();
+    // 全部答完进入核对页即视为听写完成：清除未完成进度，避免首页残留「继续上次」（保留结果页缓存）
+    this.clearProgress(true);
     document.getElementById('prog-fill').style.width='100%';
     const total=this.words.length;
     document.getElementById('result-icon').textContent='📝';
@@ -4569,7 +4596,7 @@ const App={
       words:this.words.map(w=>({text:w.text,hint:w.hint||''})),
       wrongIdx:[]
     });
-    localStorage.removeItem(this.userKey('dict_progress'));sessionStorage.removeItem('dict_result_cache');CloudSync.pushDebounced();
+    this.clearProgress();
     this.sessionSource=null;
     this.go('home');
     this.renderHomeEntries();
@@ -4646,7 +4673,7 @@ const App={
       words:this.words.map(w=>({text:w.text,hint:w.hint||''})),
       wrongIdx:[...checkedIdx]
     });
-    localStorage.removeItem(this.userKey('dict_progress'));sessionStorage.removeItem('dict_result_cache');CloudSync.pushDebounced();
+    this.clearProgress();
     this.sessionSource=null;
     let msg=`已记录：${wrongCount} 个错题`;
     if(added)msg+=`，新增复习库 ${added}`;
@@ -6180,10 +6207,9 @@ const App={
 
     // 2. 清除听写进度（如果存在且日期匹配）
     try{
-      const prog=JSON.parse(localStorage.getItem(this.userKey('dict_progress'))||'null');
+      const prog=this._readLocalProgress();
       if(prog && prog.date && prog.date.slice(0,10)===l.date){
-        localStorage.removeItem(this.userKey('dict_progress'));
-        CloudSync.pushDebounced();
+        localStorage.setItem(this.userKey('dict_progress'),JSON.stringify({cleared:true,updatedAt:Date.now()}));
       }
     }catch(e){}
 
@@ -8239,6 +8265,11 @@ const CloudSync={
       const cloudLog=cloudUserData.log||[];
       const mergedLog=this.mergeLogs(localLog,cloudLog);
       localStorage.setItem(App.userKey('dict_log'),JSON.stringify(mergedLog));
+      // 合并进度：按 updatedAt 取较新者；本地刚完成清空不会被云端旧进度覆盖，云端未完成进度也不会被本地旧缓存冲掉
+      const localProg=App._readLocalProgress();
+      const mergedProg=App._pickNewerProgress(localProg,cloudUserData.progress||null);
+      if(mergedProg)localStorage.setItem(App.userKey('dict_progress'),JSON.stringify(mergedProg));
+      else localStorage.removeItem(App.userKey('dict_progress'));
       // 上传前必须合并云端词库。新设备或本地缓存丢失时，不能用只有内置词库的本地数据覆盖云端自建词库。
       if(cloudUserData.wordBanks){
         const localWordBanks=App.getWordBankStore();

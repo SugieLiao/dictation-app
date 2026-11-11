@@ -28,7 +28,20 @@ const App = {
   mergeWordBankStores: (a, b) => b,
   saveWordBankStore: () => {},
   refreshWordBankViewsAfterSync: () => {},
-  showToast: () => {}
+  showToast: () => {},
+  _readLocalProgress() {
+    try { return JSON.parse(localStorage.getItem(this.userKey('dict_progress')) || 'null'); } catch (e) { return null; }
+  },
+  _pickNewerProgress(localP, cloudP) {
+    const hasL = !!(localP && typeof localP === 'object');
+    const hasC = !!(cloudP && typeof cloudP === 'object');
+    if (!hasL && !hasC) return null;
+    if (!hasL) return cloudP;
+    if (!hasC) return localP;
+    const lt = Number(localP.updatedAt) || 0, ct = Number(cloudP.updatedAt) || 0;
+    if (ct > lt) return cloudP;
+    return localP;
+  }
 };
 const sandbox = {
   console,
