@@ -1430,7 +1430,7 @@
         <div class="rd-field">
           <div class="rd-label">选词方式</div>
           <div class="rd-mode-row">
-            <button class="rd-mode-btn active" data-mode="auto" onclick="App.bankReviewSetMode('auto')">① 难度优先</button>
+            <button class="rd-mode-btn active" data-mode="auto" onclick="App.bankReviewSetMode('auto')">① 次数优先（均匀覆盖）</button>
             <button class="rd-mode-btn" data-mode="manual" onclick="App.bankReviewSetMode('manual')">② 手动选择词语</button>
           </div>
         </div>
@@ -2506,6 +2506,9 @@ const App={
     if(data.review){
       localStorage.setItem(this.userKey('dict_review'),JSON.stringify(data.review));
     }
+    if(data.wordStats){
+      localStorage.setItem(this.userKey('dict_word_stats'),JSON.stringify(data.wordStats));
+    }
     if(data.progress!==undefined&&data.progress!==null){
       localStorage.setItem(this.userKey('dict_progress'),JSON.stringify(data.progress));
     }
@@ -2725,6 +2728,13 @@ const App={
       const mergedReview=CloudSync.mergeReviewBanks(localReview,cloudData.review);
       localStorage.setItem(this.userKey('dict_review'),JSON.stringify(mergedReview));
       needRefresh=true;
+    }
+
+    // 合并词级次数统计：次数取大值，避免某一端旧数据把累计次数冲小
+    if(cloudData.wordStats){
+      const localStats=this.getWordStats();
+      const mergedStats=CloudSync.mergeWordStats(localStats,cloudData.wordStats);
+      localStorage.setItem(this.userKey('dict_word_stats'),JSON.stringify(mergedStats));
     }
 
     // 合并进度：按 updatedAt 新旧仲裁；本地已完成清空（cleared 标记）不会被云端旧进度灌回
@@ -4586,6 +4596,8 @@ const App={
       });
       this.saveReviewBank(bank);
     }
+    // 累计本次每个词的听写次数（全对）
+    this.recordWordAttempts(this.words);
     this.addLog({
       mode:this.mode,
       total:this.words.length,
@@ -4661,6 +4673,10 @@ const App={
       }
     });
     this.saveReviewBank(bank);
+    // 累计本次每个词的听写次数（写错/写对都算一次）
+    const correctIdxSet=new Set();
+    this.words.forEach((_,i)=>{if(!checkedIdx.has(i))correctIdxSet.add(i);});
+    this.recordWordAttempts(this.words,correctIdxSet);
     const wrongCount=checkedIdx.size;
     const correctCount=this.words.length-wrongCount;
     this.addLog({
@@ -4889,10 +4905,11 @@ const App={
       else if(isPassed)w._status='passed';
       else w._status='new';
     });
-    // 方式1词池：已听写过/已掌握（过关+复习库），按难度降序
+    // 方式1词池：已听写过/已掌握（过关+复习库）
     const practiced=uniq.filter(w=>w._status!=='new');
     this._bankReviewPool=uniq.map((w,i)=>({...w,key:this.mode+'-rev-'+i}));
-    this._bankReviewScored=practiced.map(w=>({w,score:this.bankReviewDifficulty(w)})).sort((a,b)=>b.score-a.score||a.w.text.localeCompare(b.w.text,'zh-CN'));
+    // 次数优先：总听写次数越少越优先，次数相同随机；进过复习库的词小幅加权
+    this._bankReviewScored=this.rankReviewWords(practiced).map(w=>({w}));
     this._bankReviewMode='auto';
     this._bankReviewCount='10';
     this._bankReviewOrder='seq';
@@ -4914,7 +4931,7 @@ const App={
     allBtn.textContent='全部';
     allBtn.onclick=()=>this.bankReviewSetCount('all');
     countRow.appendChild(allBtn);
-    document.getElementById('br-mask-sub').textContent=`${langLabel} · ${this._bankReviewScopeName} · 可复习 ${practiced.length} 词（共 ${uniq.length} 词）· 难度优先按 10:3 混入复习库到期词`;
+    document.getElementById('br-mask-sub').textContent=`${langLabel} · ${this._bankReviewScopeName} · 可复习 ${practiced.length} 词（共 ${uniq.length} 词）· 次数优先+随机，按 10:3 混入复习库到期词`;
     this.bankReviewSetMode('auto');
     document.getElementById('bank-review-mask').classList.add('show');
   },
@@ -4977,7 +4994,7 @@ const App={
     const note=document.getElementById('br-note');
     if(note){
       note.innerHTML=mode==='auto'
-        ?'按难度自动挑选：错误多、遗忘久、英文长词/语文多字词优先；自动按 10:3 比例混入复习库到期词（复习词约占总量 3/13）。'
+        ?'按听写次数自动挑选：总听写次数越少越优先，次数相同随机；进过复习库的词小幅加权（0.5 次）。自动按 10:3 比例混入复习库到期词（复习词约占总量 3/13）。'
         :'勾选要复习的词语，以勾选为准；每个词显示当前状态（已过关/未听写/复习库）。';
     }
     if(mode==='manual')this.bankReviewRefreshManual(true);
@@ -5234,6 +5251,48 @@ const App={
     CloudSync.pushDebounced();
   },
   _passedKey(mode,text){return mode+'::'+text.toLocaleLowerCase();},
+  // ===== 词级听写次数统计：用于复习选词均匀覆盖 =====
+  getWordStats(){
+    try{return JSON.parse(localStorage.getItem(this.userKey('dict_word_stats'))||'{}');}catch(e){return {};}
+  },
+  saveWordStats(stats){
+    localStorage.setItem(this.userKey('dict_word_stats'),JSON.stringify(stats));
+    CloudSync.pushDebounced();
+  },
+  _wordStatKey(mode,text){return mode+'::'+text.toLocaleLowerCase();},
+  // 一次听写结束时累计每个词的听写次数；correctIdxSet 为写对的索引集合，省略表示全对
+  recordWordAttempts(words,correctIdxSet){
+    const list=words||[];
+    if(!list.length)return;
+    const stats=this.getWordStats();
+    const reviewBank=this.getReviewBank();
+    const rbTexts=new Set((reviewBank[this.mode]||[]).map(w=>w.text.toLocaleLowerCase()));
+    const now=Date.now();
+    list.forEach((w,i)=>{
+      const text=((w&&w.text)||'').trim();
+      if(!text)return;
+      const k=this._wordStatKey(this.mode,text);
+      const s=stats[k]||{n:0,c:0,last:0,rev:0};
+      s.n=(s.n||0)+1;
+      if(!correctIdxSet||correctIdxSet.has(i))s.c=(s.c||0)+1;
+      s.last=now;
+      if(rbTexts.has(text.toLocaleLowerCase()))s.rev=1;
+      stats[k]=s;
+    });
+    this.saveWordStats(stats);
+  },
+  // 复习选词排序：总听写次数越少越优先；进过复习库的词加权 0.5 次；同级随机
+  rankReviewWords(pool){
+    const stats=this.getWordStats();
+    const rbTexts=new Set((this.getReviewBank()[this.mode]||[]).map(w=>w.text.toLocaleLowerCase()));
+    return (pool||[]).map(w=>{
+      const k=this._wordStatKey(this.mode,w.text);
+      const s=stats[k]||{};
+      const n=s.n||0;
+      const rev=!!(s.rev||rbTexts.has(w.text.toLocaleLowerCase()));
+      return {w,rank:n-(rev?0.5:0),rnd:Math.random()};
+    }).sort((a,b)=>a.rank-b.rank||a.rnd-b.rnd).map(x=>x.w);
+  },
   isWordPassed(mode,text){
     const passed=this.getPassedWords();
     return !!passed[this._passedKey(mode,text)];
@@ -8229,6 +8288,7 @@ const CloudSync={
       settings,
       log:this._parseLocal('dict_log',uid,[]),
       review:this._parseLocal('dict_review',uid,{zh:[],en:[]}),
+      wordStats:this._parseLocal('dict_word_stats',uid,{}),
       progress:this._parseLocal('dict_progress',uid,null),
       adminPwd:localStorage.getItem('dict_admin_pwd_'+uid)||'0000',
       ts:Date.now()
@@ -8265,6 +8325,10 @@ const CloudSync={
       const cloudLog=cloudUserData.log||[];
       const mergedLog=this.mergeLogs(localLog,cloudLog);
       localStorage.setItem(App.userKey('dict_log'),JSON.stringify(mergedLog));
+      // 合并词级次数统计：取两端较大值，防止旧设备把累计次数冲小
+      const localStats=JSON.parse(localStorage.getItem(App.userKey('dict_word_stats'))||'{}');
+      const mergedStats=this.mergeWordStats(localStats,cloudUserData.wordStats||{});
+      localStorage.setItem(App.userKey('dict_word_stats'),JSON.stringify(mergedStats));
       // 合并进度：按 updatedAt 取较新者；本地刚完成清空不会被云端旧进度覆盖，云端未完成进度也不会被本地旧缓存冲掉
       const localProg=App._readLocalProgress();
       const mergedProg=App._pickNewerProgress(localProg,cloudUserData.progress||null);
@@ -8278,7 +8342,7 @@ const CloudSync={
         App.refreshWordBankViewsAfterSync();
       }
       // 更新当前用户数据
-      latest.userData[uid]={...this._readLocalUserData(uid),log:mergedLog,review:mergedReview,ts:Date.now()};
+      latest.userData[uid]={...this._readLocalUserData(uid),log:mergedLog,review:mergedReview,wordStats:mergedStats,ts:Date.now()};
       // D1 首次启用时，把当前设备上其他用户的数据也一并迁移，避免只迁移当前账号。
       if(serverWasEmpty&&this.remoteWasEmpty&&Array.isArray(App.users)){
         App.users.forEach(user=>{
@@ -8369,6 +8433,17 @@ const CloudSync={
       result[mode]=[...map.values()];
     }
     return result;
+  },
+
+  // 合并词级听写次数：每项取两端较大值（次数只增不减）
+  mergeWordStats(local,cloud){
+    const out={};
+    const keys=new Set([...Object.keys(local||{}),...Object.keys(cloud||{})]);
+    keys.forEach(k=>{
+      const a=(local||{})[k]||{},b=(cloud||{})[k]||{};
+      out[k]={n:Math.max(a.n||0,b.n||0),c:Math.max(a.c||0,b.c||0),last:Math.max(a.last||0,b.last||0),rev:(a.rev||b.rev)?1:0};
+    });
+    return out;
   },
 
   // 合并日志：取并集（按 ts 去重），保留条目更多的一方作为基础

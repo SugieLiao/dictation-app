@@ -121,7 +121,7 @@ assert.strictEqual(countRow.children[1].textContent,'10');
 assert.ok(countRow.children[1].classList.contains('active'),'default 10 active');
 assert.strictEqual(countRow.children[5].textContent,'全部');
 
-// —— 方式1 难度优先：难度降序取词 ——
+// —— 方式1 次数优先 + 随机：进过复习库的词小幅加权，优先入选 ——
 const sessions=[];
 App.startSession=(words,opts)=>{sessions.push({words,opts});};
 App.startBankReviewFromModal();
@@ -129,7 +129,7 @@ assert.strictEqual(sessions.length,1,'auto session started');
 assert.strictEqual(sessions[0].opts.type,'review');
 assert.strictEqual(sessions[0].opts.grade,'复习');
 assert.strictEqual(sessions[0].words.length,2,'auto picks 2 (all practiced)');
-assert.strictEqual(sessions[0].words[0].text,'hello','hello has highest difficulty (3 errors)');
+assert.strictEqual(sessions[0].words[0].text,'volleyball','word in review bank gets priority over plain passed word');
 assert.ok(sessions[0].words.every(w=>w.fromReview),'review words flagged fromReview');
 assert.ok(!mask.classList.contains('show'),'modal closed after start');
 
@@ -140,7 +140,7 @@ const origShuffle=App.shuffleArray;
 App.shuffleArray=(arr)=>arr.slice().reverse();
 App.startBankReviewFromModal();
 assert.strictEqual(sessions.length,1,'shuffle session started');
-assert.strictEqual(sessions[0].words[0].text,'volleyball','shuffle reversed order');
+assert.strictEqual(sessions[0].words[0].text,'hello','shuffle reversed order');
 App.shuffleArray=origShuffle;
 App._bankReviewOrder='seq';
 

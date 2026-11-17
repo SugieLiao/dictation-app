@@ -283,6 +283,21 @@ function mergeUserDataService(oldData, incoming){
     out.settings = oldData.settings;
   }
   if(oldData.progress !== undefined && incoming.progress === undefined) out.progress = oldData.progress;
+  if(oldData.wordStats && incoming.wordStats === undefined) out.wordStats = oldData.wordStats;
+  if(oldData.wordStats && incoming.wordStats){
+    const keys = new Set([...Object.keys(oldData.wordStats), ...Object.keys(incoming.wordStats)]);
+    const merged = {};
+    keys.forEach(k => {
+      const a = oldData.wordStats[k] || {}, b = incoming.wordStats[k] || {};
+      merged[k] = {
+        n: Math.max(a.n || 0, b.n || 0),
+        c: Math.max(a.c || 0, b.c || 0),
+        last: Math.max(a.last || 0, b.last || 0),
+        rev: (a.rev || b.rev) ? 1 : 0
+      };
+    });
+    out.wordStats = merged;
+  }
   if(oldData.adminPwd && !incoming.adminPwd) out.adminPwd = oldData.adminPwd;
   return out;
 }
