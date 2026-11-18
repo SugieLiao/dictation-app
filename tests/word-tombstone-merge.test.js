@@ -113,4 +113,35 @@ assert.strictEqual(bankBulk.lessons[0].words.length,27,'场景6：课内剩 27 �
 assert.strictEqual(bulkStore.deleted.filter(d=>d.text).length,2,'场景6：写入 2 条词级墓碑');
 console.log('场景6 PASS：批量删除写词级墓碑');
 
+// 场景7：连续两次合并必须保留全部 5 条词级墓碑，不能折叠成 1 条后让词复活
+const mergedAgain=App.mergeWordBankStores(merged,cloudStore);
+assert.strictEqual(mergedAgain.deleted.filter(d=>d.bankId&&d.text).length,5,'场景7：二次合并仍保留 5 条词级墓碑');
+assert.strictEqual(mergedAgain.zh[0].lessons[0].words.length,24,'场景7：二次合并仍为 24 词');
+for(const w of deletedWords){
+  assert.ok(!mergedAgain.zh[0].lessons[0].words.some(x=>x.text===w),'场景7：二次合并后仍不应复活: '+w);
+}
+console.log('场景7 PASS：连续合并仍保留全部词级墓碑');
+
+
+// 场景8：教材词表回填必须尊重词级墓碑（否则删掉的官方词会被重新补到末尾）
+const catBank={id:'bank_cat',name:'四年级上册',source:'custom',presetKey:'',catalogVersions:{},other:[],
+  lessons:[{id:'lesson_pep_g4v1_user_lesson_17',name:'第17课 长城',words:[],createdAt:1,updatedAt:1}],createdAt:1,updatedAt:1};
+const catStore={version:2,catalogVersions:{},deleted:[{lang:'zh',bankId:'bank_cat',lessonId:'lesson_pep_g4v1_user_lesson_17',text:'崇山峻岭',ts:now}],zh:[catBank],en:[]};
+App.getWordBankStore=()=>catStore;
+App.saveWordBankStore=()=>{};
+const catResult=App.applyGrade4Volume1WordList();
+const catLesson=catBank.lessons.find(l=>l.id==='lesson_pep_g4v1_user_lesson_17');
+assert.ok(!catLesson.words.some(w=>w.text==='崇山峻岭'),'场景8：被删的官方词不应被教材词表补回');
+assert.ok(catLesson.words.some(w=>w.text==='盘旋'),'场景8：未删的官方词正常补回');
+console.log('场景8 PASS：教材词表回填尊重词级墓碑');
+
+// 场景9：同名词库合并时不应把已删词从副本并回
+const keepBank={id:'bank_keep',name:'四年级上册',source:'custom',other:[],lessons:[{id:'lesson_17',name:'第17课 长城',words:[{text:'盘旋',hint:''}],createdAt:1,updatedAt:1}],createdAt:1,updatedAt:1};
+const extraBank={id:'bank_extra',name:'四年级上册',source:'custom',other:[],lessons:[{id:'lesson_17x',name:'第17课 长城',words:[{text:'盘旋',hint:''},{text:'崇山峻岭',hint:''}],createdAt:1,updatedAt:1}],createdAt:1,updatedAt:1};
+const dedupeStore={version:2,catalogVersions:{},deleted:[{lang:'zh',bankId:'bank_keep',lessonId:'lesson_17',text:'崇山峻岭',ts:now}],zh:[keepBank,extraBank],en:[]};
+App._dedupeSameNameBanksInStore(dedupeStore);
+assert.strictEqual(dedupeStore.zh.length,1,'场景9：同名库应合并为一个');
+assert.ok(!dedupeStore.zh[0].lessons[0].words.some(w=>w.text==='崇山峻岭'),'场景9：已删词不应从同名词库并回');
+console.log('场景9 PASS：同名词库合并尊重词级墓碑');
+
 console.log('ALL PASS');
