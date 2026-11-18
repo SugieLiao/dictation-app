@@ -166,15 +166,34 @@ function unionBankVersionsService(x, y){
   main.updatedAt = Math.max(Number(x.updatedAt||0), Number(y.updatedAt||0));
   return main;
 }
+function wordTombstoneKeysService(store, lang, bankId, lessonId){
+  const set = new Set();
+  ((store && store.deleted) || []).forEach(d=>{
+    if(!d || d.id || !d.bankId || !d.text) return;
+    if(d.lang !== lang || String(d.bankId) !== String(bankId)) return;
+    if(String(d.lessonId || 'other') !== String(lessonId || 'other')) return;
+    set.add(String(d.text).trim().toLocaleLowerCase());
+  });
+  return set;
+}
 function mergeBankStoresService(a, b){
   const out = {version:2, catalogVersions:{...(b&&b.catalogVersions)||{},...(a&&a.catalogVersions)||{}}, zh:[], en:[], deleted:[]};
-  const deleted = new Map();
+  // 词库级墓碑与词级墓碑分开归并：词级墓碑没有 id，混用同一个 key 会把多条折叠成一条
+  const bankTomb = new Map(), wordTomb = new Map();
   [...((a&&a.deleted)||[]), ...((b&&b.deleted)||[])].forEach(d=>{
-    if(!d || !d.id || !d.lang) return;
-    const k = d.lang + '|' + d.id;
-    if(!deleted.has(k) || Number((deleted.get(k)).ts||0) < Number(d.ts||0)) deleted.set(k, {lang:d.lang, id:String(d.id), ts:Number(d.ts)||0});
+    if(!d || !d.lang) return;
+    if(d.id){
+      const k = d.lang + '|' + d.id;
+      if(!bankTomb.has(k) || Number((bankTomb.get(k)).ts||0) < Number(d.ts||0)) bankTomb.set(k, {lang:d.lang, id:String(d.id), ts:Number(d.ts)||0});
+    }else if(d.bankId && d.text){
+      const k = d.lang + '|' + d.bankId + '|' + (d.lessonId||'other') + '|' + String(d.text).trim().toLocaleLowerCase();
+      const existing = wordTomb.get(k);
+      if(!existing || Number(existing.ts||0) < Number(d.ts||0)){
+        wordTomb.set(k, {lang:d.lang, bankId:String(d.bankId), lessonId:String(d.lessonId||'other'), text:String(d.text), ts:Number(d.ts)||0});
+      }
+    }
   });
-  out.deleted = [...deleted.values()];
+  out.deleted = [...bankTomb.values(), ...wordTomb.values()];
   for(const lang of ['zh','en']){
     const map = new Map();
     [...((b&&b[lang])||[]), ...((a&&a[lang])||[])].forEach(bank=>{
@@ -185,8 +204,23 @@ function mergeBankStoresService(a, b){
       map.set(id, unionBankVersionsService(old, bank));
     });
     out[lang] = [...map.values()].filter(bank=>{
-      const tomb = deleted.get(lang + '|' + bank.id);
+      const tomb = bankTomb.get(lang + '|' + bank.id);
       return !tomb || Number(tomb.ts||0) < Number(bank.updatedAt||0);
+    }).map(bank=>{
+      if(!wordTomb.size) return bank;
+      const filterWords = (list, lessonId)=>{
+        const p = lang + '|' + String(bank.id||'') + '|' + (lessonId||'other') + '|';
+        return (list||[]).filter(w=>{
+          if(!w || !w.text) return false;
+          return !wordTomb.has(p + String(w.text).trim().toLocaleLowerCase());
+        });
+      };
+      bank.other = filterWords(bank.other, 'other');
+      (bank.lessons||[]).forEach(l=>{
+        if(!l) return;
+        l.words = filterWords(l.words, l.id || 'other');
+      });
+      return bank;
     });
   }
   dedupeSameNameBanksService(out);
@@ -204,6 +238,17 @@ function dedupeSameNameBanksService(store){
       const list = groups[name];
       if(list.length < 2) return;
       const countWords = b => { let c=(b.other||[]).length; (b.lessons||[]).forEach(l=>c+=(l.words||[]).length); return c; };
+      // 组内所有词级墓碑按“课文名+词面”汇总，避免选词多的旧库作保留库时把已删词并回来
+      const groupIds = new Set(list.map(b=>String(b.id||'')));
+      const lessonNameById = new Map();
+      list.forEach(b=>(b.lessons||[]).forEach(l=>lessonNameById.set(String(l.id), String(l.name||'').replace(/s+/g,''))));
+      const groupTomb = new Map();
+      ((store.deleted)||[]).forEach(d=>{
+        if(!d || d.id || !d.text || d.lang !== lang || !groupIds.has(String(d.bankId||''))) return;
+        const lname = lessonNameById.get(String(d.lessonId||''));
+        const k = (lname||'') + '|' + String(d.text).trim().toLocaleLowerCase();
+        if(!groupTomb.has(k) || Number(groupTomb.get(k)||0) < Number(d.ts||0)) groupTomb.set(k, Number(d.ts)||0);
+      });
       list.sort((x,y)=>countWords(y)-countWords(x));
       const keep = list[0], now = Date.now();
       const keepLessonMap = new Map();
@@ -213,7 +258,7 @@ function dedupeSameNameBanksService(store){
         (extra.other||[]).forEach(w=>{
           if(!w || !w.text) return;
           const t = String(w.text).toLocaleLowerCase();
-          if(!keepOtherKeys.has(t)){ keep.other.push(w); keepOtherKeys.add(t); }
+          if(!keepOtherKeys.has(t) && !groupTomb.has('|'+t)){ keep.other.push(w); keepOtherKeys.add(t); }
         });
         (extra.lessons||[]).forEach(l=>{
           if(!l) return;
@@ -224,7 +269,7 @@ function dedupeSameNameBanksService(store){
             (l.words||[]).forEach(w=>{
               if(!w || !w.text) return;
               const t = String(w.text).toLocaleLowerCase();
-              if(!keys.has(t)){ target.words.push(w); keys.add(t); }
+              if(!keys.has(t) && !groupTomb.has(k+'|'+t)){ target.words.push(w); keys.add(t); }
             });
             target.updatedAt = now;
           }else{
@@ -238,6 +283,11 @@ function dedupeSameNameBanksService(store){
         if(!(store.deleted||[]).some(d=>d.id===extra.id && d.lang===lang)){
           store.deleted.push({lang:lang, id:extra.id, ts:now});
         }
+      });
+      // 保留库自身已有的同名词也按组内墓碑剔除
+      (keep.lessons||[]).forEach(l=>{
+        const k = String(l.name||'').replace(/s+/g,'');
+        l.words = (l.words||[]).filter(w=>w && w.text && !groupTomb.has(k+'|'+String(w.text).toLocaleLowerCase()));
       });
     });
   }
